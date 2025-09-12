@@ -1,0 +1,86 @@
+export class SPHelpers {
+  private padWithZero(num: number): string {
+    return num < 10 ? `0${num}` : `${num}`;
+  }
+
+  public convertGMTToLocalTime24Hour(gmtDate: string): string {
+    // Create a Date object from the GMT date string
+    const date = new Date(gmtDate); // JavaScript Date will automatically interpret the GMT date
+    // Extract hours, minutes, and seconds in the local time zone
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    // Format the time as HH:mm:ss
+    const formattedTime = `${this.padWithZero(hours)}:${this.padWithZero(
+      minutes
+    )}:${this.padWithZero(seconds)}`;
+    return formattedTime;
+  }
+
+  public convertGMTToLocalTime12Hour(gmtDate: string): string {
+    // Create a Date object from the GMT date string
+    const date = new Date(gmtDate);
+    // Extract hours, minutes, and seconds in the local time zone
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    // Determine AM or PM
+    const ampm = hours >= 12 ? "PM" : "AM";
+    // Convert to 12-hour format
+    hours = hours % 12;
+    if (hours === 0) {
+      hours = 12; // Handle the case where 0 hours is 12 in 12-hour format
+    }
+    // Format the time as hh:mm:ss AM/PM
+    const formattedTime = `${this.padWithZero(hours)}:${this.padWithZero(
+      minutes
+    )}:${this.padWithZero(seconds)} ${ampm}`;
+
+    return formattedTime;
+  }
+
+  // public formatDateToTimeString(date: Date): string {
+  //     const hours = date.getHours().toString().padStart(2, '0');
+  //     const minutes = date.getMinutes().toString().padStart(2, '0');
+  //     return `${hours}:${minutes}`;
+  //   }
+  public convertLocalToGMT(localDate: Date): Date {
+    // Get the time in milliseconds since January 1, 1970, 00:00:00 UTC
+    const utcMilliseconds =
+      localDate.getTime() - localDate.getTimezoneOffset() * 60000;
+
+    // Create a new Date object using the UTC milliseconds
+    const gmtDate = new Date(utcMilliseconds);
+
+    return gmtDate;
+  }
+
+  public setDateWithSelectedTime(date: Date, timeString: string): Date {
+    // Split the time string into hours and minutes
+    const [hours, minutes] = timeString.split(":").map(Number);
+
+    // Set the hours and minutes on the date object
+    date.setHours(hours, minutes, 0, 0); // Setting seconds and milliseconds to 0
+
+    return date;
+  }
+
+  public adjustDateForGMTOffset(dateString: string): string {
+    const myDate = new Date(dateString);
+    const gmtOffset = myDate.getTimezoneOffset(); // Get the offset in minutes
+    // Convert minutes to milliseconds
+    const offsetInMilliseconds = gmtOffset * 60 * 1000;
+
+    // Add the offset to the date
+    const adjustedDate = new Date(myDate.getTime() - offsetInMilliseconds);
+    return adjustedDate.toISOString().split("T")[0];
+  }
+
+  public CamelString(str: string): string {
+    if (!str) return "";
+    return str
+      .split(" ") // Split into words
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()) // Capitalize each word
+      .join(" "); // Join back into a string
+  }
+}

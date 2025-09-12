@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.19.0",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "coral-forms",
+    "libraryId": "1549bfef-6ac7-4301-8cb3-35a7361e02fe",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "coral-forms",
+    "solutionShortDescription": "coral-forms description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

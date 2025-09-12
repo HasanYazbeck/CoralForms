@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "ppe-form-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/ppeForm/PpeFormWebPart.js",
+          "manifest": "./src/webparts/ppeForm/PpeFormWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "PpeFormWebPartStrings": "lib/webparts/ppeForm/loc/{locale}.js"
+  }
+}
