@@ -10,7 +10,7 @@ export interface IAutocompleteOption {
 
 interface IAutocompleteProps<T> {
   onSelectItem?: (item: any | undefined) => void;
-  OnChange?: (selected: IAutocompleteOption | null) => void;
+  // OnChange?: (selected: IAutocompleteOption | null) => void;
   searchResults?: T[];
   options: ICommon[];
   keyId: string;
@@ -43,7 +43,7 @@ export class AutoComplete extends React.Component<
   public render(): React.ReactElement<{}> {
     return (
       <Autocomplete 
-         onChange={(event) => this.props.OnChange}
+        //  onChange={(event) => this.props.OnChange}
       
       value={this.props.options.find((o) => o.label === this.props.value) || null}
         disablePortal

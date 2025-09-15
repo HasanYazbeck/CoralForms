@@ -33,31 +33,31 @@ export default class PpeForm extends React.Component<
     };
   }
 
-  private handleEmployeeChange = (selectedOption: { label: string; id: string }) => {
-    if(selectedOption) {
-const selectedUser = this.props.Users.find((u) => u.id === selectedOption.id);
-      if (selectedUser) {
-        this.setState({
-          selectedEmployeeId:  selectedOption.id,
-          jobTitle: selectedUser.jobTitle || "",
-          department: selectedUser.department || "",
-          // division: selectedUser.division || "",
-          // company: selectedUser.company || ""
-        });
-      }
-    }
-      
-    };
+  // private handleEmployeeChange = (selectedOption: { label: string;id: string;}) => {
+  //   if (selectedOption) {
+  //     const selectedUser = this.props.Users.find(
+  //       (u) => u.id === selectedOption.id
+  //     );
+  //     if (selectedUser) {
+  //       this.setState({
+  //         selectedEmployeeId: selectedOption.id,
+  //         jobTitle: selectedUser.jobTitle || "",
+  //         department: selectedUser.department || "",
+  //         // division: selectedUser.division || "",
+  //         // company: selectedUser.company || ""
+  //       });
+  //     }
+  //   }
+  // };
 
   public render(): React.ReactElement<IPPEForm> {
-
     if (this.props.IsLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <CircularProgress variant="indeterminate" />
-      </div>
-    );
-  }
+      return (
+        <div className={styles.loadingContainer}>
+          <CircularProgress variant="indeterminate" />
+        </div>
+      );
+    }
 
     return (
       <div>
@@ -81,7 +81,7 @@ const selectedUser = this.props.Users.find((u) => u.id === selectedOption.id);
                       label: user.displayName || "",
                       id: user.id,
                     }))}
-                    OnChange={this.handleEmployeeChange}
+                    // OnChange={this.handleEmployeeChange}
                   />
                 </div>
 
