@@ -48,7 +48,7 @@ export class AutoComplete extends React.Component<
       value={this.props.options.find((o) => o.label === this.props.value) || null}
         disablePortal
         options={this.props.options}
-        sx={{ width: 300 }}
+        sx={{ width: 300 , height: 50 }}
         renderInput={(params) => (
           <TextField {...params} label={this.props.label} />
         )}

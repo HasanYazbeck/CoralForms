@@ -13,6 +13,7 @@
   },
   "externals": {},
   "localizedResources": {
-    "PpeFormWebPartStrings": "lib/webparts/ppeForm/loc/{locale}.js"
+    "PpeFormWebPartStrings": "lib/webparts/ppeForm/loc/{locale}.js",
+    "ControlStrings": "node_modules/@pnp/spfx-controls-react/lib/loc/{locale}.js"
   }
 }
