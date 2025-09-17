@@ -178,42 +178,42 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
     }
   }
 
-  public async _getBatchUserImages(): Promise<void> {
-    if (!this._users || this._users.length === 0) return;
+  // public async _getBatchUserImages(): Promise<void> {
+  //   if (!this._users || this._users.length === 0) return;
 
-    const client: MSGraphClientV3 =
-      await this.context.msGraphClientFactory.getClient("3");
-    const batchSize = 20;
+  //   const client: MSGraphClientV3 =
+  //     await this.context.msGraphClientFactory.getClient("3");
+  //   const batchSize = 20;
 
-    for (let i = 0; i < this._users.length; i += batchSize) {
-      const batch = this._users.slice(i, i + batchSize);
-      const batchRequests = batch.map((user, index) => ({
-        id: `${i + index}`, // Keep real index for mapping back
-        method: "GET",
-        url: `/users/${user.id}/photo/$value`,
-      }));
+  //   for (let i = 0; i < this._users.length; i += batchSize) {
+  //     const batch = this._users.slice(i, i + batchSize);
+  //     const batchRequests = batch.map((user, index) => ({
+  //       id: `${i + index}`, // Keep real index for mapping back
+  //       method: "GET",
+  //       url: `/users/${user.id}/photo/$value`,
+  //     }));
 
-      try {
-        const batchResponse = await client
-          .api("/$batch")
-          .post({ requests: batchRequests });
+  //     try {
+  //       const batchResponse = await client
+  //         .api("/$batch")
+  //         .post({ requests: batchRequests });
 
-        batchResponse.responses.forEach((resp: any) => {
-          if (resp.status === 200) {
-            const userIndex = parseInt(resp.id);
-            // Convert base64 or binary body depending on Graph response
-            const imageBytes = resp.body;
-            if (imageBytes) {
-              const byteArray = new Uint8Array(imageBytes);
-              const blob = new Blob([byteArray], { type: "image/jpeg" });
-              this._users[userIndex].profileImageUrl =
-                URL.createObjectURL(blob);
-            }
-          }
-        });
-      } catch (err) {
-        console.error("Batch photo fetch failed:", err);
-      }
-    }
-  }
+  //       batchResponse.responses.forEach((resp: any) => {
+  //         if (resp.status === 200) {
+  //           const userIndex = parseInt(resp.id);
+  //           // Convert base64 or binary body depending on Graph response
+  //           const imageBytes = resp.body;
+  //           if (imageBytes) {
+  //             const byteArray = new Uint8Array(imageBytes);
+  //             const blob = new Blob([byteArray], { type: "image/jpeg" });
+  //             this._users[userIndex].profileImageUrl =
+  //               URL.createObjectURL(blob);
+  //           }
+  //         }
+  //       });
+  //     } catch (err) {
+  //       console.error("Batch photo fetch failed:", err);
+  //     }
+  //   }
+  // }
 }

@@ -23,4 +23,5 @@ export interface IUser {
   profileImageUrl?: string; // for lazy-loaded photo
   isSelected?: boolean;
   manager?: { displayName: string; id: string };
+  company?: string; 
 }

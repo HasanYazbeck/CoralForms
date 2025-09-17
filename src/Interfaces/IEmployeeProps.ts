@@ -1,3 +1,5 @@
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+
 interface IEmployeeProps {
   employeeName: string;
   jobTitle: string;
@@ -12,6 +14,7 @@ enum PPERequestReason {
 }
 
 export interface IPPEForm extends IEmployeeProps{
+  context: WebPartContext
   requestorName: IEmployeeProps;
   dateRequested: Date;
   reasonOfRequest: PPERequestReason;

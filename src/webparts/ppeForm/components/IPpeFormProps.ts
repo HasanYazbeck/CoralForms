@@ -27,4 +27,7 @@ export interface IPpeFormWebPartState {
   Company: string;
   Employee: IPersonaProps[];
   EmployeeId: string | undefined;
+  Submitter: IPersonaProps[],
+  Requester: IPersonaProps[],
+  isReplacementChecked: boolean,
 }

@@ -41,3 +41,27 @@
   text-align: center;
   padding: 20px;
 }
+
+.mt10 {
+  margin-top: 10px !important;
+}
+
+.formHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+
+.formLogo {
+  height: 48px;
+  width: auto;
+}
+.formTitle {
+  font-size: 1.5rem;
+  font-weight: 450;
+  color: var(--bodyText);
+  text-align: center;
+  margin: 0;
+}
