@@ -300,6 +300,11 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
 
           <Separator />
 
+          <div className="mb-2 text-center">
+            <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.05rem' }}>
+              Please complete the table below in the blank spaces; grey spaces are for administrative use only.
+            </small>
+          </div>
 
           <Stack horizontal styles={stackStyles} >
 
@@ -312,9 +317,9 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                     <thead className="thead-light">
                       <tr>
                         <th className="align-items-center">Item</th>
-                        <th className="align-items-center">Required</th>
-                        <th className="align-items-center">Specific Details</th>
-                        <th className="align-items-center" style={{width: 80}}>Qty</th>
+                        <th className="align-items-center table-secondary">Required</th>
+                        <th className="align-items-center table-secondary">Specific Details</th>
+                        <th className="align-items-center table-secondary" style={{width: 80}}>Qty</th>
                         <th className="align-items-center" style={{width: 120}}>Size</th>
                       </tr>
                     </thead>
@@ -324,13 +329,13 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                           <td>
                             <TextField placeholder={`Item ${i}`} underlined={true} />
                           </td>
-                          <td>
+                          <td className="table-secondary">
                             <Checkbox className="align-items-center"/>
                           </td>
-                          <td>
+                          <td className="table-secondary">
                             <TextField placeholder={`Details for item ${i}`} />
                           </td>
-                          <td>
+                          <td className="table-secondary">
                             <TextField placeholder="Qty" underlined={true} />
                           </td>
                           <td>
