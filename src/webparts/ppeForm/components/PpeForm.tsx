@@ -7,9 +7,11 @@ import type { IPpeFormWebPartProps, IPpeFormWebPartState, } from "./IPpeFormProp
 import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
 import { TextField } from '@fluentui/react/lib/TextField';
+import { ComboBox, IComboBoxOption } from '@fluentui/react/lib/ComboBox';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
 import { DetailsList, IColumn, Selection, SelectionMode } from '@fluentui/react';
 import { DatePicker, mergeStyleSets, defaultDatePickerStrings } from '@fluentui/react';
+import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
@@ -19,14 +21,6 @@ import { CommandBar, ICommandBarItemProps } from '@fluentui/react/lib/CommandBar
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
 import styles from "./PpeForm.module.scss";
-
-// Classes
-import { SPCrudOperations } from '../../../Classes/SPCrudOperations';
-import { IUser } from "../../../Interfaces/IUser";
-import { SPHelpers } from '../../../Classes/SPHelpers';
-import { IPPEItem } from "../../../Interfaces/IPPEItem";
-import { IPPEItemDetails } from "../../../Interfaces/IPPEItemDetails";
-import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
 
 const stackStyles: IStackStyles = {
   root: {
@@ -42,8 +36,8 @@ const datePickerStyles = mergeStyleSets({
 
 export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeFormWebPartState> {
 
-  private spCrudOperations: SPCrudOperations;
-  private spHelpers: SPHelpers = new SPHelpers();
+  // private spCrudOperations: SPCrudOperations;
+  // private spHelpers: SPHelpers = new SPHelpers();
   private _selection: Selection;
 
   constructor(props: IPpeFormWebPartProps) {
@@ -58,7 +52,8 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       Submitter: [],
       Requester: [],
       isReplacementChecked: false,
-      PPEItems: [],
+      PPEItems: this.props.PPEItems,
+      PPEItemsDetails: this.props.PPEItemDetails,
       CoralFormsList: { Id: "" },
     };
     this._selection = new Selection();
@@ -153,140 +148,22 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       });
     }
 
-    this.getCoralFormsList();
-    this.getPPEItemsDetails();
-  }
-
-  public getCoralFormsList = async (): Promise<void> => {
-    let result: ICoralFormsList = { Id: "" };
-    try {
-      const searchFormName = "PERSONAL PROTECTIVE EQUIPMENT";
-      const searchEscaped = searchFormName.replace(/'/g, "''");
-      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created` +
-        `&$filter=substringof('${searchEscaped}', Title)`;
-      this.spCrudOperations = new SPCrudOperations(this.props.context.spHttpClient,
-        this.props.context.pageContext.web.absoluteUrl, 'CoralFormsList', query);
-      await this.spCrudOperations._getItemsWithQuery()
-        .then((data) => {
-          data.map((obj) => {
-            if (obj !== undefined) {
-              const createdBy: IUser | undefined = this.props.Users !== undefined && this.props.Users.length > 0 ? this.props.Users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
-              let created: Date | undefined;
-              if (obj.Created !== undefined) {
-                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
-              }
-
-              result = {
-                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-                CreatedBy: createdBy !== undefined ? createdBy : undefined,
-                Created: created !== undefined ? created : undefined,
-                hasInstructionForUse: obj.hasInstructionForUse !== undefined ? obj.hasInstructionForUse : undefined,
-                hasWorkflow: obj.hasWorkflow !== undefined ? obj.hasWorkflow : undefined,
-                Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-              }
-            }
-          });
-          this.setState({ CoralFormsList: result });
-        })
-        .catch(error => {
-          console.error('An error has occurred while retrieving items!', error);
-        });
-    } catch (error) {
-      console.error('An error has occurred!', error);
-    }
-  }
-
-  public getPPEItems = async (): Promise<void> => {
-    const result: IPPEItem[] = [];
-    try {
-      const query: string = `?$select=Id,Title,Required,hasInstructionForUse,hasWorkflow,Created`;
-      // `PPEDetails/Id,PPEDetails/Title&$expand=PPEDetails`;
-      this.spCrudOperations = new SPCrudOperations(this.props.context.spHttpClient,
-        this.props.context.pageContext.web.absoluteUrl, 'PPEItems', query);
-      await this.spCrudOperations._getItemsWithQuery()
-        .then((data) => {
-          data.map((obj) => {
-            if (obj !== undefined) {
-              const createdBy: IUser | undefined = this.props.Users !== undefined && this.props.Users.length > 0 ? this.props.Users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
-              let created: Date | undefined;
-              if (obj.Created !== undefined) {// Convert string to Date first
-                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
-              }
-              const temp: IPPEItem = {
-                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-                CreatedBy: createdBy !== undefined ? createdBy : undefined,
-                Created: created !== undefined ? created : undefined,
-                // hasInstructionForUse: obj.hasInstructionForUse !== undefined ? obj.hasInstructionForUse : undefined,
-                // hasWorkflow: obj.hasWorkflow !== undefined ? obj.hasWorkflow : undefined,
-                Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-                Required: obj.Required !== undefined ? obj.Required : undefined,
-                // PPEDetails: obj.PPEDetails !== undefined ? obj.PPEDetails : undefined,
-              }
-
-
-              console.log(temp);
-              // Get PPEDetails for each one (Types, Sizez )
-              result.push(temp);
-            }
-          });
-          this.setState({ PPEItems: result });
-        })
-        .catch(error => {
-          console.error('An error has occurred while retrieving items!', error);
-        });
-    } catch (error) {
-      console.error('An error has occurred!', error);
-    }
-  }
-
-  public getPPEItemsDetails = async (): Promise<void> => {
-    const result: IPPEItemDetails[] = [];
-    try {
-      const query: string = `?$select=Id,Title,PPEItem,Types,Sizes,Created,` +
-        `PPEItem/Id,PPEItem/Title,PPEItem/Required,Types/Id,Types/Title&$expand=PPEItem,Types`;
-      this.spCrudOperations = new SPCrudOperations(this.props.context.spHttpClient,
-        this.props.context.pageContext.web.absoluteUrl, 'PPEItemsDetails', query);
-      await this.spCrudOperations._getItemsWithQuery()
-        .then((data) => {
-          data.map((obj) => {
-            if (obj !== undefined) {
-              const createdBy: IUser | undefined = this.props.Users !== undefined && this.props.Users.length > 0 ? this.props.Users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
-              let created: Date | undefined;
-              if (obj.Created !== undefined) {// Convert string to Date first
-                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
-              }
-              const temp: IPPEItemDetails = {
-                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-                CreatedBy: createdBy !== undefined ? createdBy : undefined,
-                Created: created !== undefined ? created : undefined,
-                PPEItem: obj.PPEItem !== undefined ? {
-                  Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
-                  Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
-
-                  // Required: obj.PPEItem.Required !== undefined ? obj.PPEItem.Required : undefined,
-                  // Brands: obj.PPEItem.Brands !== undefined && obj.PPEItem.Brands !== null ? obj.PPEItem.Brands.split(",") : undefined,
-
-                } : undefined,
-                Types: obj.Types !== undefined && obj.Types !== null ? obj.Types : undefined,
-                Sizes: obj.Sizes !== undefined && obj.Sizes !== null ? obj.Sizes.split(",") : undefined,
-              };
-              console.log(temp);
-              // Get PPEDetails for each one (Types, Sizez )
-              result.push(temp);
-            }
-          });
-          this.setState({ PPEItems: result });
-        })
-        .catch(error => {
-          console.error('An error has occurred while retrieving items!', error);
-        });
-    } catch (error) {
-      console.error('An error has occurred!', error);
-    }
+    // await this.getCoralFormsList();
+    // await this.getPPEItemsDetails();
   }
 
   public render(): React.ReactElement<IPpeFormWebPartProps> {
+
+      if (this.props.IsLoading) {
+        return (
+          <div className={styles.loadingContainer}>
+            <Spinner label={"Preparing PPE form — fresh items coming right up!"} size={SpinnerSize.large} />
+          </div>
+        );
+      }
+
     const delayResults = false;
+  
     const logoUrl = `${this.props.context.pageContext.web.absoluteUrl}/SiteAssets/coral-logo.png`;
     const peopleList: IPersonaProps[] = this.props.Users.map(user => ({
       text: user.displayName || "",
@@ -349,13 +226,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       return input;
     }
 
-    if (this.props.IsLoading) {
-      return (
-        <div className={styles.loadingContainer}>
-          {/* <CircularProgress variant="indeterminate" /> */}
-        </div>
-      );
-    }
+
     return (
       <div className={styles.ppeFormBackground} >
         <form>
@@ -525,6 +396,13 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                   // Decorate items with __index so Selection can map back
                   const items = rows.map((r, idx) => ({ ...r, __index: idx } as any));
 
+                  // Build distinct options for the Item combobox from PPEItems (IPPEItemDetails.Title or Title)
+                  const itemTitles: string[] = (this.props.PPEItemDetails || []).map((p: any) => {
+                    return (p && p.PPEItem && p.PPEItem.Title) ? p.PPEItem.Title : (p && p.Title ? p.Title : undefined);
+                  }).filter(Boolean) as string[];
+                  const distinctTitles = Array.from(new Set(itemTitles));
+                  const itemOptions: IComboBoxOption[] = distinctTitles.map(t => ({ key: t, text: t }));
+
                   const columns: IColumn[] = [
                     {
                       key: 'columnItem',
@@ -532,7 +410,18 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                       fieldName: 'Item',
                       minWidth: 150,
                       isResizable: true,
-                      onRender: (item: any) => <TextField value={item.Item} onChange={(ev, val) => this.onRowChange(item.__index, 'Item', val || '')} underlined={true} />
+                      onRender: (item: any) => (
+                        <ComboBox
+                          allowFreeform
+                          autoComplete="on"
+                          selectedKey={item.Item || undefined}
+                          options={itemOptions}
+                          onChange={(ev, option, index, value) => {
+                            const newVal = option ? option.key : value;
+                            this.onRowChange(item.__index, 'Item', newVal || '');
+                          }}
+                        />
+                      )
                     },
                     {
                       key: 'columnBrand',

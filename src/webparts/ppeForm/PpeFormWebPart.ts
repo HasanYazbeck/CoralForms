@@ -7,44 +7,43 @@ import { IReadonlyTheme, ThemeProvider, ThemeChangedEventArgs } from '@microsoft
 
 import PpeForm from "./components/PpeForm";
 import { IPpeFormWebPartProps } from "./components/IPpeFormProps";
-import { IUser } from "../../Interfaces/IUser";
 import { IGraphResponse, IGraphUserResponse } from "../../Interfaces/ICommon";
+
+import { IUser } from "../../Interfaces/IUser";
+import { SPHelpers } from '../../Classes/SPHelpers';
+import { IPPEItem } from "../../Interfaces/IPPEItem";
+import { IPPEItemDetails } from "../../Interfaces/IPPEItemDetails";
+import { ICoralFormsList } from "../../Interfaces/ICoralFormsList";
+import { SPCrudOperations } from "../../Classes/SPCrudOperations";
 
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
+  private spCrudOperations: SPCrudOperations;
+  private spHelpers: SPHelpers = new SPHelpers();
   private _isDarkTheme: boolean = false;
   private _themeProvider: ThemeProvider;
   private _themeVariant: IReadonlyTheme | undefined;
 
   private _users: IUser[] = [];
+  private _ppeItems: IPPEItem[] = [];
+  private _ppeItemsDetails: IPPEItemDetails[] = [];
+  private _coralFormsList: ICoralFormsList = { Id: "" };
   private _hasFetchedUsers: boolean = false;
   private _isLoading: boolean = true;
 
-  public render(): void {
-
-    const element: React.ReactElement<IPpeFormWebPartProps> =
-      React.createElement(PpeForm, {
-        context: this.context,
-        Users: this._users,
-        IsLoading: this._isLoading,
-        ThemeColor: this._themeVariant?.palette?.themePrimary,
-        IsDarkTheme: this._isDarkTheme, 
-        HasTeamsContext: !!this.context.sdks.microsoftTeams,
-         // EnvironmentMessage: this._environmentMessage,
-      });
-
-    ReactDom.render(element, this.domElement);
-  }
 
   protected async onInit(): Promise<void> {
     await super.onInit();
-
     if (!this._hasFetchedUsers) {
 
       this._isLoading = true;
       this.render(); // show spinner before data loads
 
       await this._getUsers();
+      // await this.getPPEItems();
+      await this.getCoralFormsList();
+      await this.getPPEItemsDetails();
+      
       // await this._getBatchUserImages();
       this._hasFetchedUsers = true;
 
@@ -215,4 +214,154 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
   //     }
   //   }
   // }
+
+  public getCoralFormsList = async (): Promise<void> => {
+    let result: ICoralFormsList = { Id: "" };
+    try {
+      const searchFormName = "PERSONAL PROTECTIVE EQUIPMENT";
+      const searchEscaped = searchFormName.replace(/'/g, "''");
+      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created` +
+        `&$filter=substringof('${searchEscaped}', Title)`;
+      this.spCrudOperations = new SPCrudOperations(this.context.spHttpClient,
+        this.context.pageContext.web.absoluteUrl, 'CoralFormsList', query);
+      await this.spCrudOperations._getItemsWithQuery()
+        .then((data) => {
+          data.map((obj) => {
+            if (obj !== undefined) {
+              const createdBy: IUser | undefined = this._users !== undefined && this._users.length > 0 ? this._users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
+              let created: Date | undefined;
+              if (obj.Created !== undefined) {
+                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
+              }
+
+              result = {
+                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+                CreatedBy: createdBy !== undefined ? createdBy : undefined,
+                Created: created !== undefined ? created : undefined,
+                hasInstructionForUse: obj.hasInstructionForUse !== undefined ? obj.hasInstructionForUse : undefined,
+                hasWorkflow: obj.hasWorkflow !== undefined ? obj.hasWorkflow : undefined,
+                Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+              }
+            }
+          });
+          this._coralFormsList = result;
+          // this.setState({ CoralFormsList: result });
+        })
+        .catch(error => {
+          console.error('An error has occurred while retrieving items!', error);
+        });
+    } catch (error) {
+      console.error('An error has occurred!', error);
+    }
+  }
+
+  public getPPEItems = async (): Promise<void> => {
+    const result: IPPEItem[] = [];
+    try {
+      const query: string = `?$select=Id,Title,Required,hasInstructionForUse,hasWorkflow,Created`;
+      // `PPEDetails/Id,PPEDetails/Title&$expand=PPEDetails`;
+      this.spCrudOperations = new SPCrudOperations(this.context.spHttpClient,
+        this.context.pageContext.web.absoluteUrl, 'PPEItems', query);
+      await this.spCrudOperations._getItemsWithQuery()
+        .then((data) => {
+          data.map((obj) => {
+            if (obj !== undefined) {
+              const createdBy: IUser | undefined = this._users !== undefined && this._users.length > 0 ? this._users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
+              let created: Date | undefined;
+              if (obj.Created !== undefined) {// Convert string to Date first
+                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
+              }
+              const temp: IPPEItem = {
+                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+                CreatedBy: createdBy !== undefined ? createdBy : undefined,
+                Created: created !== undefined ? created : undefined,
+                // hasInstructionForUse: obj.hasInstructionForUse !== undefined ? obj.hasInstructionForUse : undefined,
+                // hasWorkflow: obj.hasWorkflow !== undefined ? obj.hasWorkflow : undefined,
+                Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+                Required: obj.Required !== undefined ? obj.Required : undefined,
+                // PPEDetails: obj.PPEDetails !== undefined ? obj.PPEDetails : undefined,
+              }
+
+
+              console.log(temp);
+              // Get PPEDetails for each one (Types, Sizez )
+              result.push(temp);
+            }
+          });
+          this._ppeItems = result;
+          // this.setState({ PPEItems: result });
+        })
+        .catch(error => {
+          console.error('An error has occurred while retrieving items!', error);
+        });
+    } catch (error) {
+      console.error('An error has occurred!', error);
+    }
+  }
+
+  public getPPEItemsDetails = async (): Promise<void> => {
+    const result: IPPEItemDetails[] = [];
+    try {
+      const query: string = `?$select=Id,Title,PPEItem,Types,Sizes,Created,` +
+        `PPEItem/Id,PPEItem/Title,Types/Id,Types/Title&$expand=PPEItem,Types`;
+      this.spCrudOperations = new SPCrudOperations(this.context.spHttpClient,
+        this.context.pageContext.web.absoluteUrl, 'PPEItemsDetails', query);
+      await this.spCrudOperations._getItemsWithQuery()
+        .then((data) => {
+          data.map((obj) => {
+            if (obj !== undefined) {
+              const createdBy: IUser | undefined = this._users !== undefined && this._users.length > 0 ? this._users.filter(user => user.id.toString() === obj.AuthorId.toString())[0] : undefined;
+              let created: Date | undefined;
+              if (obj.Created !== undefined) {// Convert string to Date first
+                created = new Date(this.spHelpers.adjustDateForGMTOffset(obj.Created));
+              }
+              const temp: IPPEItemDetails = {
+                Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+                CreatedBy: createdBy !== undefined ? createdBy : undefined,
+                Created: created !== undefined ? created : undefined,
+                PPEItem: obj.PPEItem !== undefined ? {
+                  Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
+                  Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
+
+                  // Required: obj.PPEItem.Required !== undefined ? obj.PPEItem.Required : undefined,
+                  // Brands: obj.PPEItem.Brands !== undefined && obj.PPEItem.Brands !== null ? obj.PPEItem.Brands.split(",") : undefined,
+
+                } : undefined,
+                Types: obj.Types !== undefined && obj.Types !== null ? obj.Types : undefined,
+                Sizes: obj.Sizes !== undefined && obj.Sizes !== null ? obj.Sizes.split(",") : undefined,
+              };
+              // console.log(temp);
+              // Get PPEDetails for each one (Types, Sizez )
+              result.push(temp);
+            }
+          });
+          this._ppeItemsDetails = result;
+          // this.setState({ PPEItems: result });
+        })
+        .catch(error => {
+          console.error('An error has occurred while retrieving items!', error);
+        });
+    } catch (error) {
+      console.error('An error has occurred!', error);
+    }
+  }
+
+    public render(): void {
+
+    const element: React.ReactElement<IPpeFormWebPartProps> =
+      React.createElement(PpeForm, {
+        context: this.context,
+        Users: this._users,
+        IsLoading: this._isLoading,
+        ThemeColor: this._themeVariant?.palette?.themePrimary,
+        IsDarkTheme: this._isDarkTheme,
+        HasTeamsContext: !!this.context.sdks.microsoftTeams,
+        PPEItems: this._ppeItems,
+        CoralFormsList: this._coralFormsList,
+        PPEItemDetails: this._ppeItemsDetails,
+      });
+
+    ReactDom.render(element, this.domElement);
+  }
+  
 }
