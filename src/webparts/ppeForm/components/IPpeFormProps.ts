@@ -1,9 +1,11 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IUser } from "../../../Interfaces/IUser";
 import { IPersonaProps } from "@fluentui/react";
+import { IPPEItem } from "../../../Interfaces/IPPEItem";
+import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
 
 export interface IPpeFormWebPartProps {
-  Context: WebPartContext;
+  context: WebPartContext;
   Users: IUser[];
   IsLoading?: Boolean;
   ThemeColor: string | undefined;
@@ -30,4 +32,7 @@ export interface IPpeFormWebPartState {
   Submitter: IPersonaProps[],
   Requester: IPersonaProps[],
   isReplacementChecked: boolean,
+  PPEItems: IPPEItem[];
+  CoralFormsList: ICoralFormsList;
+  PPEItemsRows?: { Item: string; Brands?: string; Required: boolean; Details: string; Qty: string; Size: string }[];
 }

@@ -1,25 +1,9 @@
-
+import {IUser} from './IUser'; 
+  
+  
   export interface ICommon {
     id: string | undefined;
     label?: string;
-  }
-
-  export type IDeviceType = {
-    Id?: string | undefined;
-    Title?: string | undefined;
-  }
-
-  export type IDeviceCategory = {
-    Id?: string | undefined;
-    Title?: string | undefined;
-    DeviceTypes?: IDeviceType;
-  }
-
-  export type IDevice = {
-    Id?: string | undefined;
-    Title?: string | undefined;
-    DeviceType?: IDeviceType | undefined;
-    DeviceCategory?: IDeviceCategory | undefined;
   }
 
   export interface DateRange {
@@ -45,3 +29,20 @@
     id: string;
   };
 }
+
+ export type FileWithPreview = {
+    File: File;
+    Preview?: string;
+    Id: string;
+  };
+
+  export interface SPListItem {
+    Id: string;
+    Title?: string;
+    Created?: Date | undefined;
+    CreatedBy?: IUser | undefined;
+    Modified?: Date | undefined;
+    ModifiedBy?: IUser | undefined;
+    Attachments?: FileWithPreview[] | undefined;
+    // [key: string]: any; // for other dynamic fields
+  };

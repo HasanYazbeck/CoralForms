@@ -13,7 +13,6 @@ import { IGraphResponse, IGraphUserResponse } from "../../Interfaces/ICommon";
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
   private _isDarkTheme: boolean = false;
-  // private _environmentMessage: string = '';
   private _themeProvider: ThemeProvider;
   private _themeVariant: IReadonlyTheme | undefined;
 
@@ -21,11 +20,11 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
   private _hasFetchedUsers: boolean = false;
   private _isLoading: boolean = true;
 
-
   public render(): void {
+
     const element: React.ReactElement<IPpeFormWebPartProps> =
       React.createElement(PpeForm, {
-        Context: this.context,
+        context: this.context,
         Users: this._users,
         IsLoading: this._isLoading,
         ThemeColor: this._themeVariant?.palette?.themePrimary,
