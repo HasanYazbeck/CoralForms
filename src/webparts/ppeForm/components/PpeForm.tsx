@@ -8,6 +8,7 @@ import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
 import { TextField } from '@fluentui/react/lib/TextField';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
+import { DetailsList, IColumn, Selection, SelectionMode } from '@fluentui/react';
 import { DatePicker, mergeStyleSets, defaultDatePickerStrings } from '@fluentui/react';
 import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
@@ -43,6 +44,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
 
   private spCrudOperations: SPCrudOperations;
   private spHelpers: SPHelpers = new SPHelpers();
+  private _selection: Selection;
 
   constructor(props: IPpeFormWebPartProps) {
     super(props);
@@ -59,6 +61,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       PPEItems: [],
       CoralFormsList: { Id: "" },
     };
+    this._selection = new Selection();
   }
 
   // Dynamic table rows for items requested
@@ -73,15 +76,17 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
 
   private deleteSelectedRows = () => {
     const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? [...this.state.PPEItemsRows] : [];
-    const filtered = rows.filter(r => !r.Selected);
-    this.setState({ PPEItemsRows: filtered });
+    const selectedIndices = this._selection ? this._selection.getSelectedIndices() : [];
+    if (selectedIndices && selectedIndices.length > 0) {
+      // remove items by indices
+      const filtered = rows.filter((r, idx) => selectedIndices.indexOf(idx) === -1);
+      this._selection.setAllSelected(false);
+      this.setState({ PPEItemsRows: filtered });
+    } else {
+      const filtered = rows.filter(r => !r.Selected);
+      this.setState({ PPEItemsRows: filtered });
+    }
   }
-
-  // private removeRow = (index: number) => {
-  //   const rows = this.state.PPEItemsRows ? [...this.state.PPEItemsRows] : [];
-  //   rows.splice(index, 1);
-  //   this.setState({ PPEItemsRows: rows });
-  // }
 
   private onRowChange = (index: number, field: string, value: any) => {
     // Ensure we have a rows array to update (handles the fallback visible row)
@@ -352,7 +357,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       );
     }
     return (
-      <div>
+      <div className={styles.ppeFormBackground} >
         <form>
           <div className={styles.formHeader}>
             <img src={logoUrl} alt="Logo" className={styles.formLogo} />
@@ -513,52 +518,81 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                   return <CommandBar items={commandBarItems} styles={{ root: { marginBottom: 8 } }} />;
                 })()}
 
-                <div className="table-responsive">
-                  <table id="itemsTable" className="table table-bordered">
-                    <thead className="thead-light">
-                      <tr>
-                        <th className="align-items-center text-center" style={{ width: 80 }}>Select</th>
-                        <th className="align-items-center">Item</th>
-                        <th className="text-center">Brand</th>
-                        <th className="text-center align-middle justify-content-center">Required</th>
-                        <th className="">Specific Details</th>
-                        <th className="text-center align-middle" style={{ width: 80 }}>Qty</th>
-                        <th className="text-center align-items-center" style={{ width: 120 }}>Size</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const defaultRows = [this.createEmptyRow()];
-                        const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? this.state.PPEItemsRows : defaultRows;
-                        return rows.map((row, i) => (
-                          <tr key={i}>
-                              <td className="text-center align-middle">
-                                <input type="checkbox" checked={!!row.Selected} onChange={(ev) => this.onRowChange(i, 'Selected', ev.currentTarget.checked)} />
-                              </td>
-                              <td>
-                                <TextField value={row.Item} onChange={(ev, val) => this.onRowChange(i, 'Item', val || '')} underlined={true} />
-                              </td>
-                              <td>
-                                <TextField value={row.Brands || ''} onChange={(ev, val) => this.onRowChange(i, 'Brands', val || '')} underlined={true} />
-                              </td>
-                              <td className={`table-secondary text-center align-middle ${styles["justify-items-center"]}`}>
-                                <Checkbox checked={!!row.Required} onChange={(ev, checked) => this.onRowChange(i, 'Required', !!checked)} />
-                              </td>
-                              <td className="table-secondary">
-                                <TextField value={row.Details} onChange={(ev, val) => this.onRowChange(i, 'Details', val || '')} underlined={true} />
-                              </td>
-                              <td className="table-secondary text-center align-middle">
-                                <TextField value={row.Qty} onChange={(ev, val) => this.onRowChange(i, 'Qty', val || '')} underlined={true} />
-                              </td>
-                              <td>
-                                <TextField value={row.Size} onChange={(ev, val) => this.onRowChange(i, 'Size', val || '')} underlined={true} />
-                              </td>
-                            </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
+                {(() => {
+                  const defaultRows = [this.createEmptyRow()];
+                  const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? this.state.PPEItemsRows : defaultRows;
+
+                  // Decorate items with __index so Selection can map back
+                  const items = rows.map((r, idx) => ({ ...r, __index: idx } as any));
+
+                  const columns: IColumn[] = [
+                    {
+                      key: 'columnItem',
+                      name: 'Item',
+                      fieldName: 'Item',
+                      minWidth: 150,
+                      isResizable: true,
+                      onRender: (item: any) => <TextField value={item.Item} onChange={(ev, val) => this.onRowChange(item.__index, 'Item', val || '')} underlined={true} />
+                    },
+                    {
+                      key: 'columnBrand',
+                      name: 'Brand',
+                      fieldName: 'Brands',
+                      minWidth: 120,
+                      isResizable: true,
+                      onRender: (item: any) => <TextField value={item.Brands || ''} onChange={(ev, val) => this.onRowChange(item.__index, 'Brands', val || '')} underlined={true} />
+                    },
+                    {
+                      key: 'columnRequired',
+                      name: 'Required',
+                      className: `text-center align-middle ${styles.justifyItemsCenter}`,
+                      fieldName: 'Required',
+                      minWidth: 90,
+                      maxWidth: 120,
+                      isResizable: false,
+                      onRender: (item: any) => <div className={`table-secondary ${styles.justifyItemsCenter}`}><Checkbox checked={!!item.Required} onChange={(ev, checked) => this.onRowChange(item.__index, 'Required', !!checked)} /></div>
+                    },
+                    {
+                      key: 'columnDetails',
+                      name: 'Specific Details',
+                      fieldName: 'Details',
+                      minWidth: 180,
+                      isResizable: true,
+                      onRender: (item: any) => <div className="table-secondary"><TextField value={item.Details} onChange={(ev, val) => this.onRowChange(item.__index, 'Details', val || '')} underlined={true} /></div>
+                    },
+                    {
+                      key: 'columnQty',
+                      name: 'Qty',
+                      fieldName: 'Qty',
+                      minWidth: 70,
+                      maxWidth: 90,
+                      isResizable: false,
+                      onRender: (item: any) => <div className="table-secondary text-center align-middle"><TextField value={item.Qty} onChange={(ev, val) => this.onRowChange(item.__index, 'Qty', val || '')} underlined={true} /></div>
+                    },
+                    {
+                      key: 'columnSize',
+                      name: 'Size',
+                      fieldName: 'Size',
+                      minWidth: 100,
+                      maxWidth: 140,
+                      isResizable: true,
+                      onRender: (item: any) => <TextField value={item.Size} onChange={(ev, val) => this.onRowChange(item.__index, 'Size', val || '')} underlined={true} />
+                    }
+                  ];
+
+                  return (
+                    <DetailsList
+                      items={items}
+                      columns={columns}
+                      selection={this._selection}
+                      selectionMode={SelectionMode.multiple}
+                      setKey="ppeItemsList"
+                      layoutMode={0}
+                      isHeaderVisible={true}
+                      className={styles.detailsListHeaderCenter}
+                    />
+                  );
+                })()}
               </div>
             </div>
 

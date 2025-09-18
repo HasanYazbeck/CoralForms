@@ -66,6 +66,29 @@
   margin: 0;
 }
 
-.justify-items-center {
+.justifyItemsCenter {
   justify-items: center !important;
+}
+
+/* Center text in Fluent UI DetailsList headers when applied to the DetailsList */
+.detailsListHeaderCenter {
+  /* Targets the header cell wrapper */
+  .ms-DetailsHeader-cell {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* Targets the header name label */
+  .ms-DetailsHeader-cellName {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.ppeFormBackground {
+  background-color: #e1e1e0c2 !important;
+  padding: 20px;
+  border-radius: 8px;
 }
