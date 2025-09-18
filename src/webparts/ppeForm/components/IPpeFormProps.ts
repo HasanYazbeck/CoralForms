@@ -34,5 +34,5 @@ export interface IPpeFormWebPartState {
   isReplacementChecked: boolean,
   PPEItems: IPPEItem[];
   CoralFormsList: ICoralFormsList;
-  PPEItemsRows?: { Item: string; Brands?: string; Required: boolean; Details: string; Qty: string; Size: string }[];
+  PPEItemsRows?: { Item: string; Brands?: string; Required: boolean; Details: string; Qty: string; Size: string; Selected?: boolean }[];
 }

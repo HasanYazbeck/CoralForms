@@ -12,6 +12,7 @@ import { DatePicker, mergeStyleSets, defaultDatePickerStrings } from '@fluentui/
 import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
+import { CommandBar, ICommandBarItemProps } from '@fluentui/react/lib/CommandBar';
 // import CircularProgress from "@mui/material/CircularProgress";
 
 // Styles
@@ -61,7 +62,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
   }
 
   // Dynamic table rows for items requested
-  private createEmptyRow = () => ({ Item: '', Brands: '', Required: false, Details: '', Qty: '', Size: '' });
+  private createEmptyRow = () => ({ Item: '', Brands: '', Required: false, Details: '', Qty: '', Size: '', Selected: false });
 
   private addRow = () => {
     // If PPEItemsRows already exists use it; otherwise start from the currently visible default row
@@ -70,11 +71,17 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
     this.setState({ PPEItemsRows: existing });
   }
 
-  private removeRow = (index: number) => {
-    const rows = this.state.PPEItemsRows ? [...this.state.PPEItemsRows] : [];
-    rows.splice(index, 1);
-    this.setState({ PPEItemsRows: rows });
+  private deleteSelectedRows = () => {
+    const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? [...this.state.PPEItemsRows] : [];
+    const filtered = rows.filter(r => !r.Selected);
+    this.setState({ PPEItemsRows: filtered });
   }
+
+  // private removeRow = (index: number) => {
+  //   const rows = this.state.PPEItemsRows ? [...this.state.PPEItemsRows] : [];
+  //   rows.splice(index, 1);
+  //   this.setState({ PPEItemsRows: rows });
+  // }
 
   private onRowChange = (index: number, field: string, value: any) => {
     // Ensure we have a rows array to update (handles the fallback visible row)
@@ -281,7 +288,7 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
       secondaryText: user.email || "",
       id: user.id,
     }));
-    const themeColor = this.props.ThemeColor || DefaultPalette.themePrimary;
+    // const themeColor = this.props.ThemeColor || DefaultPalette.themePrimary;
     const filterPromise = (personasToReturn: IPersonaProps[]): IPersonaProps[] | Promise<IPersonaProps[]> => {
       if (delayResults) {
         return convertResultsToPromise(personasToReturn);
@@ -487,24 +494,36 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
 
             <div className="row">
               <div className="form-group col-md-12">
-                <div className="d-flex justify-content-end mb-2">
-                  <button type="button" className="btn btn-sm" onClick={this.addRow}
-                    style={{ backgroundColor: themeColor, borderColor: themeColor, color: '#fff' }}>
-                    Add Item
-                  </button>
-                </div>
+                {(() => {
+                  const commandBarItems: ICommandBarItemProps[] = [
+                    {
+                      key: 'addItem',
+                      text: 'Add Item',
+                      iconProps: { iconName: 'Add' },
+                      onClick: this.addRow,
+                    },
+                    {
+                      key: 'deleteSelected',
+                      text: 'Delete',
+                      iconProps: { iconName: 'Delete' },
+                      onClick: this.deleteSelectedRows,
+                    }
+                  ];
+
+                  return <CommandBar items={commandBarItems} styles={{ root: { marginBottom: 8 } }} />;
+                })()}
 
                 <div className="table-responsive">
                   <table id="itemsTable" className="table table-bordered">
                     <thead className="thead-light">
                       <tr>
+                        <th className="align-items-center text-center" style={{ width: 80 }}>Select</th>
                         <th className="align-items-center">Item</th>
                         <th className="text-center">Brand</th>
                         <th className="text-center align-middle justify-content-center">Required</th>
                         <th className="">Specific Details</th>
                         <th className="text-center align-middle" style={{ width: 80 }}>Qty</th>
                         <th className="text-center align-items-center" style={{ width: 120 }}>Size</th>
-                        <th className="align-items-center text-center" style={{ width: 80 }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -513,28 +532,28 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
                         const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? this.state.PPEItemsRows : defaultRows;
                         return rows.map((row, i) => (
                           <tr key={i}>
-                            <td>
-                              <TextField value={row.Item} onChange={(ev, val) => this.onRowChange(i, 'Item', val || '')} underlined={true} />
-                            </td>
-                            <td>
-                              <TextField value={row.Brands || ''} onChange={(ev, val) => this.onRowChange(i, 'Brands', val || '')} underlined={true} />
-                            </td>
-                            <td className={`table-secondary text-center align-middle ${styles["justify-items-center"]}`}>
-                              <Checkbox checked={!!row.Required} onChange={(ev, checked) => this.onRowChange(i, 'Required', !!checked)} />
-                            </td>
-                            <td className="table-secondary">
-                              <TextField value={row.Details} onChange={(ev, val) => this.onRowChange(i, 'Details', val || '')} underlined={true} />
-                            </td>
-                            <td className="table-secondary text-center align-middle">
-                              <TextField value={row.Qty} onChange={(ev, val) => this.onRowChange(i, 'Qty', val || '')} underlined={true} />
-                            </td>
-                            <td>
-                              <TextField value={row.Size} onChange={(ev, val) => this.onRowChange(i, 'Size', val || '')} underlined={true} />
-                            </td>
-                            <td className="text-center align-middle">
-                              <button type="button" className="btn btn-link btn-sm text-danger" onClick={() => this.removeRow(i)}>Remove</button>
-                            </td>
-                          </tr>
+                              <td className="text-center align-middle">
+                                <input type="checkbox" checked={!!row.Selected} onChange={(ev) => this.onRowChange(i, 'Selected', ev.currentTarget.checked)} />
+                              </td>
+                              <td>
+                                <TextField value={row.Item} onChange={(ev, val) => this.onRowChange(i, 'Item', val || '')} underlined={true} />
+                              </td>
+                              <td>
+                                <TextField value={row.Brands || ''} onChange={(ev, val) => this.onRowChange(i, 'Brands', val || '')} underlined={true} />
+                              </td>
+                              <td className={`table-secondary text-center align-middle ${styles["justify-items-center"]}`}>
+                                <Checkbox checked={!!row.Required} onChange={(ev, checked) => this.onRowChange(i, 'Required', !!checked)} />
+                              </td>
+                              <td className="table-secondary">
+                                <TextField value={row.Details} onChange={(ev, val) => this.onRowChange(i, 'Details', val || '')} underlined={true} />
+                              </td>
+                              <td className="table-secondary text-center align-middle">
+                                <TextField value={row.Qty} onChange={(ev, val) => this.onRowChange(i, 'Qty', val || '')} underlined={true} />
+                              </td>
+                              <td>
+                                <TextField value={row.Size} onChange={(ev, val) => this.onRowChange(i, 'Size', val || '')} underlined={true} />
+                              </td>
+                            </tr>
                         ));
                       })()}
                     </tbody>
