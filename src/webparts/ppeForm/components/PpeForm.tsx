@@ -64,9 +64,10 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
   private createEmptyRow = () => ({ Item: '', Brands: '', Required: false, Details: '', Qty: '', Size: '' });
 
   private addRow = () => {
-    const rows = this.state.PPEItemsRows ? [...this.state.PPEItemsRows] : [];
-    rows.push(this.createEmptyRow());
-    this.setState({ PPEItemsRows: rows });
+    // If PPEItemsRows already exists use it; otherwise start from the currently visible default row
+    const existing = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? [...this.state.PPEItemsRows] : [this.createEmptyRow()];
+    existing.push(this.createEmptyRow());
+    this.setState({ PPEItemsRows: existing });
   }
 
   private removeRow = (index: number) => {
@@ -76,9 +77,13 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
   }
 
   private onRowChange = (index: number, field: string, value: any) => {
-    const rows = this.state.PPEItemsRows ? [...this.state.PPEItemsRows] : [];
-    if (!rows[index]) return;
-    // @ts-ignore
+    // Ensure we have a rows array to update (handles the fallback visible row)
+    const rows = this.state.PPEItemsRows && this.state.PPEItemsRows.length > 0 ? [...this.state.PPEItemsRows] : [this.createEmptyRow()];
+    // Grow array if needed
+    while (rows.length <= index) {
+      rows.push(this.createEmptyRow());
+    }
+    // @ts-ignore - dynamic field write
     rows[index][field] = value;
     this.setState({ PPEItemsRows: rows });
   }
@@ -389,13 +394,10 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
               <div className="form-group col-md-6">
                 <TextField label="Job Title"
                   value={this.state.JobTitle} />
-
               </div>
 
               <div className="form-group col-md-6">
                 <TextField label="Department" value={this.state.Department} />
-
-
               </div>
             </div>
 
@@ -403,14 +405,13 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
               <div className="form-group col-md-6">
                 <TextField label="Division" />
               </div>
+
               <div className="form-group col-md-6">
                 <TextField label="Company" />
               </div>
-
             </div>
 
             <div className="row">
-
               <div className="form-group col-md-6">
                 <NormalPeoplePicker
                   label={"Requester Name"}
@@ -487,12 +488,8 @@ export default class PpeForm extends React.Component<IPpeFormWebPartProps, IPpeF
             <div className="row">
               <div className="form-group col-md-12">
                 <div className="d-flex justify-content-end mb-2">
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={this.addRow}
-                    style={{ backgroundColor: themeColor, borderColor: themeColor, color: '#fff' }}
-                  >
+                  <button type="button" className="btn btn-sm" onClick={this.addRow}
+                    style={{ backgroundColor: themeColor, borderColor: themeColor, color: '#fff' }}>
                     Add Item
                   </button>
                 </div>
