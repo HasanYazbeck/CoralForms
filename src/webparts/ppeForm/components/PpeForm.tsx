@@ -61,7 +61,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // New hook state requested by you
   const [users, setUsers] = useState<IUser[]>([]);
-  const [, setPpeItems] = useState<IPPEItem[]>([]);
+  const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
   const [ppeItemDetails, setPpeItemDetails] = useState<IPPEItemDetails[]>([]);
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
@@ -263,7 +263,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // ---------------------------
   // Row helpers
   // ---------------------------
-  const createEmptyRow = useCallback(() => ({ Item: '', Brands: '', Required: false, Details: '', Qty: '', Size: '', Selected: false }), []);
+  const createEmptyRow = useCallback(() => ({ Item: '', Brands: '', Required: false, Details: [] as string[], Qty: '', Size: '', Selected: false }), []);
 
   const addRow = useCallback(() => {
     setPpeItemsRows(prev => {
@@ -297,18 +297,63 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     });
   }, [createEmptyRow]);
 
+  // Toggle a PPEItemDetail title in the row's Details array
+  const toggleDetail = useCallback((index: number, detailTitle: string) => {
+    setPpeItemsRows(prev => {
+      const rows = prev && prev.length > 0 ? [...prev] : [createEmptyRow()];
+      while (rows.length <= index) rows.push(createEmptyRow());
+      const currentDetails = Array.isArray(rows[index].Details) ? [...rows[index].Details] : [];
+      const normalized = String(detailTitle || '').trim();
+      const idx = currentDetails.findIndex((d: any) => String(d).trim() === normalized);
+      if (idx === -1) {
+        currentDetails.push(normalized);
+      } else {
+        currentDetails.splice(idx, 1);
+      }
+      // @ts-ignore
+      rows[index].Details = currentDetails;
+      return rows;
+    });
+  }, [createEmptyRow]);
+
   // ---------------------------
   // Handlers
   // ---------------------------
   // Map of Item Title -> Brands[] (deduped)
   const brandsMap = useMemo(() => {
     const map: Record<string, string[]> = {};
+    // First, populate from the main PPE items list (ppeItems) which contains Brands
+    (ppeItems || []).forEach((pi: any) => {
+      const title = pi && pi.Title ? String(pi.Title).trim() : undefined;
+      const brandsArr = normalizeToStringArray(pi && pi.Brands ? pi.Brands : undefined) || [];
+      if (title) {
+        if (!map[title]) map[title] = [];
+        map[title] = Array.from(new Set(map[title].concat(brandsArr)));
+      }
+    });
+
+    // Then merge in any brands from PPEItemDetails (to capture detail-level brands)
     (ppeItemDetails || []).forEach((p: any) => {
-      const title = p && p.PPEItem && p.PPEItem.Title ? p.PPEItem.Title : (p && p.Title ? p.Title : undefined);
+      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
       const brandsArr = normalizeToStringArray(p && p.PPEItem && p.PPEItem.Brands ? p.PPEItem.Brands : p && p.Brands ? p.Brands : undefined) || [];
       if (title) {
         if (!map[title]) map[title] = [];
         map[title] = Array.from(new Set(map[title].concat(brandsArr)));
+      }
+    });
+
+    return map;
+  }, [ppeItemDetails, ppeItems, normalizeToStringArray]);
+
+  // Map of Item Title -> Sizes[] (deduped) from PPEItemDetails
+  const sizesMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    (ppeItemDetails || []).forEach((p: any) => {
+      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
+      const sizesArr = normalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
+      if (title) {
+        if (!map[title]) map[title] = [];
+        map[title] = Array.from(new Set(map[title].concat(sizesArr)));
       }
     });
     return map;
@@ -316,13 +361,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // When the Item for a row is changed, also pre-fill the Brands field with the first matching brand (if any)
   const handleItemChange = useCallback((index: number, newItem: any) => {
-    const newItemStr = newItem !== undefined && newItem !== null ? String(newItem) : '';
+  const newItemStr = newItem !== undefined && newItem !== null ? String(newItem).trim() : '';
     setPpeItemsRows(prev => {
       const rows = prev && prev.length > 0 ? [...prev] : [createEmptyRow()];
       while (rows.length <= index) rows.push(createEmptyRow());
       rows[index].Item = newItemStr;
+      // Clear Brands first so the Brand ComboBox re-renders with the new options
+      rows[index].Brands = '';
       const options = brandsMap[newItemStr] || [];
-      rows[index].Brands = options && options.length > 0 ? options[0] : '';
+      const defaultBrand = options && options.length > 0 ? options[0] : '';
+      const sizeOptions = sizesMap[newItemStr] || [];
+      const defaultSize = sizeOptions && sizeOptions.length > 0 ? sizeOptions[0] : '';
+      // set defaultBrand on next tick to allow ComboBox to pick up new options
+      setTimeout(() => {
+        setPpeItemsRows(current => {
+          const copy = current && current.length > 0 ? [...current] : [createEmptyRow()];
+          while (copy.length <= index) copy.push(createEmptyRow());
+          copy[index].Brands = defaultBrand;
+          copy[index].Size = defaultSize;
+          return copy;
+        });
+      }, 0);
       return rows;
     });
   }, [createEmptyRow, brandsMap]);
@@ -461,7 +520,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <Separator />
 
         <div className="mb-2 text-center">
-          <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.05rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
+          <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.0rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
         </div>
 
         <Stack horizontal styles={stackStyles}>
@@ -480,8 +539,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 const rows = ppeItemsRows && ppeItemsRows.length > 0 ? ppeItemsRows : defaultRows;
                 const items = rows.map((r, idx) => ({ ...r, __index: idx } as any));
 
-                const itemDetails: string[] = (ppeItemDetails || []).map((p: any) => (p && p.PPEItem && p.PPEItem.Title) ? p.PPEItem.Title : (p && p.Title ? p.Title : undefined)).filter(Boolean) as string[];
-                const distinctTitles = Array.from(new Set(itemDetails)).sort((a, b) => a.localeCompare(b));
+                const itemDetailsFromDetails: string[] = (ppeItemDetails || []).map((p: any) => (p && p.PPEItem && p.PPEItem.Title) ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined)).filter(Boolean) as string[];
+                const itemDetailsFromItems: string[] = (ppeItems || []).map((pi: any) => pi && pi.Title ? String(pi.Title).trim() : undefined).filter(Boolean) as string[];
+                const allTitles = itemDetailsFromDetails.concat(itemDetailsFromItems).filter(Boolean) as string[];
+                const distinctTitles = Array.from(new Set(allTitles)).sort((a, b) => a.localeCompare(b));
                 const itemOptions: IComboBoxOption[] = distinctTitles.map(t => ({ key: t, text: t }));
 
                 const columns: IColumn[] = [
@@ -495,7 +556,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       return <ComboBox allowFreeform autoComplete="on" selectedKey={item.Brands || undefined} options={options} onChange={(ev, option, index, value) => { const newVal = option ? option.key : value; onRowChange(item.__index, 'Brands', newVal || ''); }} />;
                     } },
                   { key: 'columnRequired', name: 'Required', className: `text-center align-middle ${styles.justifyItemsCenter}`, fieldName: 'Required', minWidth: 90, maxWidth: 120, isResizable: false, onRender: (item: any) => <div className={`table-secondary ${styles.justifyItemsCenter}`}><Checkbox checked={!!item.Required} onChange={(ev, checked) => onRowChange(item.__index, 'Required', !!checked)} /></div> },
-                  { key: 'columnDetails', name: 'Specific Details', fieldName: 'Details', minWidth: 180, isResizable: true, onRender: (item: any) => <div className="table-secondary"><TextField value={item.Details} onChange={(ev, val) => onRowChange(item.__index, 'Details', val || '')} underlined={true} /></div> },
+                  { key: 'columnDetails', name: 'Specific Details', fieldName: 'Details', minWidth: 180, isResizable: true, onRender: (item: any) => {
+                      // find PPEItemDetails entries that match the selected Item title
+                      const itemTitle = item && item.Item ? String(item.Item).trim() : '';
+                      const detailRows = (ppeItemDetails || []).filter((d: any) => {
+                        const title = d && d.PPEItem && d.PPEItem.Title ? String(d.PPEItem.Title).trim() : (d && d.Title ? String(d.Title).trim() : undefined);
+                        return title === itemTitle;
+                      });
+                      // collect unique detail titles for checkboxes
+                      const detailTitles = Array.from(new Set(detailRows.map((d: any) => d && d.Title ? String(d.Title).trim() : undefined).filter(Boolean)));
+                      const selectedDetails = Array.isArray(item.Details) ? item.Details.map((d: any) => String(d).trim()) : [];
+                      return (
+                        <div className="table-secondary">
+                          {detailTitles.length === 0 ? <small className="text-muted">No details</small> : detailTitles.map((title: string) => (
+                            <div key={title} className="form-check">
+                              <input className="form-check-input" type="checkbox" id={`${item.__index}_detail_${title}`} checked={selectedDetails.indexOf(title) !== -1} onChange={() => toggleDetail(item.__index, title)} />
+                              <label className="form-check-label" htmlFor={`${item.__index}_detail_${title}`}>{title}</label>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    } },
                   { key: 'columnQty', name: 'Qty', fieldName: 'Qty', minWidth: 70, maxWidth: 90, isResizable: false, onRender: (item: any) => <div className="table-secondary text-center align-middle"><TextField value={item.Qty} onChange={(ev, val) => onRowChange(item.__index, 'Qty', val || '')} underlined={true} /></div> },
                   { key: 'columnSize', name: 'Size', fieldName: 'Size', minWidth: 100, maxWidth: 140, isResizable: true, onRender: (item: any) => <TextField value={item.Size} onChange={(ev, val) => onRowChange(item.__index, 'Size', val || '')} underlined={true} /> }
                 ];
