@@ -118,3 +118,42 @@
   padding: 20px;
   border-radius: 8px;
 }
+
+.detailsCell {
+  padding: 8px;
+  background: #f8f8f8;
+  border-radius: 4px;
+}
+
+.detailItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.sizeGroup {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sizeBox {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.08);
+  padding: 6px;
+  border-radius: 4px;
+  min-width: 90px;
+}
+
+.tableSecondaryBg {
+  background: #f3f2f1;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.comboCell {
+  display: flex;
+  align-items: center;
+  padding: 6px;
+}
