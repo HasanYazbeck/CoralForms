@@ -553,7 +553,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   },
                   { key: 'columnBrand', name: 'Brand', fieldName: 'Brands', minWidth: 120, isResizable: true, onRender: (item: any) => {
                       const options = (brandsMap && brandsMap[item.Item]) ? brandsMap[item.Item].map((b: string) => ({ key: b, text: b })) : [];
-                      return <ComboBox allowFreeform autoComplete="on" selectedKey={item.Brands || undefined} options={options} onChange={(ev, option, index, value) => { const newVal = option ? option.key : value; onRowChange(item.__index, 'Brands', newVal || ''); }} />;
+                      return (
+                        <div className={styles.comboCell}>
+                          <div style={{ width: '100%' }}>
+                            <ComboBox allowFreeform autoComplete="on" selectedKey={item.Brands || undefined} options={options} onChange={(ev, option, index, value) => { const newVal = option ? option.key : value; onRowChange(item.__index, 'Brands', newVal || ''); }} />
+                          </div>
+                        </div>
+                      );
                     } },
                   { key: 'columnRequired', name: 'Required', className: `text-center align-middle ${styles.justifyItemsCenter}`, fieldName: 'Required', minWidth: 90, maxWidth: 120, isResizable: false, onRender: (item: any) => <div className={`table-secondary ${styles.justifyItemsCenter}`}><Checkbox checked={!!item.Required} onChange={(ev, checked) => onRowChange(item.__index, 'Required', !!checked)} /></div> },
                   { key: 'columnDetails', name: 'Specific Details', fieldName: 'Details', minWidth: 180, isResizable: true, onRender: (item: any) => {
