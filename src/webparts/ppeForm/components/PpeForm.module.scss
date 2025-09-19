@@ -120,9 +120,9 @@
 }
 
 .detailsCell {
-  padding: 8px;
-  background: #f8f8f8;
-  border-radius: 4px;
+  padding: 8px 10px;
+  background: #efefef; /* slightly lighter grey for details area */
+  border-radius: 2px;
 }
 
 .detailItem {
@@ -147,9 +147,15 @@
 }
 
 .tableSecondaryBg {
-  background: #f3f2f1;
-  padding: 6px;
-  border-radius: 4px;
+  background: #e6e6e6; /* main grey used for Brand/Required/Qty cells to match image */
+  padding: 6px 8px;
+  border-radius: 2px;
+}
+
+.columnGrey {
+  background: #e6e6e6; /* same grey as tableSecondaryBg */
+  padding: 6px 8px;
+  border-radius: 2px;
 }
 
 .comboCell {

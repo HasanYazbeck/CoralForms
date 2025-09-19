@@ -46,3 +46,10 @@ import {IUser} from './IUser';
     Attachments?: FileWithPreview[] | undefined;
     // [key: string]: any; // for other dynamic fields
   };
+
+  export interface ILKPItemInstructionsForUse  extends SPListItem {
+    FormName: string;
+    Order:  number;
+    Description: string;
+
+  }

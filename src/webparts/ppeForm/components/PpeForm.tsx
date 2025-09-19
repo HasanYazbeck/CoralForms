@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MSGraphClientV3 } from "@microsoft/sp-http";
-import { IGraphResponse, IGraphUserResponse } from "../../../Interfaces/ICommon";
+import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from "../../../Interfaces/ICommon";
 
 
 // Components
@@ -18,8 +18,8 @@ import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
+import { MessageBar } from '@fluentui/react/lib/MessageBar';
 import { CommandBar, ICommandBarItemProps } from '@fluentui/react/lib/CommandBar';
-// import CircularProgress from "@mui/material/CircularProgress";
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -45,6 +45,7 @@ const datePickerStyles = mergeStyleSets({
 
 export default function PpeForm(props: IPpeFormWebPartProps) {
   // Helpers and refs
+  const formName = "PERSONAL PROTECTIVE EQUIPMENT";
   const spHelpers = useMemo(() => new SPHelpers(), []);
   const spCrudRef = useRef<SPCrudOperations | undefined>(undefined);
   const selectionRef = useRef(new Selection());
@@ -63,11 +64,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [users, setUsers] = useState<IUser[]>([]);
   const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
   const [ppeItemDetails, setPpeItemDetails] = useState<IPPEItemDetails[]>([]);
+  const [itemInstructionsForUse, setItemInstructionsForUse] = useState<ILKPItemInstructionsForUse[]>([]);
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
 
   // Rows for the items table
   const [ppeItemsRows, setPpeItemsRows] = useState<Array<any>>([]);
+  // Approvals sign-off rows (Department, HR, HSE, Warehouse)
+  const [approvalsRows, setApprovalsRows] = useState<Array<any>>([
+    { SignOff: 'Department Approval', Name: '', Signature: '', Date: undefined, __index: 0 },
+    { SignOff: 'HR Approval', Name: '', Signature: '', Date: undefined, __index: 1 },
+    { SignOff: 'HSE Approval', Name: '', Signature: '', Date: undefined, __index: 2 },
+    { SignOff: 'Warehouse Approval', Name: '', Signature: '', Date: undefined, __index: 3 }
+  ]);
 
   // Helper: ensure we return a string[] or undefined from strings or arrays
   const normalizeToStringArray = useCallback((val: any): string[] | undefined => {
@@ -130,34 +139,34 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context]);
 
-  const _getCoralFormsList = useCallback(async (usersArg?: IUser[]) => {
+  const _getCoralFormsList = useCallback(async (usersArg?: IUser[]): Promise<ICoralFormsList | undefined> => {
     try {
-      const searchFormName = "PERSONAL PROTECTIVE EQUIPMENT";
-      const searchEscaped = searchFormName.replace(/'/g, "''");
+      const searchEscaped = formName.replace(/'/g, "''");
       const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created&$filter=substringof('${searchEscaped}', Title)`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'CoralFormsList', query);
       const data = await spCrudRef.current._getItemsWithQuery();
-      let result: ICoralFormsList = { Id: "" };
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
-      data.forEach((obj: any) => {
-        if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
-          let created: Date | undefined;
-          if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
-          result = {
-            Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-            Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-            CreatedBy: createdBy !== undefined ? createdBy : undefined,
-            Created: created !== undefined ? created : undefined,
-            hasInstructionForUse: obj.hasInstructionForUse !== undefined ? obj.hasInstructionForUse : undefined,
-            hasWorkflow: obj.hasWorkflow !== undefined ? obj.hasWorkflow : undefined,
-          };
-        }
-      });
-      console.log("Coral Forms List:", result);
+      const ppeform = data.find((obj: any) => obj !== null);
+      let result: ICoralFormsList = { Id: "" };
+      
+      if (ppeform) {
+        const createdBy = usersToUse?.find(u => u.id.toString() === ppeform.AuthorId?.toString());
+        const created = ppeform.Created ? new Date(spHelpers.adjustDateForGMTOffset(ppeform.Created)) : undefined;
+        result = {
+          Id: ppeform.Id ?? undefined,
+          Title: ppeform.Title ?? undefined,
+          CreatedBy: createdBy,
+          Created: created,
+          hasInstructionForUse: ppeform.hasInstructionForUse ?? undefined,
+          hasWorkflow: ppeform.hasWorkflow ?? undefined,
+        };
+      }
       setCoralFormsList(result);
+      return result;
     } catch (error) {
       console.error('An error has occurred!', error);
+      setCoralFormsList({ Id: '' });
+      return undefined;
     }
   }, [props.context, spHelpers]);
 
@@ -185,7 +194,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           result.push(temp);
         }
       });
-      console.log("PPE Item:", result);
+      // console.log("PPE Item:", result);
       setPpeItems(result);
     } catch (error) {
       console.error('An error has occurred while retrieving items!', error);
@@ -222,11 +231,49 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           result.push(temp);
         }
       });
-      console.log("PPE Item Details:", result);
+      // console.log("PPE Item Details:", result);
       setPpeItemDetails(result);
     } catch (error) {
       console.error('An error has occurred while retrieving items!', error);
       setPpeItemDetails([]);
+    }
+  }, [props.context, spHelpers]);
+
+  const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
+    try {
+      const query: string = `?$select=Id,FormName,Order,Description,Created&$filter=substringof('${formName}', FormName)&$orderby=Order asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKPItemInstructionsForUse', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: ILKPItemInstructionsForUse[] = [];
+      const usersToUse = usersArg && usersArg.length ? usersArg : users;
+      data.forEach((obj: any) => {
+        if (obj) {
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          let created: Date | undefined;
+          if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          const temp: ILKPItemInstructionsForUse = {
+            Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            FormName: obj.FormName !== undefined && obj.FormName !== null ? obj.FormName : undefined,
+            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
+            Description: obj.Description !== undefined && obj.Description !== null ? obj.Description : undefined,
+            Created: created !== undefined ? created : undefined,
+            CreatedBy: createdBy !== undefined ? createdBy : undefined,
+          };
+
+          result.push(temp);
+        }
+      });
+  console.log("Item Instrunctions For Use:", result);
+  // sort by Order (ascending). If Order is missing, place those items at the end.
+  result.sort((a, b) => {
+    const aOrder = (a && a.Order !== undefined && a.Order !== null) ? Number(a.Order) : Number.POSITIVE_INFINITY;
+    const bOrder = (b && b.Order !== undefined && b.Order !== null) ? Number(b.Order) : Number.POSITIVE_INFINITY;
+    return aOrder - bOrder;
+  });
+  setItemInstructionsForUse(result);
+    } catch (error) {
+  console.error('An error has occurred while retrieving items!', error);
+  setItemInstructionsForUse([]);
     }
   }, [props.context, spHelpers]);
 
@@ -239,9 +286,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const load = async () => {
       setLoading(true);
       const fetchedUsers = await _getUsers();
-      await _getCoralFormsList(fetchedUsers);
+      const coralListResult = await _getCoralFormsList(fetchedUsers);
+      console.log(coralListResult);
       await _getPPEItems(fetchedUsers);
       await _getPPEItemsDetails(fetchedUsers);
+
+      // Use the returned result from _getCoralFormsList instead of the (possibly stale) coralFormsList state
+      if (coralListResult && coralListResult.hasInstructionForUse) {
+        await _getLKPItemInstructionsForUse(fetchedUsers, formName);
+      }
 
       if (!cancelled) {
         try {
@@ -258,7 +311,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     load();
 
     return () => { cancelled = true; };
-  }, [_getUsers, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, props.context]);
+  }, [_getUsers, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, props.context]);
 
   // ---------------------------
   // Row helpers
@@ -309,6 +362,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       return rows;
     });
   }, [createEmptyRow]);
+
+  // Approvals handlers
+  const onApprovalChange = useCallback((index: number, field: string, value: any) => {
+    setApprovalsRows(prev => {
+      const rows = prev && prev.length > 0 ? [...prev] : [];
+      while (rows.length <= index) rows.push({ SignOff: '', Name: '', Signature: '', Date: undefined, __index: rows.length });
+      // @ts-ignore
+      rows[index][field] = value;
+      return rows;
+    });
+  }, []);
 
   // Toggle a PPEItemDetail title in the row's Details array
   const toggleDetail = useCallback((index: number, detailTitle: string) => {
@@ -484,8 +548,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return [];
   };
 
-  const filterPersonasByText = (filterText: string): IPersonaProps[] => peopleList.filter(item => doesTextStartWith(item.text as string, filterText));
-  function doesTextStartWith(text: string, filterText: string): boolean { return text.toLowerCase().indexOf(filterText.toLowerCase()) === 0; }
+  const filterPersonasByText = (filterText: string): IPersonaProps[] => peopleList.filter(item => doesTextContain(item.text as string, filterText));
+  function doesTextContain(text: string, filterText: string): boolean { if (!text || !filterText) return false; return text.toLowerCase().includes(filterText.toLowerCase()); }
   function removeDuplicates(personas: IPersonaProps[], possibleDupes: IPersonaProps[]) { return personas.filter(persona => !listContainsPersona(persona, possibleDupes)); }
   function listContainsPersona(persona: IPersonaProps, personas: IPersonaProps[]) { if (!personas || !personas.length) return false; return personas.filter(item => item.text === persona.text).length > 0; }
   function convertResultsToPromise(results: IPersonaProps[]): Promise<IPersonaProps[]> { return new Promise<IPersonaProps[]>((resolve) => setTimeout(() => resolve(results), 2000)); }
@@ -580,7 +644,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 const defaultRows = [createEmptyRow()];
                 const rows = ppeItemsRows && ppeItemsRows.length > 0 ? ppeItemsRows : defaultRows;
                 const items = rows.map((r, idx) => ({ ...r, __index: idx } as any));
-
                 const itemDetailsFromDetails: string[] = (ppeItemDetails || []).map((p: any) => (p && p.PPEItem && p.PPEItem.Title) ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined)).filter(Boolean) as string[];
                 const itemDetailsFromItems: string[] = (ppeItems || []).map((pi: any) => pi && pi.Title ? String(pi.Title).trim() : undefined).filter(Boolean) as string[];
                 const allTitles = itemDetailsFromDetails.concat(itemDetailsFromItems).filter(Boolean) as string[];
@@ -688,7 +751,55 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 ];
 
                 return (
-                  <DetailsList items={items} columns={columns} selection={selectionRef.current} selectionMode={SelectionMode.single} setKey="ppeItemsList" layoutMode={DetailsListLayoutMode.fixedColumns} isHeaderVisible={true} className={styles.detailsListHeaderCenter} />
+                  <>
+                    <DetailsList items={items} columns={columns} selection={selectionRef.current} selectionMode={SelectionMode.single} setKey="ppeItemsList" layoutMode={DetailsListLayoutMode.fixedColumns} isHeaderVisible={true} className={styles.detailsListHeaderCenter} />
+
+                    {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
+                      <div style={{ marginTop: 12 }}>
+                        <Label>Instructions for Use:</Label>
+                        {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse , idx: number) => (
+                          <MessageBar key={instr.Id ?? instr.Order}  isMultiline styles={{ root: { marginBottom: 6 } }}>
+                            <strong>{`${idx + 1}. `}</strong>
+                            {instr.Description}
+                          </MessageBar>
+                        ))}
+                      </div>
+                    )}
+                    {/* Approvals sign-off table */}
+                    <div style={{ marginTop: 18 }}>
+                      <Separator />
+                      <Label>Approvals / Sign-off</Label>
+                      <DetailsList
+                        items={approvalsRows}
+                        columns={[
+                          { key: 'colSignOff', name: 'Sign off', fieldName: 'SignOff', minWidth: 160, isResizable: true },
+                          { key: 'colName', name: 'Name', fieldName: 'Name', minWidth: 260, isResizable: true, onRender: (item: any) => (
+                            <div style={{ minWidth: 220 }}>
+                              <NormalPeoplePicker
+                                itemLimit={1}
+                                onResolveSuggestions={onFilterChanged}
+                                onChange={(items: IPersonaProps[] | undefined) => {
+                                  const sel = items && items.length ? items[0] : undefined;
+                                  // store display name and id (if available) in the Name field
+                                  onApprovalChange(item.__index, 'Name', sel ? (sel.text || '') : '');
+                                  // also store an id field for potential persistence
+                                  onApprovalChange(item.__index, 'NameId', sel ? sel.id : undefined);
+                                }}
+                                selectedItems={item.Name ? [{ text: item.Name, id: item.NameId }] : []}
+                                resolveDelay={300}
+                                inputProps={{ 'aria-label': 'Approvee' }}
+                              />
+                            </div>
+                          ) },
+                          { key: 'colSignature', name: 'Signature', fieldName: 'Signature', minWidth: 220, isResizable: true, onRender: (item: any) => (<TextField value={item.Signature || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Signature', val || '')} />) },
+                          { key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true, onRender: (item: any) => (<DatePicker value={item.Date ? new Date(item.Date) : undefined} onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)} strings={defaultDatePickerStrings} />) }
+                        ]}
+                        selectionMode={SelectionMode.none}
+                        setKey="approvalsList"
+                        layoutMode={DetailsListLayoutMode.fixedColumns}
+                      />
+                    </div>
+                  </>
                 );
               })()}
             </div>
