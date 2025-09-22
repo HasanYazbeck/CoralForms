@@ -4,6 +4,7 @@ import {IUser} from './IUser';
   export interface ICommon {
     id: string | undefined;
     label?: string;
+    title?: string;
   }
 
   export interface DateRange {
@@ -36,7 +37,7 @@ import {IUser} from './IUser';
     Id: string;
   };
 
-  export interface SPListItem {
+  export interface ISPListItem {
     Id: string;
     Title?: string;
     Created?: Date | undefined;
@@ -47,7 +48,7 @@ import {IUser} from './IUser';
     // [key: string]: any; // for other dynamic fields
   };
 
-  export interface ILKPItemInstructionsForUse  extends SPListItem {
+  export interface ILKPItemInstructionsForUse  extends ISPListItem {
     FormName: string;
     Order:  number;
     Description: string;

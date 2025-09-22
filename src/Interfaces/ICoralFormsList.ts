@@ -1,6 +1,6 @@
-import { SPListItem } from "./ICommon";
+import { ISPListItem } from "./ICommon";
 
-export interface ICoralFormsList extends SPListItem {
+export interface ICoralFormsList extends ISPListItem {
     hasInstructionForUse?: boolean | undefined;
     hasWorkflow?: boolean | undefined;
 }

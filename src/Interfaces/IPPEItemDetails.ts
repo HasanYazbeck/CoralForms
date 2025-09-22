@@ -1,8 +1,7 @@
-import { SPListItem } from "./ICommon";
+import { ISPListItem } from "./ICommon";
 import { IPPEItem } from "./IPPEItem";
 
- export interface IPPEItemDetails extends SPListItem {
+ export interface IPPEItemDetails extends ISPListItem {
     PPEItem: IPPEItem | undefined;
-    Types: string | undefined;
     Sizes: string [] | undefined;
 }
