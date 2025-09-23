@@ -8,20 +8,15 @@ import { IUser } from "../Interfaces/IUser";
 import { FieldTypeKind } from "../Enums/enums";
 
 export class SPCrudOperations {
-  private listName: string;
+  private listGUID: string;
   private siteUrl: string;
   private spHttpClient: SPHttpClient;
   private query?: string;
 
-  constructor(
-    spHttpClient: SPHttpClient,
-    siteUrl: string,
-    listName: string,
-    query?: string
-  ) {
+  constructor(spHttpClient: SPHttpClient, siteUrl: string,listGUID: string,query?: string) {
     this.spHttpClient = spHttpClient;
     this.siteUrl = siteUrl;
-    this.listName = listName;
+    this.listGUID = listGUID;
     this.query = query;
   }
 
@@ -30,7 +25,7 @@ export class SPCrudOperations {
     listName: string,
     listDescription: string
   ): Promise<void> {
-    const listUrl: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')`;
+    const listUrl: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')`;
     try {
       await this.spHttpClient
         .get(listUrl, SPHttpClient.configurations.v1)
@@ -61,9 +56,9 @@ export class SPCrudOperations {
                   response.json().then((responseJson: JSON) => {
                     alert(
                       "Error Message" +
-                        response.status +
-                        " - " +
-                        JSON.stringify(responseJson)
+                      response.status +
+                      " - " +
+                      JSON.stringify(responseJson)
                     );
                   });
                 }
@@ -72,9 +67,9 @@ export class SPCrudOperations {
             response.json().then((responseJson: JSON) => {
               alert(
                 "Error Message" +
-                  response.status +
-                  " - " +
-                  JSON.stringify(responseJson)
+                response.status +
+                " - " +
+                JSON.stringify(responseJson)
               );
             });
           }
@@ -90,7 +85,7 @@ export class SPCrudOperations {
     columnName: string,
     columnType: FieldTypeKind
   ): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/fields`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}'))/fields`;
     const columnDefinition: any = {
       Title: columnName,
       FieldTypeKind: columnType, // Change based on the type of column
@@ -121,7 +116,7 @@ export class SPCrudOperations {
 
   // Delete columns from List
   public async _deleteColumnFromList(columnName: string): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/fields/getByTitle('${columnName}')`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/fields/getByTitle('${columnName}')`;
 
     try {
       const response = await this.spHttpClient.post(
@@ -148,7 +143,7 @@ export class SPCrudOperations {
 
   // Insert item List
   public async _insertItem(item: any): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
     console.log("Item to insert:", JSON.stringify(item));
     const spHttpClientOptions: ISPHttpClientOptions = {
       body: JSON.stringify(item),
@@ -172,9 +167,9 @@ export class SPCrudOperations {
         const responseJson = await response.json();
         alert(
           "Error Message: " +
-            response.status +
-            " - " +
-            JSON.stringify(responseJson)
+          response.status +
+          " - " +
+          JSON.stringify(responseJson)
         );
       }
     } catch (error) {
@@ -185,7 +180,7 @@ export class SPCrudOperations {
 
   // Get Items List
   public async _getItems(): Promise<any[]> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
 
     try {
       const response = await this.spHttpClient.get(
@@ -215,7 +210,7 @@ export class SPCrudOperations {
 
   // Get Items List
   public async _getItemsWithQuery(): Promise<any[]> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items/${this.query}`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items/${this.query}`;
 
     try {
       const response = await this.spHttpClient.get(
@@ -245,7 +240,7 @@ export class SPCrudOperations {
 
   // Get Item List By Id or Title
   public async _getItemById(id: string): Promise<ISPItem> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle(${this.listName})/items?filter=Id eq ${id}`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items?filter=Id eq ${id}`;
 
     try {
       return this.spHttpClient
@@ -269,7 +264,7 @@ export class SPCrudOperations {
     itemId: string,
     item: any
   ): Promise<SPHttpClientResponse> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${itemId})`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items(${itemId})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         "X-HTTP-Method": "MERGE",
@@ -302,7 +297,7 @@ export class SPCrudOperations {
 
   // Delete Item
   public async _deleteItem(itemId: number): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${itemId})`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items(${itemId})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         "X-HTTP-Method": "DELETE",
@@ -497,7 +492,7 @@ export class SPCrudOperations {
     itemId: string,
     item: any
   ): Promise<SPHttpClientResponse> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbytitle('${this.listName}')/fields/getbytitle(${fieldColumnName})`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/fields/getbytitle(${fieldColumnName})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         Accept: "application/json;odata=verbose",

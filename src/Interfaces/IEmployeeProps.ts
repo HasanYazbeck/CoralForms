@@ -25,10 +25,12 @@ export interface IPPEForm extends IEmployeeProps {
   replacementReason?: string;
 }
 
-export interface IEmployeesPPEItemsCriteria extends IEmployeeProps {
-  safetyHelmet: string | undefined;
-  reflectiveVest: string  | undefined;
-  safetyShoes: string  | undefined;
+export interface IEmployeesPPEItemsCriteria extends ISPListItem {
+  employeeID?: number | undefined;
+  fullName?: string | undefined;
+  safetyHelmet?: string | undefined;
+  reflectiveVest?: string  | undefined;
+  safetyShoes?: string  | undefined;
   rainSuit?: ICommon | undefined;
   uniformCoveralls?: ICommon | undefined;
   uniformTop?: ICommon | undefined;
