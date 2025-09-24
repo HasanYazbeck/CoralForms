@@ -83,4 +83,31 @@ export class SPHelpers {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()) // Capitalize each word
       .join(" "); // Join back into a string
   }
+
+  public NormalizeToStringArray(val: any): string[] | undefined {
+    if (val === undefined || val === null) return undefined;
+
+    // If already an array, convert all to strings
+    if (Array.isArray(val)) {
+      return val
+        .map((v) => (v !== undefined && v !== null ? String(v) : ''))
+        .filter(Boolean);
+    }
+
+    // If it's a comma-separated string
+    if (typeof val === 'string') {
+      return val
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    // If it's a SharePoint REST object with results: []
+    if (val && typeof val === 'object' && Array.isArray(val.results)) {
+      return val.results.map((v: any) => String(v)).filter(Boolean);
+    }
+
+    return undefined;
+  }
+
 }

@@ -272,6 +272,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Created: created !== undefined ? created : undefined,
             Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
             Brands: normalizeToStringArray(obj.Brands),
+            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
             PPEItemsDetails: []
           };
           result.push(temp);
@@ -306,6 +307,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
               Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
               Brands: normalizeToStringArray(obj.PPEItem.Brands),
+              Order: obj.PPEItem.Order !== undefined && obj.PPEItem.Order !== null ? obj.PPEItem.Order : undefined,
             } : undefined,
           };
           result.push(temp);
