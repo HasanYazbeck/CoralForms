@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MSGraphClientV3 } from "@microsoft/sp-http";
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from "../../../Interfaces/ICommon";
 
-
 // Components
 import { DefaultPalette, DetailsListLayoutMode } from "@fluentui/react";
 import type { IPpeFormWebPartProps } from "./IPpeFormProps";
@@ -62,7 +61,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [submitter, setSubmitter] = useState<IPersonaProps[]>([]);
   const [requester, setRequester] = useState<IPersonaProps[]>([]);
   const [isReplacementChecked, setIsReplacementChecked] = useState(false);
-
+  const containerRef = React.useRef<HTMLDivElement>(null);
   // New hook state
   const [users, setUsers] = useState<IUser[]>([]);
   // Employees list items fetched via _getEmployees (used for picker search)
@@ -78,14 +77,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // Aggregated rows (one per unique Item) replacing manual add/remove paradigm
   interface ItemRowState {
     item: string;
+    order?: number;             // original order for sorting
     brands: string[];            // all available brands for item
     brandSelected?: string;      // chosen brand
     required: boolean;           // required flag per item
     qty?: string;                // overall quantity (if applies per item)
     details: string[];           // all available detail titles for this item
     selectedDetails: string[];   // checked details
-    detailSizes: Record<string, string>; // detail -> selected size (single)
-    detailQtys: Record<string, string>;  // detail -> quantity
+    itemSizes: string[];         // available sizes at item-level
+    itemSizeSelected?: string;   // chosen size for the item
+    othersItemdetailsText?: Record<string, string>; // Added: holds free-text per detail for "Others"
+
   }
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   // Approvals sign-off rows (Department, HR, HSE, Warehouse)
@@ -292,7 +294,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context, spHelpers]);
 
-
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
       const query: string = `?$select=Id,Title,PPEItem,Sizes,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
@@ -321,48 +322,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           result.push(temp);
         }
       });
-      // console.log("PPE Item Details:", result);
       setPpeItemDetails(result);
     } catch (error) {
       console.error('An error has occurred while retrieving items!', error);
       setPpeItemDetails([]);
     }
   }, [props.context, spHelpers]);
-
-  // const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
-  //   try {
-  //     const query: string = `?$select=Id,Title,PPEItem,Sizes,Created,PPEItem/Id,PPEItem/Title,PPEItem/Brands,PPEItem/Order&$expand=PPEItem($select=id,Title,Brands,Order)&$orderby=Order asc`;
-  //     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '3435bbde-cb56-43cf-aacf-e975c65b68c3', query);
-  //     const data = await spCrudRef.current._getItemsWithQuery();
-  //     const result: IPPEItemDetails[] = [];
-  //     const usersToUse = usersArg && usersArg.length ? usersArg : users;
-  //     data.forEach((obj: any) => {
-  //       if (obj) {
-  //         const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
-  //         let created: Date | undefined;
-  //         if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
-  //         const temp: IPPEItemDetails = {
-  //           Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-  //           Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-  //           CreatedBy: createdBy !== undefined ? createdBy : undefined,
-  //           Created: created !== undefined ? created : undefined,
-  //           Sizes: spHelpers.NormalizeToStringArray(obj.Sizes),
-  //           Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
-  //           PPEItem: obj.PPEItem !== undefined ? {
-  //             Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
-  //             Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
-  //             Brands: spHelpers.NormalizeToStringArray(obj.PPEItem.Brands),
-  //           } : undefined,
-  //         };
-  //         result.push(temp);
-  //       }
-  //     });
-  //     setPpeItemDetails(result);
-  //   } catch (error) {
-  //     console.error('An error has occurred while retrieving items!', error);
-  //     setPpeItemDetails([]);
-  //   }
-  // }, [props.context, spHelpers]);
 
   const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
@@ -436,6 +401,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setFormsApprovalWorkflow([]);
     }
   }, [props.context, spHelpers]);
+
   // ---------------------------
   // useEffect: load data on mount
   // ---------------------------
@@ -476,103 +442,107 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // ---------------------------
   // Row helpers
   // ---------------------------
+  // Map of Item Title -> Brands[] (deduped) from base items
+  const brandsMap = useMemo(() => {
+    const map: Record<string, { order: number; brands: string[] }> = {};
+    (ppeItems || []).forEach((pi: any) => {
+      const title = pi?.Title ? String(pi.Title).trim() : undefined;
+      const brandsArr = spHelpers.NormalizeToStringArray(pi?.Brands) || [];
+      const order = pi?.Order ?? 0;
+
+      if (title) {
+        if (!map[title]) map[title] = { order, brands: [] };
+        // Ensure unique brands
+        map[title].brands = Array.from(new Set(map[title].brands.concat(brandsArr)));
+        // Keep the order updated if needed
+        map[title].order = order;
+      }
+    });
+    const sortedBrands = Object.keys(map).sort((a, b) => map[a].order - map[b].order).map(key => ({ key, ...map[key] }));
+
+    return sortedBrands;
+  }, [ppeItems, spHelpers.NormalizeToStringArray]);
+
+
+  // Map of Item Title -> Sizes[] (deduped) from details
+  const sizesMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    (ppeItemDetails || []).forEach((p: any) => {
+      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
+      const sizesArr = spHelpers.NormalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
+      if (title) {
+        if (!map[title]) map[title] = [];
+        map[title] = Array.from(new Set(map[title].concat(sizesArr)));
+      }
+    });
+    return map;
+  }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
+
+  const ppeItemMap = useMemo(() => {
+    const map: Record<string, { id: string, title: string, brands: string[], itemDetails: IPPEItemDetails[] }> = {};
+
+    (ppeItemDetails || []).forEach((detail: IPPEItemDetails) => {
+      const title = detail?.PPEItem?.Title ? String(detail.PPEItem.Title).trim() : undefined;
+      if (!title || !detail.PPEItem) return;
+
+      if (title) detail.PPEItem.Brands = brandsMap.find(b => b.key === title)?.brands || [];
+
+      if (!map[title]) {
+        map[title] = {
+          id: detail.PPEItem.Id,
+          title: detail?.PPEItem?.Title ? String(detail.PPEItem.Title).trim() : "",
+          brands: brandsMap.find(b => b.key === title)?.brands || [],
+          itemDetails: [],
+        };
+      }
+
+      // Add the detail record itself
+      map[title].itemDetails.push(detail);
+    });
+
+    return map;
+  }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
+
+
   // Build aggregate item rows whenever base items or details change; preserve ordering from ppeItems.Order
   useEffect(() => {
     if ((!ppeItems || !ppeItems.length) && (!ppeItemDetails || !ppeItemDetails.length)) { setItemRows([]); return; }
+
     setItemRows(prev => {
       const prevMap = new Map(prev.map(r => [r.item.toLowerCase(), r]));
-
-      // Aggregate details per item
-      const detailsAgg = new Map<string, { brands: Set<string>; details: Set<string>; selectedDetails: string[]; detailSizes: Record<string, string>; }>();
-      (ppeItemDetails || []).forEach(d => {
-        const itemTitle = d?.PPEItem?.Title ? String(d.PPEItem.Title).trim() : '';
-        const detailTitle = d?.Title ? String(d.Title).trim() : '';
-        if (!itemTitle) return; // allow items with no details later
-        const key = itemTitle.toLowerCase();
-        if (!detailsAgg.has(key)) {
-          const existing = prevMap.get(key);
-            detailsAgg.set(key, {
-              brands: new Set<string>(spHelpers.NormalizeToStringArray(d?.PPEItem?.Brands) || []),
-              details: new Set<string>(),
-              selectedDetails: existing ? [...existing.selectedDetails] : [],
-              detailSizes: existing ? { ...existing.detailSizes } : {}
-            });
-        }
-        const entry = detailsAgg.get(key)!;
-        if (detailTitle) entry.details.add(detailTitle);
-        const existing = prevMap.get(key);
-        if (existing && detailTitle && existing.details.indexOf(detailTitle) === -1) {
-          if (existing.selectedDetails.indexOf(detailTitle) !== -1 && entry.selectedDetails.indexOf(detailTitle) === -1) entry.selectedDetails.push(detailTitle);
-        }
-      });
-
-      // Map order for base items
-      const orderMap = new Map<string, number>();
-      (ppeItems || []).forEach((it, idx) => {
-        const key = (it.Title || '').toLowerCase();
-        if (!key) return;
-        const ord = (it as any).Order !== undefined && (it as any).Order !== null ? Number((it as any).Order) : (idx + 1);
-        orderMap.set(key, ord);
-      });
 
       const rows: ItemRowState[] = [];
       // First, all base items in their given order
       (ppeItems || []).forEach(it => {
         if (!it.Title) return;
-        const key = it.Title.toLowerCase();
-        const agg = detailsAgg.get(key);
+        const key = it.Title.trim();
         const existing = prevMap.get(key);
-        const brands = spHelpers.NormalizeToStringArray(it.Brands) || [];
-        const allBrands = new Set<string>(brands);
-        if (agg) agg.brands.forEach(b => allBrands.add(b));
-        const brandList = Array.from(allBrands);
+        const brandList = brandsMap.find(i => i.key === key)?.brands || [];
+        const sizeList = (sizesMap[it.Title.toLowerCase()] || []).slice();
         rows.push({
           item: it.Title,
+          order: (it as any).Order,
           brands: brandList,
           brandSelected: (existing && existing.brandSelected && brandList.indexOf(existing.brandSelected) !== -1)
             ? existing.brandSelected
             : (brandList.length === 1 ? brandList[0] : undefined),
           required: existing?.required || false,
-            qty: existing?.qty,
-          details: agg ? Array.from(agg.details).sort((a, b) => a.localeCompare(b)) : [],
-          selectedDetails: agg ? Array.from(new Set(agg.selectedDetails.filter(d => agg.details.has(d)))) : [],
-          detailSizes: existing?.detailSizes || (agg ? agg.detailSizes : {}),
-          detailQtys: existing?.detailQtys || {}
+          qty: existing?.qty,
+          details: ppeItemMap[key] ? ppeItemMap[key].itemDetails
+            .map(d => d && d.Title ? String(d.Title).trim() : undefined)
+            .filter((t): t is string => !!t)
+            : [],
+          itemSizes: sizeList,
+          selectedDetails: [],
+          itemSizeSelected: (existing && existing.itemSizeSelected && sizeList.indexOf(existing.itemSizeSelected) !== -1)
+            ? existing.itemSizeSelected
+            : (sizeList.length === 1 ? sizeList[0] : undefined)
         });
       });
 
-      // Then, any detail-derived items not present in base list (fallback) appended at end
-      detailsAgg.forEach((_v, key) => {
-        if (!orderMap.has(key)) {
-          const existing = prevMap.get(key);
-          const agg = detailsAgg.get(key)!;
-          const brandList = Array.from(agg.brands);
-          rows.push({
-            item: ppeItemDetails.find(d => d?.PPEItem?.Title && d.PPEItem.Title.toLowerCase() === key)?.PPEItem?.Title || key,
-            brands: brandList,
-            brandSelected: existing?.brandSelected || (brandList.length === 1 ? brandList[0] : undefined),
-            required: existing?.required || false,
-            qty: existing?.qty,
-            details: Array.from(agg.details).sort((a,b)=>a.localeCompare(b)),
-            selectedDetails: Array.from(new Set(agg.selectedDetails.filter(d => agg.details.has(d)))),
-            detailSizes: existing?.detailSizes || agg.detailSizes,
-            detailQtys: existing?.detailQtys || {}
-          });
-        }
-      });
-
-      // Final sort: by Order (from orderMap), fallback large number, then alpha
-      rows.sort((a,b)=>{
-        const ak = a.item.toLowerCase();
-        const bk = b.item.toLowerCase();
-        const ao = orderMap.has(ak) ? (orderMap.get(ak) as number) : Number.POSITIVE_INFINITY;
-        const bo = orderMap.has(bk) ? (orderMap.get(bk) as number) : Number.POSITIVE_INFINITY;
-        if (ao !== bo) return ao - bo;
-        return a.item.localeCompare(b.item);
-      });
       return rows;
     });
-  }, [ppeItems, ppeItemDetails, spHelpers.NormalizeToStringArray]);
+  }, [ppeItems, ppeItemDetails, brandsMap, sizesMap, spHelpers.NormalizeToStringArray]);
 
   // Apply employee PPE criteria to pre-select details (assumption: label matches detail title)
   useEffect(() => {
@@ -585,11 +555,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       employeePPEItemsCriteria.winterJacket?.label
     ].filter(Boolean);
     if (!labelFields.length) return;
+
     setItemRows(prev => prev.map(r => {
       const matched = r.details.filter(d => labelFields.some(l => l && l.toLowerCase() === d.toLowerCase()));
       if (!matched.length) return r;
       return { ...r, selectedDetails: Array.from(new Set([...(r.selectedDetails || []), ...matched])) };
     }));
+
   }, [employeePPEItemsCriteria]);
 
   const toggleItemDetail = useCallback((rowIndex: number, detail: string, checked?: boolean) => {
@@ -598,26 +570,37 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const selected = new Set(r.selectedDetails);
       if (checked) selected.add(detail); else selected.delete(detail);
       // remove size if unchecked
-      const detailSizes = { ...r.detailSizes };
-      if (!checked && detailSizes[detail]) delete detailSizes[detail];
-      return { ...r, selectedDetails: Array.from(selected), detailSizes };
+      return { ...r, selectedDetails: Array.from(selected) };
     }));
   }, []);
 
-  const updateDetailSize = useCallback((rowIndex: number, detail: string, sizeVal?: string) => {
-    setItemRows(prev => prev.map((r, idx) => {
-      if (idx !== rowIndex) return r;
-      return { ...r, detailSizes: { ...r.detailSizes, [detail]: sizeVal || '' } };
-    }));
+  const updateItemSize = useCallback((rowIndex: number, sizeVal?: string) => {
+    setItemRows(prev => prev.map((r, idx) => idx === rowIndex ? { ...r, itemSizeSelected: sizeVal || undefined } : r));
   }, []);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, required: !!checked } : r));
   }, []);
 
-  const changeBrand = useCallback((rowIndex: number, brand?: string) => {
-    setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, brandSelected: brand } : r));
+  // ...existing code...
+  const updateOtherDetailText = useCallback((rowIndex: number, detail: string, value: string) => {
+
+    setItemRows(prev => prev.map((r, i) => {
+      if (i !== rowIndex) return r;
+      return {
+        ...r,
+        othersItemdetailsText: {
+          ...(r.othersItemdetailsText || {}),
+          [detail]: value
+        }
+      };
+    }));
   }, []);
+  // ...existing code...
+
+  // const changeBrand = useCallback((rowIndex: number, brand?: string) => {
+  //   setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, brandSelected: brand } : r));
+  // }, []);
 
   const updateItemQty = useCallback((rowIndex: number, qty?: string) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, qty: qty } : r));
@@ -634,75 +617,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     });
   }, []);
 
-  // Build map: itemTitleLower -> detail titles, and item+detail -> sizes
-  const sizesByItemDetail = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    (ppeItemDetails || []).forEach(d => {
-      const it = d && d.PPEItem && d.PPEItem.Title ? String(d.PPEItem.Title).trim() : '';
-      const dt = d && d.Title ? String(d.Title).trim() : '';
-      if (!it || !dt) return;
-      const key = `${it.toLowerCase()}||${dt.toLowerCase()}`;
-      const arr = Array.isArray(d.Sizes) ? d.Sizes.map(s => String(s).trim()).filter(Boolean) : [];
-      if (!map[key]) map[key] = [];
-      arr.forEach(s => { if (map[key].indexOf(s) === -1) map[key].push(s); });
-      map[key].sort((a, b) => a.localeCompare(b));
-    });
-    return map;
-  }, [ppeItemDetails]);
+  // Removed per-detail sizes map (sizes now at item level)
 
   // ---------------------------
   // Handlers
   // ---------------------------
 
-  // Map of Item Title -> Brands[] (deduped)
-  const brandsMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    // First, populate from the main PPE items list (ppeItems) which contains Brands
-    (ppeItems || []).forEach((pi: any) => {
-      const title = pi && pi.Title ? String(pi.Title).trim() : undefined;
-      const brandsArr = spHelpers.NormalizeToStringArray(pi && pi.Brands ? pi.Brands : undefined) || [];
-      if (title) {
-        if (!map[title]) map[title] = [];
-        map[title] = Array.from(new Set(map[title].concat(brandsArr)));
-      }
-    });
 
-    // Then merge in any brands from PPEItemDetails (to capture detail-level brands)
-    (ppeItemDetails || []).forEach((p: any) => {
-      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
-      const brandsArr = spHelpers.NormalizeToStringArray(p && p.PPEItem && p.PPEItem.Brands ? p.PPEItem.Brands : p && p.Brands ? p.Brands : undefined) || [];
-      if (title) {
-        if (!map[title]) map[title] = [];
-        map[title] = Array.from(new Set(map[title].concat(brandsArr)));
-      }
-    });
-
-    return map;
-  }, [ppeItemDetails, ppeItems, spHelpers.NormalizeToStringArray]);
-
-  // Map of Item Title -> Sizes[] (deduped) from PPEItemDetails
-  const sizesMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    (ppeItemDetails || []).forEach((p: any) => {
-      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
-      const sizesArr = spHelpers.NormalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
-      if (title) {
-        if (!map[title]) map[title] = [];
-        map[title] = Array.from(new Set(map[title].concat(sizesArr)));
-      }
-    });
-    return map;
-  }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
-
-  // Ensure brandSelected always within brandsMap options for that item
+  // Ensure brandSelected & itemSizeSelected always within available options
   useEffect(() => {
+
     setItemRows(prev => prev.map(r => {
-      const available = brandsMap[r.item] || [];
-      if (!available.length) return { ...r, brandSelected: undefined };
-      if (r.brandSelected && available.indexOf(r.brandSelected) !== -1) return r;
-      return { ...r, brandSelected: available.length === 1 ? available[0] : undefined };
+
+      const available = brandsMap.find(b => b.key.toLowerCase() === r.item.toLowerCase())?.brands;
+      let brandSelected = r.brandSelected;
+      if (!available) brandSelected = undefined; else if (!brandSelected || available.indexOf(brandSelected) === -1) brandSelected = available.length === 1 ? available[0] : undefined;
+      const itemSizes = sizesMap[r.item] || r.itemSizes || [];
+      let itemSizeSelected = r.itemSizeSelected;
+      if (!itemSizes.length) itemSizeSelected = undefined; else if (!itemSizeSelected || itemSizes.indexOf(itemSizeSelected) === -1) itemSizeSelected = itemSizes.length === 1 ? itemSizes[0] : undefined;
+      return { ...r, brandSelected, itemSizes, itemSizeSelected };
     }));
-  }, [brandsMap]);
+  }, [brandsMap, sizesMap]);
 
   const handleEmployeeChange = useCallback(async (items: IPersonaProps[]) => {
     if (items && items.length > 0) {
@@ -932,11 +867,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 selectionMode={SelectionMode.none}
                 layoutMode={DetailsListLayoutMode.fixedColumns}
                 columns={[
-                  { key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 140, isResizable: true, onRender: (r: ItemRowState) => <span>{r.item}</span> },
-                  { key: 'colRequired', name: 'Required', fieldName: 'required', minWidth: 90, maxWidth: 100, onRender: (r: ItemRowState) => <Checkbox checked={r.required} onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)} ariaLabel="Required" /> },
                   {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 140, isResizable: true, onRender: (r: ItemRowState) => {
-                      const brandOptions = (brandsMap[r.item] || []).map(b => ({ key: b, text: b }));
+                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 140, isResizable: true,
+                    onRender: (r: ItemRowState) => <span>{r.item}</span>
+                  },
+                  {
+                    key: 'colRequired', name: 'Required', fieldName: 'required', minWidth: 50, maxWidth: 70,
+                    onRender: (r: ItemRowState) =>
+                      <Checkbox checked={r.required} ariaLabel="Required" id= {r.item}
+                        onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
+                        styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
+                  },
+                  {
+                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false, onRender: (r: ItemRowState) => {
+                      const brandOptions = ppeItemMap[r.item]?.brands.map(b => ({ key: b, text: b })) || [];
+                      if (!brandOptions.length) return <span></span>;
                       return (
                         <ComboBox
                           placeholder={brandOptions.length ? 'Select Brand' : 'No Brands'}
@@ -944,58 +889,78 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           options={brandOptions}
                           allowFreeform
                           autoComplete="on"
-                          onChange={(_e, opt, _i, val) => changeBrand(itemRows.indexOf(r), opt ? String(opt.key) : (val || ''))}
+
+                        // onChange={(_e, opt, _i, val) => changeBrand(itemRows.indexOf(r), opt ? String(opt.key) : (val || ''))}
                         />
                       );
                     }
                   },
-
                   {
                     key: 'colDetails', name: 'Specific Details', fieldName: 'details', minWidth: 260, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
-                        {r.details.map(detail => {
-                          const checked = r.selectedDetails.indexOf(detail) !== -1;
-                          return (
-                            <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                              <Checkbox label={detail} checked={checked} onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)} />
-                            </div>
-                          );
-                        })}
+                        {
+
+                          r.details.map(detail => {
+                            // ...inside the onRender of colDetails...
+                            {
+
+                              const isOthers = r.item.toLowerCase() === 'others';
+                              if (isOthers) {
+                                return (
+                                  <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
+
+                                    <TextField placeholder={detail} multiline autoAdjustHeight
+                                      scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
+                                      value={r.othersItemdetailsText?.[detail] || ''}
+                                      // eslint-disable-next-line react/jsx-no-bind
+                                      onChange={(_e, v) => updateOtherDetailText(itemRows.indexOf(r), detail, v || '')}
+                                    />
+                                  </div>
+                                );
+                              }
+
+                              const checked = r.selectedDetails.indexOf(detail) !== -1;
+                              return (
+                                <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                  <Checkbox
+                                    label={detail}
+                                    checked={checked}
+                                    onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
+                                  />
+                                </div>
+                              );
+                            }
+                          })
+                        }
                       </div>
                     )
                   },
                   {
                     key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 70, maxWidth: 90, onRender: (r: ItemRowState) => (
-                      <TextField value={r.qty || ''} onChange={(_e, v) => updateItemQty(itemRows.indexOf(r), v || '')} />
+                      <TextField value={r.qty || ''} onChange={(_e, v) => updateItemQty(itemRows.indexOf(r), v || '')}
+                        styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
                     )
                   },
                   {
-                    key: 'colSizes', name: 'Sizes', fieldName: 'sizes', minWidth: 240, isResizable: true, onRender: (r: ItemRowState) => (
-                      <div>
-                        {r.selectedDetails.map(detail => {
-                          const sizeKey = `${r.item.toLowerCase()}||${detail.toLowerCase()}`;
-                          let sizeOptions = sizesByItemDetail[sizeKey] || [];
-                          // If sizesMap has a broader set for the item, intersect if necessary
-                          const allItemSizes = sizesMap[r.item] || [];
-                          if (allItemSizes.length && sizeOptions.length) {
-                            sizeOptions = sizeOptions.filter(s => allItemSizes.indexOf(s) !== -1);
-                          }
-                          if (!sizeOptions.length) return null;
-                          return (
-                            <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                              {/* <span style={{ minWidth: 120 }}>{detail}</span> */}
-                              <ComboBox
-                                placeholder="Size"
-                                selectedKey={r.detailSizes[detail] || undefined}
-                                options={sizeOptions.map(s => ({ key: s, text: s }))}
-                                styles={{ root: { width: 140 } }}
-                                onChange={(_ev, opt, _i, val) => updateDetailSize(itemRows.indexOf(r), detail, opt ? String(opt.key) : (val || ''))}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
+                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 140, isResizable: true, onRender: (r: ItemRowState) => {
+                      if (r.item.toLowerCase() === 'others') {
+                        return (
+                          <TextField styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
+                        )
+                      }
+                      else {
+                        const options = (r.itemSizes || []).map(s => ({ key: s, text: s }));
+                        if (!options.length) return <span>N/A</span>;
+                        return (
+                          <ComboBox
+                            placeholder={options.length ? 'Select Size' : 'N/A'}
+                            selectedKey={r.itemSizeSelected}
+                            options={options}
+                            onChange={(_ev, opt, _i, val) => updateItemSize(itemRows.indexOf(r), opt ? String(opt.key) : (val || undefined))}
+                          />
+                        );
+                      }
+                    }
                   }
                 ]}
                 isHeaderVisible={true}
@@ -1029,10 +994,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             <DetailsList
               items={approvalsRows}
               columns={[
-                { key: 'colSignOff', name: 'Sign off', fieldName: 'SignOff', minWidth: 160, isResizable: true },
+                { key: 'colSignOff', name: 'Sign off', fieldName: 'SignOff', minWidth: 120, isResizable: true },
                 {
-                  key: 'colName', name: 'Name', fieldName: 'Name', minWidth: 260, isResizable: true, onRender: (item: any) => (
-                    <div style={{ minWidth: 220 }}>
+                  key: 'colName', name: 'Name', fieldName: 'Name', minWidth: 180, isResizable: true, onRender: (item: any) => (
+                    <div style={{ minWidth: 130 }}>
                       <NormalPeoplePicker
                         itemLimit={1}
                         onResolveSuggestions={onFilterChanged}
@@ -1050,9 +1015,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     </div>
                   )
                 },
-                { key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 220, isResizable: true, onRender: (item: any) => (<TextField value={item.Signature || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Signature', val || '')} />) },
-                { key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 220, isResizable: true, onRender: (item: any) => (<TextField value={item.Reason || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Reason', val || '')} />) },
-                { key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true, onRender: (item: any) => (<DatePicker value={item.Date ? new Date(item.Date) : undefined} onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)} strings={defaultDatePickerStrings} />) }
+                { key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 120, isResizable: true, onRender: (item: any) => (<TextField value={item.Signature || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Signature', val || '')} />) },
+                { key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true, onRender: (item: any) => (<TextField value={item.Reason || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Reason', val || '')} />) },
+                { key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 120, isResizable: true, onRender: (item: any) => (<DatePicker value={item.Date ? new Date(item.Date) : undefined} onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)} strings={defaultDatePickerStrings} />) }
               ]}
               selectionMode={SelectionMode.none}
               setKey="approvalsList"
