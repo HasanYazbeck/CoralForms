@@ -4,12 +4,11 @@ import { MSGraphClientV3 } from "@microsoft/sp-http";
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from "../../../Interfaces/ICommon";
 
 // Components
-import { DefaultPalette, DetailsListLayoutMode } from "@fluentui/react";
+import { ComboBox, DefaultPalette, DetailsListLayoutMode } from "@fluentui/react";
 import type { IPpeFormWebPartProps } from "./IPpeFormProps";
 import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
 import { TextField } from '@fluentui/react/lib/TextField';
-import { ComboBox } from '@fluentui/react/lib/ComboBox';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
 import { DetailsList, SelectionMode } from '@fluentui/react';
 import { DatePicker, mergeStyleSets, defaultDatePickerStrings } from '@fluentui/react';
@@ -18,11 +17,13 @@ import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
-// Removed CommandBar import after refactor
+import { PrimaryButton, DefaultButton } from '@fluentui/react';
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
 import styles from "./PpeForm.module.scss";
+
+// Classes
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
 import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
@@ -49,10 +50,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const formName = "PERSONAL PROTECTIVE EQUIPMENT";
   const spHelpers = useMemo(() => new SPHelpers(), []);
   const spCrudRef = useRef<SPCrudOperations | undefined>(undefined);
-
-  // Local state (converted from class state)
   const [jobTitle, setJobTitle] = useState("");
-
   const [department, setDepartment] = useState("");
   const [division, setDivision] = useState("");
   const [company, setCompany] = useState("");
@@ -62,9 +60,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [requester, setRequester] = useState<IPersonaProps[]>([]);
   const [isReplacementChecked, setIsReplacementChecked] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
-  // New hook state
   const [users, setUsers] = useState<IUser[]>([]);
-  // Employees list items fetched via _getEmployees (used for picker search)
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
   const [employeePPEItemsCriteria, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({ Id: '' });
   const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
@@ -73,6 +69,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [, setFormsApprovalWorkflow] = useState<IFormsApprovalWorkflow[]>([]);
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
+  const [reason, setReason] = useState<string>('');           // capture Reason text
+  const [isSaving, setIsSaving] = useState<boolean>(false);    // Save button state
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Submit button state
+  const [bannerText, setBannerText] = useState<string>();
 
   // Aggregated rows (one per unique Item) replacing manual add/remove paradigm
   interface ItemRowState {
@@ -80,14 +80,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     order?: number;             // original order for sorting
     brands: string[];            // all available brands for item
     brandSelected?: string;      // chosen brand
-    required: boolean;           // required flag per item
+    required: boolean | undefined;           // required flag per item
     qty?: string;                // overall quantity (if applies per item)
     details: string[];           // all available detail titles for this item
     selectedDetails: string[];   // checked details
     itemSizes: string[];         // available sizes at item-level
     itemSizeSelected?: string;   // chosen size for the item
     othersItemdetailsText?: Record<string, string>; // Added: holds free-text per detail for "Others"
-
   }
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   // Approvals sign-off rows (Department, HR, HSE, Warehouse)
@@ -98,6 +97,90 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     { SignOff: 'Warehouse Approval', Name: '', Status: '', Reason: '', Date: undefined, __index: 3 }
   ]);
 
+  const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
+    return {
+      formName,
+      status,
+      employeeId: _employeeId,
+      employeeName: _employee?.[0]?.text,
+      jobTitle,
+      department,
+      division,
+      company,
+      requestType: isReplacementChecked ? 'Replacement' : 'New',
+      reason: isReplacementChecked ? reason : '',
+      items: itemRows.map(r => ({
+        item: r.item,
+        required: !!r.required,
+        brand: r.brandSelected,
+        qty: r.qty ? Number(r.qty) : undefined,
+        size: r.itemSizeSelected,
+        selectedDetails: r.selectedDetails,
+        othersText: r.item.toLowerCase() === 'others' ? r.othersItemdetailsText : undefined
+      })),
+      approvals: approvalsRows
+    };
+  }, [_employee, _employeeId, jobTitle, department, division, company, isReplacementChecked, reason, itemRows, approvalsRows, formName]);
+
+
+  const validateBeforeSubmit = useCallback((): string | undefined => {
+    // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
+    const othersMissingSize = itemRows.some(r =>
+      r.item.toLowerCase() === 'others' && r.required && (!r.itemSizeSelected || !r.itemSizeSelected.trim())
+    );
+    if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
+
+    // Example: ensure at least one item is required or has any selection (tweak as you need)
+    const anySelection = itemRows.some(r =>
+      r.required || r.brandSelected || r.qty || r.itemSizeSelected || (r.selectedDetails && r.selectedDetails.length > 0)
+    );
+    if (!anySelection) return 'Please select at least one item or mark one as Required.';
+
+    // Example: if Replacement, require a reason
+    if (isReplacementChecked && !reason.trim()) return 'Please provide a reason for Replacement.';
+
+    return undefined;
+  }, [itemRows, isReplacementChecked, reason]);
+
+
+  const handleSave = useCallback(async () => {
+    try {
+      setBannerText(undefined);
+      setIsSaving(true);
+      const payload = formPayload('Draft');
+      // TODO: Wire to SharePoint persistence here.
+      // console.log as a placeholder so you can see the shape:
+      console.log('Save payload (Draft):', payload);
+      setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
+    } catch (e) {
+      console.error(e);
+      setBannerText('Failed to save draft.');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [formPayload]);
+
+  const handleSubmit = useCallback(async () => {
+    try {
+      setBannerText(undefined);
+      const validationError = validateBeforeSubmit();
+      if (validationError) {
+        setBannerText(validationError);
+        return;
+      }
+
+      setIsSubmitting(true);
+      const payload = formPayload('Submitted');
+      // TODO: Wire to SharePoint persistence and/or workflow trigger here.
+      console.log('Submit payload:', payload);
+      setBannerText('Form submitted (demo). Hook this up to SharePoint to persist/trigger workflow.');
+    } catch (e) {
+      console.error(e);
+      setBannerText('Failed to submit.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [formPayload, validateBeforeSubmit]);
   // ---------------------------
   // Data-loading functions (ported)
   // ---------------------------
@@ -463,7 +546,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return sortedBrands;
   }, [ppeItems, spHelpers.NormalizeToStringArray]);
 
-
   // Map of Item Title -> Sizes[] (deduped) from details
   const sizesMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -479,70 +561,49 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
 
   const ppeItemMap = useMemo(() => {
-    const map: Record<string, { id: string, title: string, brands: string[], itemDetails: IPPEItemDetails[] }> = {};
+    // Create a map from item title to details
+    const map: { [title: string]: IPPEItemDetails[] } = {};
 
     (ppeItemDetails || []).forEach((detail: IPPEItemDetails) => {
       const title = detail?.PPEItem?.Title ? String(detail.PPEItem.Title).trim() : undefined;
-      if (!title || !detail.PPEItem) return;
-
-      if (title) detail.PPEItem.Brands = brandsMap.find(b => b.key === title)?.brands || [];
+      if (!title) return;
 
       if (!map[title]) {
-        map[title] = {
-          id: detail.PPEItem.Id,
-          title: detail?.PPEItem?.Title ? String(detail.PPEItem.Title).trim() : "",
-          brands: brandsMap.find(b => b.key === title)?.brands || [],
-          itemDetails: [],
-        };
+        map[title] = [];
       }
-
-      // Add the detail record itself
-      map[title].itemDetails.push(detail);
+      map[title].push(detail);
     });
 
-    return map;
-  }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
+    // Now fill each ppeItem with its details
+    return (ppeItems || []).map(item => {
+      const title = item.Title ? String(item.Title).trim() : "";
+      return {
+        ...item,
+        Brands: brandsMap.find(b => b.key === title)?.brands || [],
+        PPEItemsDetails: map[title] || []  // fill with matching details or empty array
+      };
+    });
+  }, [ppeItems, ppeItemDetails, brandsMap]);
 
-
-  // Build aggregate item rows whenever base items or details change; preserve ordering from ppeItems.Order
   useEffect(() => {
-    if ((!ppeItems || !ppeItems.length) && (!ppeItemDetails || !ppeItemDetails.length)) { setItemRows([]); return; }
+    if (!ppeItemMap || !ppeItemMap.length) return;
 
-    setItemRows(prev => {
-      const prevMap = new Map(prev.map(r => [r.item.toLowerCase(), r]));
+    const rows: ItemRowState[] = ppeItemMap.map(item => ({
+      item: item.Title || "",
+      order: item.Order ?? undefined,            // comes directly from ppeItems
+      brands: item.Brands || [],                  // brands set in filledPpeItems
+      brandSelected: undefined,                   // default or pre-selected brand if needed
+      required: undefined,                             // or use a flag if available in data
+      qty: undefined,                             // set later if needed
+      details: (item.PPEItemsDetails || []).map(d => d.Title || ""),  // all detail titles
+      selectedDetails: [],                        // empty initially
+      itemSizes: (item.PPEItemsDetails || []).map(d => d.Sizes || []).reduce((acc, val) => acc.concat(val), []),
+      itemSizeSelected: undefined,                // default if needed
+      othersItemdetailsText: {},                  // empty initially
+    }));
 
-      const rows: ItemRowState[] = [];
-      // First, all base items in their given order
-      (ppeItems || []).forEach(it => {
-        if (!it.Title) return;
-        const key = it.Title.trim();
-        const existing = prevMap.get(key);
-        const brandList = brandsMap.find(i => i.key === key)?.brands || [];
-        const sizeList = (sizesMap[it.Title.toLowerCase()] || []).slice();
-        rows.push({
-          item: it.Title,
-          order: (it as any).Order,
-          brands: brandList,
-          brandSelected: (existing && existing.brandSelected && brandList.indexOf(existing.brandSelected) !== -1)
-            ? existing.brandSelected
-            : (brandList.length === 1 ? brandList[0] : undefined),
-          required: existing?.required || false,
-          qty: existing?.qty,
-          details: ppeItemMap[key] ? ppeItemMap[key].itemDetails
-            .map(d => d && d.Title ? String(d.Title).trim() : undefined)
-            .filter((t): t is string => !!t)
-            : [],
-          itemSizes: sizeList,
-          selectedDetails: [],
-          itemSizeSelected: (existing && existing.itemSizeSelected && sizeList.indexOf(existing.itemSizeSelected) !== -1)
-            ? existing.itemSizeSelected
-            : (sizeList.length === 1 ? sizeList[0] : undefined)
-        });
-      });
-
-      return rows;
-    });
-  }, [ppeItems, ppeItemDetails, brandsMap, sizesMap, spHelpers.NormalizeToStringArray]);
+    setItemRows(rows);
+  }, [ppeItemMap]);
 
   // Apply employee PPE criteria to pre-select details (assumption: label matches detail title)
   useEffect(() => {
@@ -574,7 +635,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }));
   }, []);
 
-  const updateItemSize = useCallback((rowIndex: number, sizeVal?: string) => {
+  const toggleBrand = useCallback((rowIndex: number, brand?: string) => {
+    setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, brandSelected: brand || undefined } : r));
+  }, []);
+
+  const toggleSize = useCallback((rowIndex: number, sizeVal?: string) => {
     setItemRows(prev => prev.map((r, idx) => idx === rowIndex ? { ...r, itemSizeSelected: sizeVal || undefined } : r));
   }, []);
 
@@ -584,7 +649,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // ...existing code...
   const updateOtherDetailText = useCallback((rowIndex: number, detail: string, value: string) => {
-
     setItemRows(prev => prev.map((r, i) => {
       if (i !== rowIndex) return r;
       return {
@@ -596,11 +660,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       };
     }));
   }, []);
-  // ...existing code...
-
-  // const changeBrand = useCallback((rowIndex: number, brand?: string) => {
-  //   setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, brandSelected: brand } : r));
-  // }, []);
 
   const updateItemQty = useCallback((rowIndex: number, qty?: string) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, qty: qty } : r));
@@ -626,9 +685,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Ensure brandSelected & itemSizeSelected always within available options
   useEffect(() => {
-
     setItemRows(prev => prev.map(r => {
-
       const available = brandsMap.find(b => b.key.toLowerCase() === r.item.toLowerCase())?.brands;
       let brandSelected = r.brandSelected;
       if (!available) brandSelected = undefined; else if (!brandSelected || available.indexOf(brandSelected) === -1) brandSelected = available.length === 1 ? available[0] : undefined;
@@ -766,6 +823,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   return (
     <div className={styles.ppeFormBackground}>
+      {bannerText && <MessageBar styles={{ root: { marginBottom: 8 } }}>{bannerText}</MessageBar>}
       <form>
         <div className={styles.formHeader}>
           <img src={logoUrl} alt="Logo" className={styles.formLogo} />
@@ -845,7 +903,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
               <Checkbox label="Replacement" className="align-items-center" checked={isReplacementChecked} onChange={handleReplacementChange} />
 
-              <TextField placeholder="Reason" disabled={!isReplacementChecked} />
+              <TextField placeholder="Reason" disabled={!isReplacementChecked} value={reason}
+                onChange={(_e, v) => setReason(v || '')} />
             </div>
           </div>
         </Stack>
@@ -868,96 +927,186 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 layoutMode={DetailsListLayoutMode.fixedColumns}
                 columns={[
                   {
-                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 140, isResizable: true,
-                    onRender: (r: ItemRowState) => <span>{r.item}</span>
+                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 60, isResizable: true,
+                    onRender: (r: ItemRowState) => <span style={{
+                      display: 'block', whiteSpace: 'normal',
+                      wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                    }}>{r.item}</span>
                   },
                   {
                     key: 'colRequired', name: 'Required', fieldName: 'required', minWidth: 50, maxWidth: 70,
                     onRender: (r: ItemRowState) =>
-                      <Checkbox checked={r.required} ariaLabel="Required" id= {r.item}
+                      <Checkbox checked={r.required} ariaLabel="Required" id={r.item}
                         onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
                         styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
                   },
                   {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false, onRender: (r: ItemRowState) => {
-                      const brandOptions = ppeItemMap[r.item]?.brands.map(b => ({ key: b, text: b })) || [];
-                      if (!brandOptions.length) return <span></span>;
+                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 140, isResizable: false,
+                    onRender: (r: ItemRowState) => {
                       return (
-                        <ComboBox
-                          placeholder={brandOptions.length ? 'Select Brand' : 'No Brands'}
-                          selectedKey={r.brandSelected}
-                          options={brandOptions}
-                          allowFreeform
-                          autoComplete="on"
-
-                        // onChange={(_e, opt, _i, val) => changeBrand(itemRows.indexOf(r), opt ? String(opt.key) : (val || ''))}
-                        />
+                        <>
+                          {r.brands.length === 0 && <span>N/A</span>}
+                          {
+                            r.brands.map(brand => {
+                              const brandChecked = r.brandSelected === brand;
+                              return (
+                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                  <Checkbox label={brand} checked={brandChecked}
+                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand)}
+                                    styles={{
+                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          }
+                        </>
                       );
                     }
                   },
                   {
-                    key: 'colDetails', name: 'Specific Details', fieldName: 'details', minWidth: 260, isResizable: true, onRender: (r: ItemRowState) => (
+                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails',
+                    minWidth: 230, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
-                        {
-
-                          r.details.map(detail => {
-                            // ...inside the onRender of colDetails...
-                            {
-
-                              const isOthers = r.item.toLowerCase() === 'others';
-                              if (isOthers) {
-                                return (
-                                  <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
-
-                                    <TextField placeholder={detail} multiline autoAdjustHeight
-                                      scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
-                                      value={r.othersItemdetailsText?.[detail] || ''}
-                                      // eslint-disable-next-line react/jsx-no-bind
-                                      onChange={(_e, v) => updateOtherDetailText(itemRows.indexOf(r), detail, v || '')}
-                                    />
-                                  </div>
-                                );
-                              }
-
-                              const checked = r.selectedDetails.indexOf(detail) !== -1;
+                        {r.details.map(detail => {
+                          // ...inside the onRender of colDetails...
+                          {
+                            const itemLabel = r.item.toLowerCase() === 'others';
+                            if (itemLabel) {
                               return (
-                                <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                                  <Checkbox
-                                    label={detail}
-                                    checked={checked}
-                                    onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
+                                <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
+
+                                  <TextField placeholder={detail} multiline autoAdjustHeight
+                                    scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
+                                    value={r.othersItemdetailsText?.[detail] || ''}
+                                    // eslint-disable-next-line react/jsx-no-bind
+                                    onChange={(_e, v) => updateOtherDetailText(itemRows.indexOf(r), detail, v || '')}
                                   />
                                 </div>
                               );
                             }
-                          })
+                            // Special case: Winter Jacket - no checkboxes, just show the label (detail)
+                            if (r.item.toLowerCase() === 'winter jacket') return (<Label>{detail || ''}</Label>)
+
+                            const checked = r.selectedDetails.indexOf(detail) !== -1;
+                            return (
+                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                <Checkbox
+                                  label={detail}
+                                  checked={checked}
+                                  onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
+                                  styles={{
+                                    root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                    label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                        })
                         }
                       </div>
                     )
                   },
                   {
-                    key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 70, maxWidth: 90, onRender: (r: ItemRowState) => (
-                      <TextField value={r.qty || ''} onChange={(_e, v) => updateItemQty(itemRows.indexOf(r), v || '')}
-                        styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
+                    key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 30, maxWidth: 40, onRender: (r: ItemRowState) => (
+                      <TextField value={r.qty || ''} type='number'
+                        onChange={(_e, v) => updateItemQty(itemRows.indexOf(r), v || '')} min={0} max={99}
+                        styles={{
+                          root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
+                          field: {
+                            '&::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                            '&::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                            // Remove arrows in Chrome, Edge, Safari
+                            MozAppearance: 'textfield',
+                            appearance: 'textfield',
+                          }
+                        }}
+                      />
                     )
                   },
                   {
-                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 140, isResizable: true, onRender: (r: ItemRowState) => {
+                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 140, isResizable: true,
+                    onRender: (r: ItemRowState) => {
                       if (r.item.toLowerCase() === 'others') {
+                        // Show Sizes only if Required is checked
+                        if (!r.required) return <span />;
+
+                        const sizes = Array.from(
+                          new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean))
+                        ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
                         return (
-                          <TextField styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }} />
-                        )
+                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                            <ComboBox
+                              placeholder={sizes.length ? 'Size' : 'No sizes'}
+                              selectedKey={r.itemSizeSelected || undefined}
+                              options={sizes.map(s => ({ key: s, text: s }))}
+                              styles={{ root: { width: 140 } }}
+                              onChange={(_ev, opt, _i, val) => toggleSize(itemRows.indexOf(r), opt ? String(opt.key) : (val ? String(val) : undefined))}
+                              disabled={!sizes.length}
+                            />
+                          </div>
+                        );
                       }
                       else {
-                        const options = (r.itemSizes || []).map(s => ({ key: s, text: s }));
-                        if (!options.length) return <span>N/A</span>;
                         return (
-                          <ComboBox
-                            placeholder={options.length ? 'Select Size' : 'N/A'}
-                            selectedKey={r.itemSizeSelected}
-                            options={options}
-                            onChange={(_ev, opt, _i, val) => updateItemSize(itemRows.indexOf(r), opt ? String(opt.key) : (val || undefined))}
-                          />
+                          <>
+                            {(() => {
+                              const sizes = Array.from(
+                                new Set((r.itemSizes || [])
+                                  .map(s => String(s).trim())
+                                  .filter(Boolean))
+                              ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                              if (!sizes.length) return <span>N/A</span>;
+
+                              const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
+
+                              return (
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                                  gap: 4
+                                }}>
+                                  {sizes.map(size => {
+                                    const sizeChecked = r.itemSizeSelected === size;
+                                    return (
+                                      <div key={size} style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Checkbox
+                                          label={size}
+                                          checked={sizeChecked}
+                                          onChange={(_e, _ch) => toggleSize(itemRows.indexOf(r), size)}
+                                          styles={{
+                                            root: { alignItems: 'flex-start' },
+                                            label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()
+
+                              // r.itemSizes.sort().map(size => {
+                              //   const sizeChecked = r.itemSizeSelected === size;
+                              //   return (
+                              //     <div key={size} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                              //       <Checkbox label={size} checked={sizeChecked}
+                              //         onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size)}
+                              //         styles={{
+                              //           root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                              //           label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                              //         }}
+                              //       />
+                              //     </div>
+                              //   );
+                              // })
+                            }
+                          </>
                         );
                       }
                     }
@@ -1000,6 +1149,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     <div style={{ minWidth: 130 }}>
                       <NormalPeoplePicker
                         itemLimit={1}
+                        required={true}
                         onResolveSuggestions={onFilterChanged}
                         onChange={(items: IPersonaProps[] | undefined) => {
                           const sel = items && items.length ? items[0] : undefined;
@@ -1025,7 +1175,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             />
           </div>
         </Stack>
+        <Separator />
 
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+          <DefaultButton
+            text={isSaving ? 'Saving…' : 'Save as Draft'}
+            onClick={handleSave}
+            disabled={isSaving || isSubmitting}
+          />
+          <PrimaryButton
+            text={isSubmitting ? 'Submitting…' : 'Submit'}
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          />
+        </div>
       </form>
     </div>
   );

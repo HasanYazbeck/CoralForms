@@ -8,12 +8,12 @@ import { IUser } from "../Interfaces/IUser";
 import { FieldTypeKind } from "../Enums/enums";
 
 export class SPCrudOperations {
-  private listGUID: string;
+  private listGUID?: string;
   private siteUrl: string;
   private spHttpClient: SPHttpClient;
   private query?: string;
 
-  constructor(spHttpClient: SPHttpClient, siteUrl: string,listGUID: string,query?: string) {
+  constructor(spHttpClient: SPHttpClient, siteUrl: string,listGUID?: string,query?: string) {
     this.spHttpClient = spHttpClient;
     this.siteUrl = siteUrl;
     this.listGUID = listGUID;
