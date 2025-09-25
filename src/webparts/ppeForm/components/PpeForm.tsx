@@ -83,7 +83,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     required: boolean | undefined;           // required flag per item
     qty?: string;                // overall quantity (if applies per item)
     details: string[];           // all available detail titles for this item
-    selectedDetails: string[];   // checked details
+    selectedDetail?: string;   // checked details
     itemSizes: string[];         // available sizes at item-level
     itemSizeSelected?: string;   // chosen size for the item
     othersItemdetailsText?: Record<string, string>; // Added: holds free-text per detail for "Others"
@@ -115,7 +115,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         brand: r.brandSelected,
         qty: r.qty ? Number(r.qty) : undefined,
         size: r.itemSizeSelected,
-        selectedDetails: r.selectedDetails,
+        selectedDetails: r.selectedDetail,
         othersText: r.item.toLowerCase() === 'others' ? r.othersItemdetailsText : undefined
       })),
       approvals: approvalsRows
@@ -132,7 +132,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     // Example: ensure at least one item is required or has any selection (tweak as you need)
     const anySelection = itemRows.some(r =>
-      r.required || r.brandSelected || r.qty || r.itemSizeSelected || (r.selectedDetails && r.selectedDetails.length > 0)
+      r.required || r.brandSelected || r.qty || r.itemSizeSelected || (r.selectedDetail)
     );
     if (!anySelection) return 'Please select at least one item or mark one as Required.';
 
@@ -547,18 +547,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [ppeItems, spHelpers.NormalizeToStringArray]);
 
   // Map of Item Title -> Sizes[] (deduped) from details
-  const sizesMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    (ppeItemDetails || []).forEach((p: any) => {
-      const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
-      const sizesArr = spHelpers.NormalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
-      if (title) {
-        if (!map[title]) map[title] = [];
-        map[title] = Array.from(new Set(map[title].concat(sizesArr)));
-      }
-    });
-    return map;
-  }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
+  // const sizesMap = useMemo(() => {
+  //   const map: Record<string, string[]> = {};
+  //   (ppeItemDetails || []).forEach((p: any) => {
+  //     const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
+  //     const sizesArr = spHelpers.NormalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
+  //     if (title) {
+  //       if (!map[title]) map[title] = [];
+  //       map[title] = Array.from(new Set(map[title].concat(sizesArr)));
+  //     }
+  //   });
+  //   return map;
+  // }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
 
   const ppeItemMap = useMemo(() => {
     // Create a map from item title to details
@@ -596,7 +596,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       required: undefined,                             // or use a flag if available in data
       qty: undefined,                             // set later if needed
       details: (item.PPEItemsDetails || []).map(d => d.Title || ""),  // all detail titles
-      selectedDetails: [],                        // empty initially
+      selectedDetail: "",                        // empty initially
       itemSizes: (item.PPEItemsDetails || []).map(d => d.Sizes || []).reduce((acc, val) => acc.concat(val), []),
       itemSizeSelected: undefined,                // default if needed
       othersItemdetailsText: {},                  // empty initially
@@ -608,6 +608,57 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // Apply employee PPE criteria to pre-select details (assumption: label matches detail title)
   useEffect(() => {
     if (!employeePPEItemsCriteria || !employeePPEItemsCriteria.employeeID) return;
+    const map: Record<string, string> = {};
+
+    Object.entries(employeePPEItemsCriteria).forEach(([key, value]) => {
+      const itemDetail = spHelpers.CamelString(key.split(/(?=[A-Z])/).join(" "));
+      const itemValue = value || "";
+
+      // const itemTitle = ppeItemMap.find(i => i.Title?.toLowerCase() === itemDetail.toLowerCase())?.Title;
+
+      switch (itemDetail) {
+        case "Reflective Vest":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Safety Helmet":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Safety Shoes":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Rain Suit":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Winter Jacket":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Uniform Coveralls":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Uniform Top":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        case "Uniform Pants":
+          console.log(itemDetail + " - " + itemValue);
+          break;
+
+        default:
+          break;
+      }
+
+
+      if (itemDetail && spHelpers.CamelString(itemDetail) === ppeItemMap.find(i => i.Title?.toLowerCase() === itemDetail.toLowerCase())?.Title) {
+        map[key] = itemValue;
+      }
+    });
+
     const labelFields: (string | undefined)[] = [
       employeePPEItemsCriteria.rainSuit?.label,
       employeePPEItemsCriteria.uniformCoveralls?.label,
@@ -615,51 +666,116 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       employeePPEItemsCriteria.uniformPants?.label,
       employeePPEItemsCriteria.winterJacket?.label
     ].filter(Boolean);
+
     if (!labelFields.length) return;
 
     setItemRows(prev => prev.map(r => {
       const matched = r.details.filter(d => labelFields.some(l => l && l.toLowerCase() === d.toLowerCase()));
       if (!matched.length) return r;
-      return { ...r, selectedDetails: Array.from(new Set([...(r.selectedDetails || []), ...matched])) };
+      return { ...r, selectedDetails: r.selectedDetail };
     }));
 
   }, [employeePPEItemsCriteria]);
 
   const toggleItemDetail = useCallback((rowIndex: number, detail: string, checked?: boolean) => {
-    setItemRows(prev => prev.map((r, idx) => {
-      if (idx !== rowIndex) return r;
-      const selected = new Set(r.selectedDetails);
-      if (checked) selected.add(detail); else selected.delete(detail);
-      // remove size if unchecked
-      return { ...r, selectedDetails: Array.from(selected) };
-    }));
+    setItemRows(prev =>
+      prev.map((r, idx) => {
+        if (idx !== rowIndex) return r;
+        if (!detail) return r;
+
+        if (typeof checked === 'boolean') {
+          return {
+            ...r,
+            selectedDetail: checked
+              ? detail
+              : (r.selectedDetail === detail ? undefined : r.selectedDetail),
+          };
+        }
+
+        // Fallback (no 'checked' provided): toggle if the same size was clicked
+        return {
+          ...r,
+          selectedDetail: r.selectedDetail === detail ? undefined : detail,
+        };
+      })
+    );
   }, []);
 
-  const toggleBrand = useCallback((rowIndex: number, brand?: string) => {
-    setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, brandSelected: brand || undefined } : r));
-  }, []);
+  const toggleBrand = useCallback((rowIndex: number, brandVal?: string, checked?: boolean) => {
+    setItemRows(prev =>
+      prev.map((r, idx) => {
+        if (idx !== rowIndex) return r;
+        if (!brandVal) return r;
 
-  const toggleSize = useCallback((rowIndex: number, sizeVal?: string) => {
-    setItemRows(prev => prev.map((r, idx) => idx === rowIndex ? { ...r, itemSizeSelected: sizeVal || undefined } : r));
+        if (typeof checked === 'boolean') {
+          return {
+            ...r,
+            brandSelected: checked
+              ? brandVal
+              : (r.brandSelected === brandVal ? undefined : r.brandSelected),
+          };
+        }
+
+        // Fallback (no 'checked' provided): toggle if the same size was clicked
+        return {
+          ...r,
+          brandSelected: r.brandSelected === brandVal ? undefined : brandVal,
+        };
+      })
+    );
   }, []);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, required: !!checked } : r));
   }, []);
 
-  // ...existing code...
-  const updateOtherDetailText = useCallback((rowIndex: number, detail: string, value: string) => {
-    setItemRows(prev => prev.map((r, i) => {
-      if (i !== rowIndex) return r;
-      return {
-        ...r,
-        othersItemdetailsText: {
-          ...(r.othersItemdetailsText || {}),
-          [detail]: value
+  const toggleSize = useCallback((rowIndex: number, sizeVal?: string, checked?: boolean) => {
+    setItemRows(prev =>
+      prev.map((r, idx) => {
+        if (idx !== rowIndex) return r;
+        if (!sizeVal) return r;
+
+        if (typeof checked === 'boolean') {
+          return {
+            ...r,
+            itemSizeSelected: checked
+              ? sizeVal
+              : (r.itemSizeSelected === sizeVal ? undefined : r.itemSizeSelected),
+          };
         }
-      };
-    }));
+
+        // Fallback (no 'checked' provided): toggle if the same size was clicked
+        return {
+          ...r,
+          itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
+        };
+      })
+    );
   }, []);
+
+  // const updateOtherDetailText = useCallback((rowIndex: number, detail?: string, checked?: boolean) => {
+  //   setItemRows(prev =>
+  //     prev.map((r, idx) => {
+  //       if (idx !== rowIndex) return r;
+  //       if (!detail) return r;
+
+  //       if (typeof checked === 'boolean') {
+  //         return {
+  //           ...r,
+  //           itemDetail: checked
+  //             ? detail
+  //             : (r.selectedDetail === detail ? undefined : r.selectedDetail),
+  //         };
+  //       }
+
+  //       // Fallback (no 'checked' provided): toggle if the same size was clicked
+  //       return {
+  //         ...r,
+  //         itemSizeSelected: r.itemSizeSelected === detail ? undefined : detail,
+  //       };
+  //     })
+  //   );
+  // }, []);
 
   const updateItemQty = useCallback((rowIndex: number, qty?: string) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, qty: qty } : r));
@@ -684,25 +800,26 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
 
   // Ensure brandSelected & itemSizeSelected always within available options
-  useEffect(() => {
-    setItemRows(prev => prev.map(r => {
-      const available = brandsMap.find(b => b.key.toLowerCase() === r.item.toLowerCase())?.brands;
-      let brandSelected = r.brandSelected;
-      if (!available) brandSelected = undefined; else if (!brandSelected || available.indexOf(brandSelected) === -1) brandSelected = available.length === 1 ? available[0] : undefined;
-      const itemSizes = sizesMap[r.item] || r.itemSizes || [];
-      let itemSizeSelected = r.itemSizeSelected;
-      if (!itemSizes.length) itemSizeSelected = undefined; else if (!itemSizeSelected || itemSizes.indexOf(itemSizeSelected) === -1) itemSizeSelected = itemSizes.length === 1 ? itemSizes[0] : undefined;
-      return { ...r, brandSelected, itemSizes, itemSizeSelected };
-    }));
-  }, [brandsMap, sizesMap]);
+  // useEffect(() => {
+  //   setItemRows(prev => prev.map(r => {
+  //     const available = brandsMap.find(b => b.key.toLowerCase() === r.item.toLowerCase())?.brands;
+  //     let brandSelected = r.brandSelected;
+  //     if (!available) brandSelected = undefined; else if (!brandSelected || available.indexOf(brandSelected) === -1) brandSelected = available.length === 1 ? available[0] : undefined;
+  //     const itemSizes = sizesMap[r.item] || r.itemSizes || [];
+  //     let itemSizeSelected = r.itemSizeSelected;
+  //     if (!itemSizes.length) itemSizeSelected = undefined; else if (!itemSizeSelected || itemSizes.indexOf(itemSizeSelected) === -1) itemSizeSelected = itemSizes.length === 1 ? itemSizes[0] : undefined;
+  //     return { ...r, brandSelected, itemSizes, itemSizeSelected };
+  //   }));
+  // }, [brandsMap, sizesMap]);
 
-  const handleEmployeeChange = useCallback(async (items: IPersonaProps[]) => {
+  const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
+
     if (items && items.length > 0) {
       const selected = items[0];
       // First try to find in employees list by FullName (fullName -> persona.text)
-      const emp = employees.find(e => (e.fullName || '').toLowerCase() === (selected.text || '').toLowerCase());
+      const emp = employees.find(e => (e.fullName || '').toLowerCase() === (selected?.text || '').toLowerCase());
       // Fallback to users (Graph) if not found
-      const user = users.find(u => u.displayName?.toLowerCase() === (selected.text || '').toLowerCase() || u.id === selected.id);
+      const user = users.find(u => u.displayName?.toLowerCase() === (selected?.text || '').toLowerCase() || u.id === selected?.id);
       setEmployee([selected]);
       setEmployeeId(emp?.employeeID);
       setJobTitle(emp?.jobTitle?.title || user?.jobTitle || '');
@@ -718,7 +835,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }
       try {
         // Fetch PPE items criteria for this employee ID
-        await _getEmployeesPPEItemsCriteria(users, emp?.employeeID ? String(emp.employeeID) : '');
+        await _getEmployeesPPEItemsCriteria(users, selected?.tertiaryText ? String(selected.tertiaryText) : '');
+
+        if (employeePPEItemsCriteria && employeePPEItemsCriteria.employeeID !== selected?.tertiaryText) {
+          setItemRows(prev => prev.map(r => ({
+            ...r,
+            brandSelected: undefined,
+            itemSizeSelected: undefined,
+            qty: undefined,
+            required: undefined,
+            selectedDetails: [],            // added: clear details too
+            othersItemdetailsText: {}
+          })));
+        }
+
       } catch (e) {
         console.warn('Failed to load PPE items criteria for employee', e);
       }
@@ -730,12 +860,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setDivision('');
       setCompany('');
       setRequester([]);
-      try {
-        // Optionally clear criteria when no employee selected
-        await _getEmployeesPPEItemsCriteria(users, '');
-      } catch (e) {
-        console.warn('Failed to clear PPE items criteria', e);
-      }
+      setEmployeePPEItemsCriteria({ Id: '' });
     }
   }, [employees, users, _getEmployeesPPEItemsCriteria]);
 
@@ -747,7 +872,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const list = fetched.length ? fetched : employees; // fallback to existing state
       const matches = list
         .filter(e => (e.fullName || '').toLowerCase().includes(filterText.toLowerCase()))
-        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName) }) as IPersonaProps);
+        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName), tertiaryText: (e.employeeID ? String(e.employeeID) : e.employeeID) }) as IPersonaProps);
       const deduped: IPersonaProps[] = [];
       const seen = new Set<string>();
       matches.forEach(m => { const key = (m.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(m); } });
@@ -849,7 +974,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 onInputChange={onInputChange}
                 resolveDelay={50}
                 disabled={false}
-                onChange={handleEmployeeChange}
+                onChange={(items) => {
+                  const selectedText = items?.[0]?.text || '';
+                  const empId = employees.find(e => (e.fullName || '').toLowerCase() === selectedText.toLowerCase())?.employeeID;
+                  return handleEmployeeChange(items, empId ? String(empId) : undefined);
+                }}
               />
             </div>
 
@@ -952,7 +1081,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               return (
                                 <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                                   <Checkbox label={brand} checked={brandChecked}
-                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand)}
+                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
                                     styles={{
                                       root: { alignItems: 'flex-start' }, // top-align text if wrapped
                                       label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -967,8 +1096,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     }
                   },
                   {
-                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails',
-                    minWidth: 230, isResizable: true, onRender: (r: ItemRowState) => (
+                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 230, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
                         {r.details.map(detail => {
                           // ...inside the onRender of colDetails...
@@ -980,9 +1108,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                                   <TextField placeholder={detail} multiline autoAdjustHeight
                                     scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
-                                    value={r.othersItemdetailsText?.[detail] || ''}
-                                    // eslint-disable-next-line react/jsx-no-bind
-                                    onChange={(_e, v) => updateOtherDetailText(itemRows.indexOf(r), detail, v || '')}
+                                  // value={r.othersItemdetailsText?.[detail] || ''}
+                                  // eslint-disable-next-line react/jsx-no-bind
+                                  // onChange={(_e, ch) => updateOtherDetailText(itemRows.indexOf(r), detail, !!ch)}
                                   />
                                 </div>
                               );
@@ -990,7 +1118,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             // Special case: Winter Jacket - no checkboxes, just show the label (detail)
                             if (r.item.toLowerCase() === 'winter jacket') return (<Label>{detail || ''}</Label>)
 
-                            const checked = r.selectedDetails.indexOf(detail) !== -1;
+                            const checked = r.selectedDetail === detail;
                             return (
                               <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                                 <Checkbox
@@ -1034,79 +1162,46 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         // Show Sizes only if Required is checked
                         if (!r.required) return <span />;
 
-                        const sizes = Array.from(
-                          new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean))
-                        ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
+                        const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
                         return (
                           <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                            <ComboBox
-                              placeholder={sizes.length ? 'Size' : 'No sizes'}
+                            <ComboBox placeholder={sizes.length ? 'Size' : 'No sizes'}
                               selectedKey={r.itemSizeSelected || undefined}
                               options={sizes.map(s => ({ key: s, text: s }))}
                               styles={{ root: { width: 140 } }}
-                              onChange={(_ev, opt, _i, val) => toggleSize(itemRows.indexOf(r), opt ? String(opt.key) : (val ? String(val) : undefined))}
                               disabled={!sizes.length}
                             />
                           </div>
                         );
                       }
                       else {
-                        return (
-                          <>
-                            {(() => {
-                              const sizes = Array.from(
-                                new Set((r.itemSizes || [])
-                                  .map(s => String(s).trim())
-                                  .filter(Boolean))
-                              ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                        return (<>
+                          {(() => {
+                            const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean)))
+                              .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
-                              if (!sizes.length) return <span>N/A</span>;
+                            if (!sizes.length) return <span>N/A</span>;
 
-                              const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
-
-                              return (
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                                  gap: 4
-                                }}>
-                                  {sizes.map(size => {
-                                    const sizeChecked = r.itemSizeSelected === size;
-                                    return (
-                                      <div key={size} style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Checkbox
-                                          label={size}
-                                          checked={sizeChecked}
-                                          onChange={(_e, _ch) => toggleSize(itemRows.indexOf(r), size)}
-                                          styles={{
-                                            root: { alignItems: 'flex-start' },
-                                            label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                          }}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()
-
-                              // r.itemSizes.sort().map(size => {
-                              //   const sizeChecked = r.itemSizeSelected === size;
-                              //   return (
-                              //     <div key={size} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                              //       <Checkbox label={size} checked={sizeChecked}
-                              //         onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size)}
-                              //         styles={{
-                              //           root: { alignItems: 'flex-start' }, // top-align text if wrapped
-                              //           label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                              //         }}
-                              //       />
-                              //     </div>
-                              //   );
-                              // })
-                            }
-                          </>
+                            const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
+                            return (
+                              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 4 }}>
+                                {sizes.map(size => {
+                                  const sizeChecked = r.itemSizeSelected === size;
+                                  return (
+                                    <div key={size} style={{ display: 'flex', alignItems: 'center' }}>
+                                      <Checkbox label={size} checked={sizeChecked} onChange={(_e, _ch) => toggleSize(itemRows.indexOf(r), size)}
+                                        styles={{
+                                          root: { alignItems: 'flex-start' }, label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()
+                          }
+                        </>
                         );
                       }
                     }
