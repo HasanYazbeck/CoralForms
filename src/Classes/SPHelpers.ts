@@ -110,4 +110,7 @@ export class SPHelpers {
     return undefined;
   }
 
+  public removeWhitespaces(str: string): string {
+    return str.replace(/\s+/g, '');
+  }
 }

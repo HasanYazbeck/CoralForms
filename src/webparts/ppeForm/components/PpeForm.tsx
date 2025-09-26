@@ -76,6 +76,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [lKPWorkflowStatus, setlKPWorkflowStatus] = useState<ISPListItem[]>([]);
   // Aggregated rows (one per unique Item) replacing manual add/remove paradigm
   interface ItemRowState {
+    itemId: string;  // unique key per row
     item: string;
     order?: number;             // original order for sorting
     brands: string[];            // all available brands for item
@@ -90,6 +91,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     types?: string[];
     selectedType?: string;              // unique list of Types for this item (if any)
     typeSizesMap?: Record<string, string[]>;
+    selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
 
   }
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
@@ -113,20 +115,30 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       company,
       requestType: isReplacementChecked ? 'Replacement' : 'New',
       reason: isReplacementChecked ? reason : '',
-      items: itemRows.map(r => ({
-        item: r.item,
-        required: !!r.required,
-        brand: r.brandSelected,
-        qty: r.qty ? Number(r.qty) : undefined,
-        size: r.itemSizeSelected,
-        selectedDetails: r.selectedDetail,
-        type: r.selectedType,
-        othersText: r.item.toLowerCase() === 'others' ? r.othersItemdetailsText : undefined
-      })),
+      items: itemRows.map(r => {
+        const hasTypes = r.types && r.types.length > 0;
+        const sizeCsv = hasTypes
+          // keep order, keep blanks for missing selections to preserve "respective to type"
+          ? r.types!.map(t => (r.selectedSizesByType?.[t] ?? '')).join(',')
+          : (r.itemSizeSelected || '');
+
+        const typeCsv = hasTypes
+          ? r.types!.join(',')
+          : (r.selectedType || '');
+        return {
+          item: r.item,
+          required: !!r.required,
+          brand: r.brandSelected,
+          qty: r.qty ? Number(r.qty) : undefined,
+          size: sizeCsv,
+          selectedDetails: r.selectedDetail,
+          type: typeCsv,
+          othersText: r.item.toLowerCase() === 'others' ? r.othersItemdetailsText : undefined
+        };
+      }),
       approvals: approvalsRows
     };
   }, [_employee, _employeeId, jobTitle, department, division, company, isReplacementChecked, reason, itemRows, approvalsRows, formName]);
-
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
@@ -146,7 +158,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     return undefined;
   }, [itemRows, isReplacementChecked, reason]);
-
 
   const handleSave = useCallback(async () => {
     try {
@@ -186,6 +197,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setIsSubmitting(false);
     }
   }, [formPayload, validateBeforeSubmit]);
+
   // ---------------------------
   // Data-loading functions (ported)
   // ---------------------------
@@ -679,6 +691,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       });
 
       return {
+        itemId: item.Id || "",
         item: item.Title || "",
         order: item.Order ?? undefined,
         brands: item.Brands || [],
@@ -692,6 +705,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         // NEW: attach types and per-type sizes
         types: typesArr,
         typeSizesMap,
+        selectedSizesByType: {},
         othersItemdetailsText: {},
       };
     });
@@ -819,29 +833,29 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, required: !!checked } : r));
   }, []);
 
-  // const toggleSize = useCallback((rowIndex: number, sizeVal?: string, checked?: boolean) => {
-  //   setItemRows(prev =>
-  //     prev.map((r, idx) => {
-  //       if (idx !== rowIndex) return r;
-  //       if (!sizeVal) return r;
+  const toggleSize = useCallback((rowIndex: number, sizeVal?: string, checked?: boolean) => {
+    setItemRows(prev =>
+      prev.map((r, idx) => {
+        if (idx !== rowIndex) return r;
+        if (!sizeVal) return r;
 
-  //       if (typeof checked === 'boolean') {
-  //         return {
-  //           ...r,
-  //           itemSizeSelected: checked
-  //             ? sizeVal
-  //             : (r.itemSizeSelected === sizeVal ? undefined : r.itemSizeSelected),
-  //         };
-  //       }
+        if (typeof checked === 'boolean') {
+          return {
+            ...r,
+            itemSizeSelected: checked
+              ? sizeVal
+              : (r.itemSizeSelected === sizeVal ? undefined : r.itemSizeSelected),
+          };
+        }
 
-  //       // Fallback (no 'checked' provided): toggle if the same size was clicked
-  //       return {
-  //         ...r,
-  //         itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
-  //       };
-  //     })
-  //   );
-  // }, []);
+        // Fallback (no 'checked' provided): toggle if the same size was clicked
+        return {
+          ...r,
+          itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
+        };
+      })
+    );
+  }, []);
 
   // const updateOtherDetailText = useCallback((rowIndex: number, detail?: string, checked?: boolean) => {
   //   setItemRows(prev =>
@@ -867,40 +881,41 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   //   );
   // }, []);
 
-  const toggleSize = useCallback(
-    (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string) => {
+  const toggleSizeType = useCallback(
+    (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string, id?: string) => {
       setItemRows(prev =>
         prev.map((r, idx) => {
           if (idx !== rowIndex) return r;
           if (!sizeVal) return r;
 
-          // If checkbox provided the checked state, use it as source of truth
-          if (typeof checked === 'boolean') {
-            if (checked) {
-              // Selecting a size: bind it to the provided type (if any) and clear other types implicitly
-              return {
-                ...r,
-                itemSizeSelected: sizeVal,
-                selectedType: typeKey, // undefined for non-type items
-              };
-            } else {
-              // Unchecking: only clear if the current selection matches this size AND (type matches or is not specified)
-              const matchesType = !typeKey || r.selectedType === typeKey;
-              const matchesSize = r.itemSizeSelected === sizeVal;
-              if (matchesType && matchesSize) {
-                return { ...r, itemSizeSelected: undefined, selectedType: undefined };
-              }
-              return r;
-            }
-          }
+          // If the item has types and a typeKey is provided, maintain one size per type
+          if (typeKey && r.types && r.types.length) {
+            const byType = { ...(r.selectedSizesByType || {}) };
 
-          // Fallback toggle: if clicking the currently selected size under the same type, clear; else set.
-          const sameType = (!typeKey && !r.selectedType) || r.selectedType === typeKey;
-          const sameSize = r.itemSizeSelected === sizeVal;
-          if (sameType && sameSize) {
-            return { ...r, itemSizeSelected: undefined, selectedType: undefined };
+            if (typeof checked === 'boolean') {
+              if (checked) {
+                byType[typeKey] = sizeVal;               // select this size for this type
+              } else {
+                // Only clear if we're unchecking the currently selected size for this type
+                if (byType[typeKey] === sizeVal) {
+                  byType[typeKey] = undefined;
+                }
+              }
+            } else {
+              // Fallback toggle: toggle the same size for this type
+              byType[typeKey] = byType[typeKey] === sizeVal ? undefined : sizeVal;
+            }
+            return {
+              ...r,
+              selectedSizesByType: byType,
+              // Keep legacy fields untouched for typed items
+            };
           }
-          return { ...r, itemSizeSelected: sizeVal, selectedType: typeKey };
+          return {
+            ...r,
+            itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
+            selectedType: undefined,
+          };
         })
       );
     },
@@ -972,6 +987,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             ...r,
             brandSelected: undefined,
             itemSizeSelected: undefined,
+            selectedSizesByType: {},
             qty: undefined,
             required: undefined,
             selectedDetails: [],            // added: clear details too
@@ -1331,30 +1347,32 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
                                   <Label styles={{ root: { marginBottom: 4, fontWeight: 600 } }}>{type}</Label>
 
-                                  {sizes.length === 0 ? (
-                                    <span>N/A</span>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                      {sizes.map(size => {
-                                        const sizeChecked = r.selectedType === type && r.itemSizeSelected === size;
-                                        return (
-                                          <div key={`${type}-${size}`} style={{ display: 'flex', alignItems: 'center' }}>
-                                            <Checkbox
-                                              label={size}
-                                              checked={sizeChecked}
-                                              onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size, !!ch, type)}
-                                              styles={{
-                                                root: { alignItems: 'flex-start' },
-                                                label: {
-                                                  whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3'
-                                                }
-                                              }}
-                                            />
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
+                                  {sizes.length === 0 ? (<span>N/A</span>) :
+                                    (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {sizes.map(size => {
+                                          const sizeChecked =  r.selectedSizesByType?.[type] === size;
+                                          const id = `${r.itemId}-${type}-${size}`;
+                                          return (
+                                            <div key={`${type}-${size}`} style={{ display: 'flex', alignItems: 'center' }}>
+                                              <Checkbox
+                                                id={id}
+                                                label={size}
+                                                checked={sizeChecked}
+                                                onChange={(_e, ch) => toggleSizeType(itemRows.indexOf(r), size, !!ch, type, id)}
+                                                styles={{
+                                                  root: { alignItems: 'flex-start' },
+                                                  label: {
+                                                    whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3'
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )
+                                  }
                                 </div>
                               );
                             })}
