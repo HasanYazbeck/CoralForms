@@ -1351,7 +1351,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                     (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                         {sizes.map(size => {
-                                          const sizeChecked =  r.selectedSizesByType?.[type] === size;
+                                          const sizeChecked = r.selectedSizesByType?.[type] === size;
                                           const id = `${r.itemId}-${type}-${size}`;
                                           return (
                                             <div key={`${type}-${size}`} style={{ display: 'flex', alignItems: 'center' }}>
@@ -1423,12 +1423,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
             <div style={{ marginTop: 12 }}>
               <Label>Instructions for Use:</Label>
-              {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
-                <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
-                  <strong>{`${idx + 1}. `}</strong>
-                  {instr.Description}
-                </MessageBar>
-              ))}
+              <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                  <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                    <strong>{`${idx + 1}. `}</strong>
+                    {instr.Description}
+                  </MessageBar>
+                )
+                )}
+              </div>
             </div>
           )}
         </Stack>
@@ -1464,7 +1467,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   )
                 },
                 {
-                  key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 140, isResizable: true,
+                  key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
                   onRender: (item: any) => {
                     const options = (lKPWorkflowStatus || [])
                       .slice()
@@ -1483,7 +1486,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         placeholder={options.length ? 'Select status' : 'No status'}
                         selectedKey={item.Status || undefined}   // Status holds the Title we store
                         options={options}
-                        // styles={{ root: { minWidth: 140 } }}
+                        useComboBoxAsMenuWidth={true}
                         disabled={!options.length}
                         onChange={(_e, opt) => {
                           // Store the selected Title in the row’s Status field
