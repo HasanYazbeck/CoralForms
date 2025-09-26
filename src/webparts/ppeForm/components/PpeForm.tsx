@@ -169,7 +169,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       console.log('Save payload (Draft):', payload);
       setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
     } catch (e) {
-      console.error(e);
+      // console.error(e);
       setBannerText('Failed to save draft.');
     } finally {
       setIsSaving(false);
@@ -191,7 +191,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       console.log('Submit payload:', payload);
       setBannerText('Form submitted (demo). Hook this up to SharePoint to persist/trigger workflow.');
     } catch (e) {
-      console.error(e);
+      // console.error(e);
       setBannerText('Failed to submit.');
     } finally {
       setIsSubmitting(false);
@@ -239,7 +239,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       if (fetched.length > 0) setUsers(fetched);
       return fetched;
     } catch (error) {
-      console.error("Error fetching users:", error);
+      // console.error("Error fetching users:", error);
       setUsers([]);
       return [];
     }
@@ -277,7 +277,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setEmployees(result);
       return result;
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
+      // console.error('An error has occurred while retrieving items!', error);
       setEmployees([]);
       return [];
     }
@@ -315,9 +315,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }
 
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
+      // console.error('An error has occurred while retrieving items!', error);
       setEmployeePPEItemsCriteria({ Id: '' });
-
     }
   }, [props.context, spHelpers]);
 
@@ -389,7 +388,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       // console.log("PPE Item:", result);
       setPpeItems(normalizedItems);
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
+      // console.error('An error has occurred while retrieving items!', error);
       setPpeItems([]);
     }
   }, [props.context, spHelpers]);
@@ -425,8 +424,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       });
       setPpeItemDetails(result);
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
       setPpeItemDetails([]);
+      // console.error('An error has occurred while retrieving items!', error);
     }
   }, [props.context, spHelpers]);
 
@@ -461,8 +460,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       });
       setItemInstructionsForUse(result);
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
       setItemInstructionsForUse([]);
+      // console.error('An error has occurred while retrieving items!', error);
     }
   }, [props.context, spHelpers]);
 
@@ -498,8 +497,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       });
       setFormsApprovalWorkflow(result);
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
       setFormsApprovalWorkflow([]);
+      // console.error('An error has occurred while retrieving items!', error);
     }
   }, [props.context, spHelpers]);
 
@@ -529,7 +528,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setlKPWorkflowStatus(result);
       return result;
     } catch (error) {
-      console.error('An error has occurred while retrieving items!', error);
       setlKPWorkflowStatus([]);
       return [];
     }
@@ -1196,7 +1194,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <div className="row">
             <div className="form-group col-md-12">
               <DetailsList
-                items={itemRows}
+                items={itemRows.sort((a, b) => (a.order || 0) - (b.order || 0))}
                 setKey="ppeAggregatedItemsList"
                 selectionMode={SelectionMode.none}
                 layoutMode={DetailsListLayoutMode.fixedColumns}
@@ -1439,7 +1437,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <Separator />
         {/* Approvals sign-off table */}
         <Stack horizontal styles={stackStyles} className="mt-3 mb-3">
-          <div style={{ marginTop: 18 }}>
+          <div>
             <Label>Approvals / Sign-off</Label>
             <DetailsList
               items={approvalsRows}
@@ -1514,6 +1512,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               selectionMode={SelectionMode.none}
               setKey="approvalsList"
               layoutMode={DetailsListLayoutMode.fixedColumns}
+              styles={{
+                // target cells and rows
+                contentWrapper: {
+                  selectors: {
+                    '.ms-DetailsRow-fields': {
+                      alignItems: 'center'  // stretch to max height of tallest cell in the row
+                    },
+                    '.ms-DetailsRow-cell': {
+                      padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                    },
+                  }
+                }
+              }}
             />
           </div>
         </Stack>

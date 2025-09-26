@@ -136,7 +136,7 @@ export class SPCrudOperations {
         alert("Error deleting column: " + JSON.stringify(responseJson));
       }
     } catch (error) {
-      console.error("Error deleting column:", error);
+      // console.error("Error deleting column:", error);
       throw error;
     }
   }
@@ -165,15 +165,10 @@ export class SPCrudOperations {
         alert("A new Item inserted successfully.");
       } else {
         const responseJson = await response.json();
-        alert(
-          "Error Message: " +
-          response.status +
-          " - " +
-          JSON.stringify(responseJson)
-        );
+        alert("Error Message: " +response.status +" - " +JSON.stringify(responseJson));
       }
     } catch (error) {
-      console.error("Error creating item:", error);
+      // console.error("Error creating item:", error);
       throw error;
     }
   }
@@ -193,17 +188,14 @@ export class SPCrudOperations {
         return responseData["value"];
       } else {
         const responseError: any = await response.json();
-        console.log(
-          `Error retrieving items. Status: ${responseError.status}`,
-          responseError
-        );
-        alert("Error Message" + JSON.stringify(responseError));
+        // console.log(`Error retrieving items. Status: ${responseError.status}`, responseError);
+        // alert("Error Message" + JSON.stringify(responseError));
         throw new Error(
           `Error retrieving items. Status: ${responseError.status}`
         );
       }
     } catch (error) {
-      console.error("Error Retreiving Items", error);
+      // console.error("Error Retreiving Items", error);
       throw error;
     }
   }
@@ -223,17 +215,14 @@ export class SPCrudOperations {
         return responseData.value;
       } else {
         const responseError: any = await response.json();
-        console.log(
-          `Error retrieving items. Status: ${responseError.status}`,
-          responseError
-        );
+        // console.log(`Error retrieving items. Status: ${responseError.status}`,responseError);
         // alert('Error Message' + JSON.stringify(responseError));
         throw new Error(
           `Error retrieving items. Status: ${responseError.status}`
         );
       }
     } catch (error) {
-      console.error("Error Retreiving Items", error);
+      // console.error("Error Retreiving Items", error);
       throw error;
     }
   }
@@ -254,7 +243,7 @@ export class SPCrudOperations {
           return listItem;
         }) as Promise<ISPItem>;
     } catch (error) {
-      console.error("Error Retreiving Item", error);
+      // console.error("Error Retreiving Item", error);
       throw error;
     }
   }
@@ -282,15 +271,12 @@ export class SPCrudOperations {
         console.log("Item updated successfully");
         return response;
       } else {
-        const errorResponse: any = await response.json();
-        console.error(
-          `Error updating item. Status: ${response.status}`,
-          errorResponse
-        );
+        // const errorResponse: any = await response.json();
+        // console.error(`Error updating item. Status: ${response.status}`,errorResponse);
         throw new Error(`Error updating item. Status: ${response.status}`);
       }
     } catch (error) {
-      console.error("Error updating item:", error);
+      // console.error("Error updating item:", error);
       throw error;
     }
   }
@@ -314,109 +300,15 @@ export class SPCrudOperations {
       if (response.ok) {
         console.log("Item deleted successfully");
       } else {
-        const errorResponse: any = await response.json();
-        console.error(
-          `Error deleting item. Status: ${response.status}`,
-          errorResponse
-        );
+        // const errorResponse: any = await response.json();
+        // console.error(`Error deleting item. Status: ${response.status}`, errorResponse);
         throw new Error(`Error deleting item. Status: ${response.status}`);
       }
     } catch (error) {
-      console.error("Error deleting item:", error);
+      // console.error("Error deleting item:", error);
       throw error;
     }
   }
-
-  // Search Users by name or email
-  // public async _getUserByTitleEmail(query: string): Promise<IUser> {
-  //   const url: string = `${this.siteUrl}/_api/web/siteusers?$filter=Title eq '${query}' or Email eq '${query}'`;
-  //   var result: IUser;
-  //   try {
-  //     const response: SPHttpClientResponse = await this.spHttpClient.get(
-  //       url,
-  //       SPHttpClient.configurations.v1
-  //     );
-  //     if (response.ok) {
-  //       const itemsList = await response.json();
-
-  //       if (Array.isArray(itemsList.value) && itemsList.value.length > 0) {
-  //         const item = itemsList.value[0];
-  //         result = {
-  //           Id: item.Id,
-  //           JobTitle: item.Title,
-  //           Email: item.Email,
-  //           Name: item.LoginName,
-  //         };
-
-  //         // itemsList.value.map((item: any) =>  {
-  //         //   const user: IUser = {
-  //         //     Id: item.Id,
-  //         //     Title: item.Title,
-  //         //     Email: item.Email,
-  //         //     LoginName: item.LoginName
-  //         //   }
-  //         //   result = user;
-  //         // });
-  //       } else {
-  //         console.error("Expected an array, but got:", itemsList.value[0]);
-  //         throw new Error(`Error Retreiving item. Status: ${response.status}`);
-  //       }
-  //     } else {
-  //       const errorResponse: any = await response.json();
-  //       console.error(
-  //         `Error Retreiving item. Status: ${response.status}`,
-  //         errorResponse
-  //       );
-  //       throw new Error(`Error Retreiving item. Status: ${response.status}`);
-  //     }
-  //     return result;
-  //   } catch (error) {
-  //     console.error("Error Retreiving Item", error);
-  //     throw new Error("Error Retreiving Item " + error);
-  //   }
-  // }
-
-  // Search Users by name or email
-  // public async _searchUsersByTitleEmail(query: string): Promise<IUser[]> {
-  //   const url: string = `${this.siteUrl}/_api/web/siteusers?$filter=substringof('${query}',Title) or substringof('${query}',Email)`;
-  //   let result: IUser[] = [];
-  //   try {
-  //     const response: SPHttpClientResponse = await this.spHttpClient.get(
-  //       url,
-  //       SPHttpClient.configurations.v1
-  //     );
-  //     if (response.ok) {
-  //       const itemsList = await response.json();
-
-  //       if (Array.isArray(itemsList.value)) {
-  //         itemsList.value.map((item: any) => {
-  //           const user: IUser = {
-  //             Id: item.Id,
-  //             Title: item.Title,
-  //             Email: item.Email,
-  //             LoginName: item.LoginName,
-  //           };
-  //           result.push(user);
-  //         });
-  //         return result;
-  //       } else {
-  //         console.error("Expected an array, but got:", itemsList.value[0]);
-  //         throw new Error("Expected an array, but got:" + itemsList.value[0]);
-  //       }
-  //     } else {
-  //       const errorResponse: any = await response.json();
-  //       console.error(
-  //         `Error Retreiving item. Status: ${response.status}`,
-  //         errorResponse
-  //       );
-  //       throw new Error(`Error Retreiving item. Status: ${response.status}`);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error Retreiving Item", error);
-  //     throw error("Error Retreiving Item");
-  //   }
-  // }
-
   // Get userPermission
   public async hasPermission(): Promise<boolean> {
     const url: string = `${this.siteUrl}/_api/web/effectiveBasePermissions`;
@@ -431,7 +323,7 @@ export class SPCrudOperations {
         permissions && permissions.High && permissions.Low;
       return hasPermission;
     } catch (ex) {
-      console.error("Error getting user permission", ex);
+      // console.error("Error getting user permission", ex);
       return false;
     }
   }
@@ -448,7 +340,7 @@ export class SPCrudOperations {
       const isAdmin: any = await response.json();
       return isAdmin.value;
     } catch (ex) {
-      console.error("Error getting site admin permission", ex);
+      // console.error("Error getting site admin permission", ex);
       return false;
     }
   }
@@ -481,7 +373,7 @@ export class SPCrudOperations {
         );
       }
     } catch (ex) {
-      console.error("Error getting site users", ex);
+      // console.error("Error getting site users", ex);
       throw new Error("Error getting site users");
     }
   }
@@ -513,15 +405,12 @@ export class SPCrudOperations {
         console.log("Item updated successfully");
         return response;
       } else {
-        const errorResponse: any = await response.json();
-        console.error(
-          `Error updating item. Status: ${response.status}`,
-          errorResponse
-        );
+        // const errorResponse: any = await response.json();
+        // console.error(`Error updating item. Status: ${response.status}`, errorResponse);
         throw new Error(`Error updating item. Status: ${response.status}`);
       }
     } catch (error) {
-      console.error("Error updating item:", error);
+      // console.error("Error updating item:", error);
       throw error;
     }
   }
