@@ -1476,8 +1476,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     );
                   }
                 },
-                { key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true, onRender: (item: any) => (<TextField value={item.Reason || ''} onChange={(ev, val) => onApprovalChange(item.__index, 'Reason', val || '')} />) },
-                { key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 120, isResizable: true, onRender: (item: any) => (<DatePicker value={item.Date ? new Date(item.Date) : undefined} onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)} strings={defaultDatePickerStrings} />) }
+                {
+                  key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true,
+                  onRender: (item: any) => (
+                    <TextField value={item.Reason || ''}
+                      onChange={(ev, val) => onApprovalChange(item.__index, 'Reason', val || '')} />)
+                },
+                {
+                  key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
+                  onRender: (item: any) => (
+                    <DatePicker value={item.Date ? new Date(item.Date) : new Date()}
+                      onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)}
+                      strings={defaultDatePickerStrings} />)
+                }
               ]}
               selectionMode={SelectionMode.none}
               setKey="approvalsList"
