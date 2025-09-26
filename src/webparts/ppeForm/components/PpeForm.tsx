@@ -17,7 +17,10 @@ import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
-import { PrimaryButton, DefaultButton } from '@fluentui/react';
+import {
+  PrimaryButton,
+  // DefaultButton 
+} from '@fluentui/react';
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -70,7 +73,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
   const [reason, setReason] = useState<string>('');           // capture Reason text
-  const [isSaving, setIsSaving] = useState<boolean>(false);    // Save button state
+  // const [, setIsSaving] = useState<boolean>(false);    // Save button state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Submit button state
   const [bannerText, setBannerText] = useState<string>();
   const [lKPWorkflowStatus, setlKPWorkflowStatus] = useState<ISPListItem[]>([]);
@@ -78,7 +81,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   interface ItemRowState {
     itemId: string;  // unique key per row
     item: string;
-    order?: number;             // original order for sorting
+    order?: number | undefined;             // original order for sorting
     brands: string[];            // all available brands for item
     brandSelected?: string;      // chosen brand
     required: boolean | undefined;           // required flag per item
@@ -142,39 +145,59 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
-    const othersMissingSize = itemRows.some(r =>
-      r.item.toLowerCase() === 'others' && r.required && (!r.itemSizeSelected || !r.itemSizeSelected.trim())
-    );
-    if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
 
-    // Example: ensure at least one item is required or has any selection (tweak as you need)
+    const missing: string[] = [];
+    if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
+    if (!jobTitle?.trim()) missing.push('Job Title');
+    if (!department?.trim()) missing.push('Department');
+    if (!company?.trim()) missing.push('Company');
+    if (!division?.trim()) missing.push('Division');
+
+    if (missing.length) {
+      return `Please fill in the required fields: ${missing.join(', ')}.`;
+    }
+
     const anySelection = itemRows.some(r =>
       r.required || r.brandSelected || r.qty || r.itemSizeSelected || (r.selectedDetail)
     );
     if (!anySelection) return 'Please select at least one item or mark one as Required.';
 
+    // Example: ensure at least one item is required or has any selection (tweak as you need)
+    const anyRequired = itemRows.some(r => r.required);
+    if (anyRequired) {
+      const itemSelected = itemRows.find(r => r.required === true && r.selectedDetail !== undefined && r.itemSizeSelected !== undefined)
+      if (!itemSelected) {
+        return 'Please ensure that at least one item marked as Required has a selected Detail and Size.';
+      }
+    }
+
+    const othersMissingSize = itemRows.some(r =>
+      r.item.toLowerCase() === 'others' && r.required && (!r.itemSizeSelected || !r.itemSizeSelected.trim())
+    );
+    if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
+
     // Example: if Replacement, require a reason
     if (isReplacementChecked && !reason.trim()) return 'Please provide a reason for Replacement.';
 
     return undefined;
-  }, [itemRows, isReplacementChecked, reason]);
+  }, [_employee, jobTitle, department, company, division, itemRows, isReplacementChecked, reason]);
 
-  const handleSave = useCallback(async () => {
-    try {
-      setBannerText(undefined);
-      setIsSaving(true);
-      const payload = formPayload('Draft');
-      // TODO: Wire to SharePoint persistence here.
-      // console.log as a placeholder so you can see the shape:
-      console.log('Save payload (Draft):', payload);
-      setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
-    } catch (e) {
-      // console.error(e);
-      setBannerText('Failed to save draft.');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [formPayload]);
+  // const handleSave = useCallback(async () => {
+  //   try {
+  //     setBannerText(undefined);
+  //     setIsSaving(true);
+  //     const payload = formPayload('Draft');
+  //     // TODO: Wire to SharePoint persistence here.
+  //     // console.log as a placeholder so you can see the shape:
+  //     console.log('Save payload (Draft):', payload);
+  //     setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
+  //   } catch (e) {
+  //     // console.error(e);
+  //     setBannerText('Failed to save draft.');
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // }, [formPayload]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -353,7 +376,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItems = useCallback(async (usersArg?: IUser[]) => {
     try {
-      const query: string = `?$select=Id,Title,Brands,Order,Created&$orderby=Order asc`;
+      const query: string = `?$select=Id,Title,Brands,RecordOrder,Created&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '00f4b4fc-896d-40bb-9a03-3889e651d244', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItem[] = [];
@@ -369,24 +392,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
             Created: created !== undefined ? created : undefined,
             Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             Brands: spHelpers.NormalizeToStringArray(obj.Brands),
             PPEItemsDetails: []
           };
           result.push(temp);
         }
       });
-
-      const items = result.sort((a: any, b: any) => a.Order - b.Order);
-      // Map a sequence 1, 2, 3 instead of 100, 200, 300
-      const normalizedItems = items.map((item: any, index: number) => ({
-        ...item,
-        Order: index + 1 // This will be 1,2,3
-      }));
-
-
-      // console.log("PPE Item:", result);
-      setPpeItems(normalizedItems);
+      setPpeItems(result);
     } catch (error) {
       // console.error('An error has occurred while retrieving items!', error);
       setPpeItems([]);
@@ -395,7 +408,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
-      const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
+      const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,RecordOrder,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '3435bbde-cb56-43cf-aacf-e975c65b68c3', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItemDetails[] = [];
@@ -412,10 +425,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Created: created !== undefined ? created : undefined,
             Sizes: spHelpers.NormalizeToStringArray(obj.Sizes),
             Types: spHelpers.NormalizeToStringArray(obj.Types),
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             PPEItem: obj.PPEItem !== undefined ? {
               Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
               Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
-              Order: obj.PPEItem.Order !== undefined && obj.PPEItem.Order !== null ? obj.PPEItem.Order : undefined,
+              Order: obj.PPEItem.RecordOrder !== undefined && obj.PPEItem.RecordOrder !== null ? obj.PPEItem.RecordOrder : undefined,
               Brands: spHelpers.NormalizeToStringArray(obj.PPEItem.Brands),
             } : undefined,
           };
@@ -431,7 +445,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName,Order,Description,Created&$filter=substringof('${formName}', FormName)&$orderby=Order asc`;
+      const query: string = `?$select=Id,FormName,RecordOrder,Description,Created&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '2edbaa23-948a-4560-a553-acbe7bc60e7b', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ILKPItemInstructionsForUse[] = [];
@@ -444,7 +458,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const temp: ILKPItemInstructionsForUse = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? obj.FormName : undefined,
-            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.Order : undefined,
             Description: obj.Description !== undefined && obj.Description !== null ? obj.Description : undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
@@ -467,7 +481,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getFormsApprovalWorkflow = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName/Id,FormName/Title,Order,Created,DepartmentName,Manager&$expand=FormName,ManagerName($select=Id,FullName)&$filter=substringof('${formName}', FormName)&$orderby=Order asc`;
+      const query: string = `?$select=Id,FormName/Id,FormName/Title,RecordOrder,Created,DepartmentName,Manager&$expand=FormName,ManagerName($select=Id,FullName)&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'd084f344-63cb-4426-ae51-d7f875f3f99a', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
@@ -480,7 +494,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? obj.FormName : undefined,
-            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             DepartmentName: obj.DepartmentName !== undefined && obj.DepartmentName !== null ? obj.DepartmentName : undefined,
             Manager: obj.Manager !== undefined && obj.Manager !== null ? obj.Manager : undefined,
             Created: created !== undefined ? created : undefined,
@@ -504,7 +518,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPWorkflowStatus = useCallback(async (usersArg?: IUser[]): Promise<ISPListItem[]> => {
     try {
-      const query: string = `?$select=Id,Title,Order,Created&$orderby=Order asc`;
+      const query: string = `?$select=Id,Title,RecordOrder,Created&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '80eabd4a-6467-40d4-ae8f-fafcc77d334e', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ISPListItem[] = [];
@@ -517,7 +531,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const temp: ISPListItem = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
-            Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };
@@ -632,25 +646,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       };
     });
   }, [ppeItems, ppeItemDetails, brandsMap]);
-
-  // useEffect(() => {
-  //   if (!ppeItemMap || !ppeItemMap.length) return;
-  //   const rows: ItemRowState[] = ppeItemMap.map(item => ({
-  //     item: item.Title || "",
-  //     order: item.Order ?? undefined,            // comes directly from ppeItems
-  //     brands: item.Brands || [],                  // brands set in filledPpeItems
-  //     brandSelected: undefined,                   // default or pre-selected brand if needed
-  //     required: undefined,                             // or use a flag if available in data
-  //     qty: undefined,                             // set later if needed
-  //     details: (item.PPEItemsDetails || []).map(d => d.Title || ""),  // all detail titles
-  //     selectedDetail: "",                        // empty initially
-  //     itemSizes: (item.PPEItemsDetails || []).map(d => d.Sizes || []).reduce((acc, val) => acc.concat(val), []),
-  //     itemSizeSelected: undefined,                // default if needed
-  //     othersItemdetailsText: {},                  // empty initially
-  //   }));
-
-  //   setItemRows(rows);
-  // }, [ppeItemMap]);
 
   useEffect(() => {
     if (!ppeItemMap || !ppeItemMap.length) return;
@@ -1194,13 +1189,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <div className="row">
             <div className="form-group col-md-12">
               <DetailsList
-                items={itemRows.sort((a, b) => (a.order || 0) - (b.order || 0))}
+                items={itemRows.sort((a, b) => (a.order ? a.order : 0) - (b.order ? b.order : 0))}
                 setKey="ppeAggregatedItemsList"
                 selectionMode={SelectionMode.none}
                 layoutMode={DetailsListLayoutMode.fixedColumns}
                 columns={[
                   {
-                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 60, isResizable: true,
+                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 80, isResizable: true,
                     onRender: (r: ItemRowState) => <span style={{
                       display: 'block', whiteSpace: 'normal',
                       wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
@@ -1531,11 +1526,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <Separator />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-          <DefaultButton
+          {/* <DefaultButton
             text={isSaving ? 'Saving…' : 'Save as Draft'}
             onClick={handleSave}
             disabled={isSaving || isSubmitting}
-          />
+          /> */}
           <PrimaryButton
             text={isSubmitting ? 'Submitting…' : 'Submit'}
             onClick={handleSubmit}

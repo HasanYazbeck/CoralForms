@@ -51,6 +51,5 @@ import {IUser} from './IUser';
 
   export interface ILKPItemInstructionsForUse  extends ISPListItem {
     FormName: string;
-    Order:  number;
     Description: string;
   }
