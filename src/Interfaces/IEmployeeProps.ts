@@ -31,9 +31,9 @@ export interface IEmployeesPPEItemsCriteria extends ISPListItem {
   safetyHelmet?: string | undefined;
   reflectiveVest?: string  | undefined;
   safetyShoes?: string  | undefined;
-  rainSuit?: ICommon | undefined;
-  uniformCoveralls?: ICommon | undefined;
-  uniformTop?: ICommon | undefined;
-  uniformPants?: ICommon | undefined;
-  winterJacket?: ICommon | undefined;
+  rainSuit?: string | undefined;
+  uniformCoveralls?: string | undefined;
+  uniformTop?: string | undefined;
+  uniformPants?: string | undefined;
+  winterJacket?: string | undefined;
 }

@@ -45,7 +45,7 @@ const datePickerStyles = mergeStyleSets({
   control: { maxWidth: 300, marginBottom: 15 },
 });
 
-export default function PpeForm(props: IPpeFormWebPartProps) {
+export default function PPEFormDynamic(props: IPpeFormWebPartProps) {
   // Helpers and refs
   const formName = "PERSONAL PROTECTIVE EQUIPMENT";
   const spHelpers = useMemo(() => new SPHelpers(), []);
@@ -68,7 +68,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [users, setUsers] = useState<IUser[]>([]);
   // Employees list items fetched via _getEmployees (used for picker search)
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
-  const [, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({Id: ''});
+  const [, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({ Id: '' });
   const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
   const [ppeItemDetails, setPpeItemDetails] = useState<IPPEItemDetails[]>([]);
   const [itemInstructionsForUse, setItemInstructionsForUse] = useState<ILKPItemInstructionsForUse[]>([]);
@@ -205,21 +205,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           reflectiveVest: obj.ReflectiveVest !== undefined && obj.ReflectiveVest !== null ? obj.ReflectiveVest : undefined,
           safetyHelmet: obj.SafetyHelmet !== undefined && obj.SafetyHelmet !== null ? obj.SafetyHelmet : undefined,
           safetyShoes: obj.SafetyShoes !== undefined && obj.SafetyShoes !== null ? obj.SafetyShoes : undefined,
-          rainSuit: obj.RainSuit !== undefined && obj.RainSuit !== null ? { id: obj.RainSuit.Id, label: obj.RainSuit.DisplayText } : undefined,
-          uniformCoveralls: obj.UniformCoveralls !== undefined && obj.UniformCoveralls !== null ? { id: obj.UniformCoveralls.Id, label: obj.UniformCoveralls.DisplayText } : undefined,
-          uniformTop: obj.UniformTop !== undefined && obj.UniformTop !== null ? { id: obj.UniformTop.Id, label: obj.UniformTop.DisplayText } : undefined,
-          uniformPants: obj.UniformPants !== undefined && obj.UniformPants !== null ? { id: obj.UniformPants.Id, label: obj.UniformPants.DisplayText } : undefined,
-          winterJacket: obj.WinterJacket !== undefined && obj.WinterJacket !== null ? { id: obj.WinterJacket.Id, label: obj.WinterJacket.DisplayText } : undefined,
+          rainSuit: obj.RainSuit !== undefined && obj.RainSuit !== null ? obj.RainSuit.DisplayText : undefined,
+          uniformCoveralls: obj.UniformCoveralls !== undefined && obj.UniformCoveralls !== null ? obj.UniformCoveralls.DisplayText : undefined,
+          uniformTop: obj.UniformTop !== undefined && obj.UniformTop !== null ? obj.UniformTop.DisplayText : undefined,
+          uniformPants: obj.UniformPants !== undefined && obj.UniformPants !== null ? obj.UniformPants.DisplayText : undefined,
+          winterJacket: obj.WinterJacket !== undefined && obj.WinterJacket !== null ? obj.WinterJacket.DisplayText : undefined,
           Created: undefined, CreatedBy: undefined,
         };
         setEmployeePPEItemsCriteria(result);
-       
+
       }
 
     } catch (error) {
       console.error('An error has occurred while retrieving items!', error);
-      setEmployeePPEItemsCriteria({Id: ''});
-     
+      setEmployeePPEItemsCriteria({ Id: '' });
+
     }
   }, [props.context, spHelpers]);
 
@@ -287,7 +287,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
-      const query: string = `?$select=Id,Title,PPEItem,Sizes,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
+      const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '3435bbde-cb56-43cf-aacf-e975c65b68c3', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItemDetails[] = [];
@@ -303,6 +303,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
             Created: created !== undefined ? created : undefined,
             Sizes: normalizeToStringArray(obj.Sizes),
+            Types: normalizeToStringArray(obj.Types),
             PPEItem: obj.PPEItem !== undefined ? {
               Id: obj.PPEItem.Id !== undefined && obj.PPEItem.Id !== null ? obj.PPEItem.Id : undefined,
               Title: obj.PPEItem.Title !== undefined && obj.PPEItem.Title !== null ? obj.PPEItem.Title : undefined,
@@ -541,7 +542,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // ---------------------------
   // Handlers
   // ---------------------------
-  
+
   // Map of Item Title -> Brands[] (deduped)
   const brandsMap = useMemo(() => {
     const map: Record<string, string[]> = {};

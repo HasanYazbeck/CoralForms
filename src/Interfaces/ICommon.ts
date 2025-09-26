@@ -45,6 +45,7 @@ import {IUser} from './IUser';
     Modified?: Date | undefined;
     ModifiedBy?: IUser | undefined;
     Attachments?: FileWithPreview[] | undefined;
+    Order?: number | undefined;
     // [key: string]: any; // for other dynamic fields
   };
 
