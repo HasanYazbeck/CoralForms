@@ -63,6 +63,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [requester, setRequester] = useState<IPersonaProps[]>([]);
   const [isReplacementChecked, setIsReplacementChecked] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const bannerTopRef = useRef<HTMLDivElement>(null);
   const [users, setUsers] = useState<IUser[]>([]);
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
   const [employeePPEItemsCriteria, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({ Id: '' });
@@ -90,7 +91,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     selectedDetail?: string;   // checked details
     itemSizes: string[];         // available sizes at item-level
     itemSizeSelected?: string;   // chosen size for the item
-    othersItemdetailsText?: Record<string, string>; // Added: holds free-text per detail for "Others"
+    otherPurpose?: string | undefined; // Added: holds free-text per detail for "Others"
     types?: string[];
     selectedType?: string;              // unique list of Types for this item (if any)
     typeSizesMap?: Record<string, string[]>;
@@ -136,7 +137,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           size: sizeCsv,
           selectedDetails: r.selectedDetail,
           type: typeCsv,
-          othersText: r.item.toLowerCase() === 'others' ? r.othersItemdetailsText : undefined
+          othersText: r.item.toLowerCase() === 'others' ? r.otherPurpose : undefined
         };
       }),
       approvals: approvalsRows
@@ -145,29 +146,100 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
-
     const missing: string[] = [];
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
     if (!jobTitle?.trim()) missing.push('Job Title');
     if (!department?.trim()) missing.push('Department');
     if (!company?.trim()) missing.push('Company');
     if (!division?.trim()) missing.push('Division');
+    if (requester.length == 0) missing.push('Requester');
 
     if (missing.length) {
       return `Please fill in the required fields: ${missing.join(', ')}.`;
     }
 
-    const anySelection = itemRows.some(r =>
-      r.required || r.brandSelected || r.qty || r.itemSizeSelected || (r.selectedDetail)
-    );
-    if (!anySelection) return 'Please select at least one item or mark one as Required.';
-
-    // Example: ensure at least one item is required or has any selection (tweak as you need)
+    // Ensure at least one item is required or has any selection
     const anyRequired = itemRows.some(r => r.required);
+    if (!anyRequired) return 'Please select at least one item or mark one as Required.';
+
+    // const itemRequiredWithoutQty = itemRows.find(r => r.required && r.qty == undefined);
+    // if (itemRequiredWithoutQty) return `Please fill in the Qty field for the item "${itemRequiredWithoutQty.item}".`;
+
     if (anyRequired) {
-      const itemSelected = itemRows.find(r => r.required === true && r.selectedDetail !== undefined && r.itemSizeSelected !== undefined)
-      if (!itemSelected) {
-        return 'Please ensure that at least one item marked as Required has a selected Detail and Size.';
+      // Validate each required item individually and stop on first failure
+      for (const r of itemRows) {
+        if (!r.required) continue;
+
+        // 1) Detail is required when the item is marked required
+        if (!r.selectedDetail && r.item.toLowerCase() !== 'others') {
+          return `Please select a Specific Detail for the required item "${r.item}".`;
+        }
+
+        if (r.item.toLowerCase() === 'others' && r.otherPurpose == undefined) {
+          return `Please fill in the Purpose field for the item "${r.item}".`;
+        }
+
+        if (r.qty == undefined) {
+          return `Please enter a quantity for the required item "${r.item}".`;
+        }
+
+        // Validate quantity for all items, but only if a value is provided
+        const qtyStr = (r.qty ?? '').toString().trim();
+        // if (r.required && !qtyStr) {
+        //   return `Please enter a quantity for the required item "${r.item}".`;
+        // }
+
+        if (!qtyStr) continue; // only validate if set
+
+        const isWholeNumber = /^\d+$/.test(qtyStr);
+        const n = Number(qtyStr);
+
+        if (!isWholeNumber || !Number.isFinite(n) || n <= 0) {
+          return `Please enter a valid quantity (whole number > 0) for the item "${r.item}".`;
+        }
+
+        // 2) If sizes exist, validate size selection
+        const hasTypes = Array.isArray(r.types) && r.types.length > 0 && r.item.toLowerCase() !== 'others';
+        const hasAnySizes = (Array.isArray(r.itemSizes) && r.itemSizes.length > 0 && r.item.toLowerCase() !== 'others') || hasTypes;
+
+        if (hasAnySizes) {
+
+          if (hasTypes) {
+            // typed sizes: at least one type must have a selection
+            const anyTypeHasSelection = Object.values(r.selectedSizesByType || {}).some(v => !!v && String(v).trim().length > 0);
+            if (!anyTypeHasSelection) {
+              return `Please choose a size for the required item "${r.item}".`;
+            }
+
+            const isCoverallsDetail = /coveralls/i.test(r.selectedDetail || '');
+            if (isCoverallsDetail) {
+              const coverallsKey = (r.types || []).find(t => /coveralls/i.test(t));
+              const coverallsSel = coverallsKey ? r.selectedSizesByType?.[coverallsKey] : undefined;
+              if (coverallsKey && (!coverallsSel || !String(coverallsSel).trim())) {
+                return `Please choose a size for Coveralls for the required item "${r.item}".`;
+              }
+            } else {
+              // Require both Top and Pants when not Coveralls
+              const topKey = (r.types || []).find(t => /top/i.test(t));
+              const pantsKey = (r.types || []).find(t => /pants/i.test(t));
+              const topSel = topKey ? r.selectedSizesByType?.[topKey] : undefined;
+              const pantsSel = pantsKey ? r.selectedSizesByType?.[pantsKey] : undefined;
+
+              // If both types exist, both must be selected
+              if (topKey && pantsKey) {
+                if (!topSel || !String(topSel).trim() || !pantsSel || !String(pantsSel).trim()) {
+                  return `Please choose both Top and Pants sizes for the required item "${r.item}".`;
+                }
+              }
+            }
+
+          } else {
+            // non-typed sizes
+            if (!r.itemSizeSelected || !String(r.itemSizeSelected).trim()) {
+              return `Please choose a size for the required item "${r.item}".`;
+            }
+          }
+        }
       }
     }
 
@@ -180,46 +252,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (isReplacementChecked && !reason.trim()) return 'Please provide a reason for Replacement.';
 
     return undefined;
-  }, [_employee, jobTitle, department, company, division, itemRows, isReplacementChecked, reason]);
-
-  // const handleSave = useCallback(async () => {
-  //   try {
-  //     setBannerText(undefined);
-  //     setIsSaving(true);
-  //     const payload = formPayload('Draft');
-  //     // TODO: Wire to SharePoint persistence here.
-  //     // console.log as a placeholder so you can see the shape:
-  //     console.log('Save payload (Draft):', payload);
-  //     setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
-  //   } catch (e) {
-  //     // console.error(e);
-  //     setBannerText('Failed to save draft.');
-  //   } finally {
-  //     setIsSaving(false);
-  //   }
-  // }, [formPayload]);
-
-  const handleSubmit = useCallback(async () => {
-    try {
-      setBannerText(undefined);
-      const validationError = validateBeforeSubmit();
-      if (validationError) {
-        setBannerText(validationError);
-        return;
-      }
-
-      setIsSubmitting(true);
-      const payload = formPayload('Submitted');
-      // TODO: Wire to SharePoint persistence and/or workflow trigger here.
-      console.log('Submit payload:', payload);
-      setBannerText('Form submitted (demo). Hook this up to SharePoint to persist/trigger workflow.');
-    } catch (e) {
-      // console.error(e);
-      setBannerText('Failed to submit.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [formPayload, validateBeforeSubmit]);
+  }, [_employee, jobTitle, department, company, division, requester, itemRows, isReplacementChecked, reason]);
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -535,7 +568,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };
-
+          
           result.push(temp);
         }
       });
@@ -584,6 +617,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return () => { cancelled = true; };
   }, [_getEmployees, _getUsers, _getLKPWorkflowStatus, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, _getFormsApprovalWorkflow, props.context]);
 
+  useEffect(() => {
+    if (!bannerText) return;
+
+    // Determine current scrollTop (container or window)
+    const currentScrollTop = (containerRef.current && typeof containerRef.current.scrollTop === 'number'
+      ? containerRef.current.scrollTop
+      : (window.scrollY || document.documentElement.scrollTop || 0));
+
+    if (currentScrollTop >= 0) {
+      // Wait a tick so the banner renders, then scroll to it
+      requestAnimationFrame(() => {
+        if (bannerTopRef.current) {
+          bannerTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (containerRef.current) {
+          containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    }
+  }, [bannerText]);
   // ---------------------------
   // Row helpers
   // ---------------------------
@@ -607,20 +661,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     return sortedBrands;
   }, [ppeItems, spHelpers.NormalizeToStringArray]);
-
-  // Map of Item Title -> Sizes[] (deduped) from details
-  // const sizesMap = useMemo(() => {
-  //   const map: Record<string, string[]> = {};
-  //   (ppeItemDetails || []).forEach((p: any) => {
-  //     const title = p && p.PPEItem && p.PPEItem.Title ? String(p.PPEItem.Title).trim() : (p && p.Title ? String(p.Title).trim() : undefined);
-  //     const sizesArr = spHelpers.NormalizeToStringArray(p && p.Sizes ? p.Sizes : undefined) || [];
-  //     if (title) {
-  //       if (!map[title]) map[title] = [];
-  //       map[title] = Array.from(new Set(map[title].concat(sizesArr)));
-  //     }
-  //   });
-  //   return map;
-  // }, [ppeItemDetails, spHelpers.NormalizeToStringArray]);
 
   const ppeItemMap = useMemo(() => {
     // Create a map from item title to details
@@ -774,25 +814,65 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // }, [employeePPEItemsCriteria]);
 
+  const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
+    setItemRows(prev => prev.map((r, i) => {
+      if (i !== rowIndex) return r;
+      if (checked) return { ...r, required: true };
+      // when unchecking, clear selections
+      return {
+        ...r,
+        required: false,
+        brandSelected: undefined,
+        selectedDetail: undefined,
+        itemSizeSelected: undefined,
+        otherPurpose: undefined,
+        selectedSizesByType: {},
+        qty: undefined,
+      };
+    }));
+  }, []);
+
   const toggleItemDetail = useCallback((rowIndex: number, detail: string, checked?: boolean) => {
     setItemRows(prev =>
       prev.map((r, idx) => {
         if (idx !== rowIndex) return r;
         if (!detail) return r;
+        if (!r.required) return r;
 
+        // Compute next selected detail first
+        let nextDetail: string | undefined;
         if (typeof checked === 'boolean') {
-          return {
-            ...r,
-            selectedDetail: checked
-              ? detail
-              : (r.selectedDetail === detail ? undefined : r.selectedDetail),
-          };
+          nextDetail = checked
+            ? detail
+            : (r.selectedDetail === detail ? undefined : r.selectedDetail);
+        } else {
+          nextDetail = r.selectedDetail === detail ? undefined : detail;
         }
 
-        // Fallback (no 'checked' provided): toggle if the same size was clicked
+        // If switching to a "Coveralls" detail, and both Top & Pants sizes are currently selected,
+        // clear those size selections (keep others, including a Coveralls type, intact).
+        let nextSelectedSizesByType = r.selectedSizesByType;
+        if (nextDetail && /coveralls/i.test(nextDetail) && r.types && r.types.length) {
+          const topKey = r.types.find(t => /top/i.test(t));
+          const pantsKey = r.types.find(t => /pants/i.test(t));
+
+          const topSel = topKey ? r.selectedSizesByType?.[topKey] : undefined;
+          const pantsSel = pantsKey ? r.selectedSizesByType?.[pantsKey] : undefined;
+
+          const hasTop = !!(topSel && String(topSel).trim());
+          const hasPants = !!(pantsSel && String(pantsSel).trim());
+
+          if (topKey && pantsKey && hasTop && hasPants) {
+            nextSelectedSizesByType = { ...(r.selectedSizesByType || {}) };
+            // nextSelectedSizesByType[topKey] = undefined;
+            nextSelectedSizesByType[pantsKey] = undefined;
+          }
+        }
+
         return {
           ...r,
-          selectedDetail: r.selectedDetail === detail ? undefined : detail,
+          selectedDetail: nextDetail,
+          selectedSizesByType: nextSelectedSizesByType
         };
       })
     );
@@ -803,6 +883,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       prev.map((r, idx) => {
         if (idx !== rowIndex) return r;
         if (!brandVal) return r;
+        if (!r.required) return r;
 
         if (typeof checked === 'boolean') {
           return {
@@ -822,16 +903,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     );
   }, []);
 
-  const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
-    setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, required: !!checked } : r));
-  }, []);
-
   const toggleSize = useCallback((rowIndex: number, sizeVal?: string, checked?: boolean) => {
     setItemRows(prev =>
       prev.map((r, idx) => {
         if (idx !== rowIndex) return r;
         if (!sizeVal) return r;
-
+        if (!r.required) return r;
         if (typeof checked === 'boolean') {
           return {
             ...r,
@@ -850,29 +927,57 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     );
   }, []);
 
-  // const updateOtherDetailText = useCallback((rowIndex: number, detail?: string, checked?: boolean) => {
-  //   setItemRows(prev =>
-  //     prev.map((r, idx) => {
-  //       if (idx !== rowIndex) return r;
-  //       if (!detail) return r;
+  const updateOtherPurpose = useCallback((rowIndex: number, value?: string) => {
+    setItemRows(prev =>
+      prev.map((r, idx) => {
+        if (idx !== rowIndex) return r;
+        if (!r.required) return r; // keep it locked unless the row is marked Required
+        const next = (value ?? '').trim();
+        return { ...r, otherPurpose: next.length ? next : undefined };
+      })
+    );
+  }, []);
 
-  //       if (typeof checked === 'boolean') {
+  // const toggleSizeType = useCallback(
+  //   (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string, id?: string) => {
+  //     setItemRows(prev =>
+  //       prev.map((r, idx) => {
+  //         if (idx !== rowIndex) return r;
+  //         if (!sizeVal) return r;
+
+  //         // If the item has types and a typeKey is provided, maintain one size per type
+  //         if (typeKey && r.types && r.types.length) {
+  //           const byType = { ...(r.selectedSizesByType || {}) };
+
+  //           if (typeof checked === 'boolean') {
+  //             if (checked) {
+  //               byType[typeKey] = sizeVal;               // select this size for this type
+  //             } else {
+  //               // Only clear if we're unchecking the currently selected size for this type
+  //               if (byType[typeKey] === sizeVal) {
+  //                 byType[typeKey] = undefined;
+  //               }
+  //             }
+  //           } else {
+  //             // Fallback toggle: toggle the same size for this type
+  //             byType[typeKey] = byType[typeKey] === sizeVal ? undefined : sizeVal;
+  //           }
+  //           return {
+  //             ...r,
+  //             selectedSizesByType: byType,
+  //             // Keep legacy fields untouched for typed items
+  //           };
+  //         }
   //         return {
   //           ...r,
-  //           itemDetail: checked
-  //             ? detail
-  //             : (r.selectedDetail === detail ? undefined : r.selectedDetail),
+  //           itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
+  //           selectedType: undefined,
   //         };
-  //       }
-
-  //       // Fallback (no 'checked' provided): toggle if the same size was clicked
-  //       return {
-  //         ...r,
-  //         itemSizeSelected: r.itemSizeSelected === detail ? undefined : detail,
-  //       };
-  //     })
-  //   );
-  // }, []);
+  //       })
+  //     );
+  //   },
+  //   []
+  // );
 
   const toggleSizeType = useCallback(
     (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string, id?: string) => {
@@ -880,9 +985,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         prev.map((r, idx) => {
           if (idx !== rowIndex) return r;
           if (!sizeVal) return r;
-
+          if (!r.required) return r;
           // If the item has types and a typeKey is provided, maintain one size per type
           if (typeKey && r.types && r.types.length) {
+            // Block changes to Pants sizes when a "Coveralls" detail is selected
+            const isCoverallsDetail = /coveralls/i.test(r.selectedDetail || '');
+            if (isCoverallsDetail && /pants/i.test(typeKey)) {
+              return r; // disabled -> do nothing
+            }
+
             const byType = { ...(r.selectedSizesByType || {}) };
 
             if (typeof checked === 'boolean') {
@@ -904,6 +1015,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               // Keep legacy fields untouched for typed items
             };
           }
+
+          // Non-typed fallback
           return {
             ...r,
             itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
@@ -930,25 +1043,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     });
   }, []);
 
-  // Removed per-detail sizes map (sizes now at item level)
-
   // ---------------------------
   // Handlers
   // ---------------------------
-
-
-  // Ensure brandSelected & itemSizeSelected always within available options
-  // useEffect(() => {
-  //   setItemRows(prev => prev.map(r => {
-  //     const available = brandsMap.find(b => b.key.toLowerCase() === r.item.toLowerCase())?.brands;
-  //     let brandSelected = r.brandSelected;
-  //     if (!available) brandSelected = undefined; else if (!brandSelected || available.indexOf(brandSelected) === -1) brandSelected = available.length === 1 ? available[0] : undefined;
-  //     const itemSizes = sizesMap[r.item] || r.itemSizes || [];
-  //     let itemSizeSelected = r.itemSizeSelected;
-  //     if (!itemSizes.length) itemSizeSelected = undefined; else if (!itemSizeSelected || itemSizes.indexOf(itemSizeSelected) === -1) itemSizeSelected = itemSizes.length === 1 ? itemSizes[0] : undefined;
-  //     return { ...r, brandSelected, itemSizes, itemSizeSelected };
-  //   }));
-  // }, [brandsMap, sizesMap]);
 
   const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
 
@@ -1036,7 +1133,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return limitResults ? deduped.slice(0, limitResults) : deduped;
   }, [employees, users]);
 
-  const handleRequesterChange = useCallback((items: IPersonaProps[] | undefined) => {
+  const handleRequesterChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
     if (items && items.length) setRequester([items[0]]); else setRequester([]);
   }, []);
 
@@ -1047,6 +1144,45 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
     setIsReplacementChecked(!!checked);
   }, []);
+
+  // const handleSave = useCallback(async () => {
+  //   try {
+  //     setBannerText(undefined);
+  //     setIsSaving(true);
+  //     const payload = formPayload('Draft');
+  //     // TODO: Wire to SharePoint persistence here.
+  //     // console.log as a placeholder so you can see the shape:
+  //     console.log('Save payload (Draft):', payload);
+  //     setBannerText('Draft saved (demo). Hook this up to SharePoint to persist.');
+  //   } catch (e) {
+  //     // console.error(e);
+  //     setBannerText('Failed to save draft.');
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // }, [formPayload]);
+
+  const handleSubmit = useCallback(async () => {
+    try {
+      setBannerText(undefined);
+      const validationError = validateBeforeSubmit();
+      if (validationError) {
+        setBannerText(validationError);
+        return;
+      }
+
+      setIsSubmitting(true);
+      const payload = formPayload('Submitted');
+      // TODO: Wire to SharePoint persistence and/or workflow trigger here.
+      console.log('Submit payload:', payload);
+      setBannerText('Form submitted (demo). Hook this up to SharePoint to persist/trigger workflow.');
+    } catch (e) {
+      // console.error(e);
+      setBannerText('Failed to submit.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [formPayload, validateBeforeSubmit]);
 
   // ---------------------------
   // Render
@@ -1086,8 +1222,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
-    <div className={styles.ppeFormBackground}>
-      {bannerText && <MessageBar styles={{ root: { marginBottom: 8 } }}>{bannerText}</MessageBar>}
+    <div className={styles.ppeFormBackground} ref={containerRef}>
+      <div ref={bannerTopRef} />
+      {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
       <form>
         <div className={styles.formHeader}>
           <img src={logoUrl} alt="Logo" className={styles.formLogo} />
@@ -1113,6 +1250,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 onInputChange={onInputChange}
                 resolveDelay={50}
                 disabled={false}
+                selectedItems={_employee}
                 onChange={(items) => {
                   const selectedText = items?.[0]?.text || '';
                   const empId = employees.find(e => (e.fullName || '').toLowerCase() === selectedText.toLowerCase())?.employeeID;
@@ -1244,16 +1382,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             if (itemLabel) {
                               return (
                                 <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
-
-                                  <TextField placeholder={detail} multiline autoAdjustHeight
+                                  <TextField placeholder={detail} multiline autoAdjustHeight resizable
                                     scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
-                                  // value={r.othersItemdetailsText?.[detail] || ''}
-                                  // eslint-disable-next-line react/jsx-no-bind
-                                  // onChange={(_e, ch) => updateOtherDetailText(itemRows.indexOf(r), detail, !!ch)}
+                                    value={r.otherPurpose ?? undefined}
+                                    disabled={!r.required}
+                                    key={`purpose-${r.itemId}-${r.required ? 'on' : 'off'}`}
+                                    // eslint-disable-next-line react/jsx-no-bind
+                                    onChange={(ev, newValue) => updateOtherPurpose(itemRows.indexOf(r), newValue ?? '')}
                                   />
                                 </div>
                               );
                             }
+
                             // Special case: Winter Jacket - no checkboxes, just show the label (detail)
                             if (r.item.toLowerCase() === 'winter jacket') return (<Label>{detail || ''}</Label>)
 
@@ -1330,6 +1470,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       if (hasTypes) {
                         return (
                           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+
                             {(r.types || []).map((type, idx) => {
                               const sizesForType = (r.typeSizesMap && r.typeSizesMap[type]) || r.itemSizes || [];
                               const sizes = Array.from(new Set(sizesForType.map(s => String(s).trim()).filter(Boolean)))
@@ -1368,7 +1509,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   }
                                 </div>
                               );
-                            })}
+                            })
+                            }
                           </div>
                         );
                       }
