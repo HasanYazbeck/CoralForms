@@ -53,27 +53,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const formName = "PERSONAL PROTECTIVE EQUIPMENT";
   const spHelpers = useMemo(() => new SPHelpers(), []);
   const spCrudRef = useRef<SPCrudOperations | undefined>(undefined);
-  const [jobTitle, setJobTitle] = useState("");
-  const [department, setDepartment] = useState("");
-  const [division, setDivision] = useState("");
-  const [company, setCompany] = useState("");
-  const [_employee, setEmployee] = useState<IPersonaProps[]>([]);
-  const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
-  const [submitter, setSubmitter] = useState<IPersonaProps[]>([]);
-  const [requester, setRequester] = useState<IPersonaProps[]>([]);
-  const [isReplacementChecked, setIsReplacementChecked] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const bannerTopRef = useRef<HTMLDivElement>(null);
+  const [_jobTitle, setJobTitle] = useState("");
+  const [_department, setDepartment] = useState("");
+  const [_division, setDivision] = useState("");
+  const [_company, setCompany] = useState("");
+  const [_employee, setEmployee] = useState<IPersonaProps[]>([]);
+  const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
+  const [_submitter, setSubmitter] = useState<IPersonaProps[]>([]);
+  const [_requester, setRequester] = useState<IPersonaProps[]>([]);
+  const [_isReplacementChecked, setIsReplacementChecked] = useState(false);
+  const [_replacementReason, setReplacementReason] = useState<string>('');
   const [users, setUsers] = useState<IUser[]>([]);
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
   const [employeePPEItemsCriteria, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({ Id: '' });
   const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
   const [ppeItemDetails, setPpeItemDetails] = useState<IPPEItemDetails[]>([]);
   const [itemInstructionsForUse, setItemInstructionsForUse] = useState<ILKPItemInstructionsForUse[]>([]);
-  const [, setFormsApprovalWorkflow] = useState<IFormsApprovalWorkflow[]>([]);
+  const [formsApprovalWorkflow, setFormsApprovalWorkflow] = useState<IFormsApprovalWorkflow[]>([]);
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
-  const [reason, setReason] = useState<string>('');           // capture Reason text
   // const [, setIsSaving] = useState<boolean>(false);    // Save button state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Submit button state
   const [bannerText, setBannerText] = useState<string>();
@@ -99,13 +99,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   }
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
-  // Approvals sign-off rows (Department, HR, HSE, Warehouse)
-  const [approvalsRows, setApprovalsRows] = useState<Array<any>>([
-    { SignOff: 'Department Approval', Name: '', Status: '', Reason: '', Date: undefined, __index: 0 },
-    { SignOff: 'HR Approval', Name: '', Status: '', Reason: '', Date: undefined, __index: 1 },
-    { SignOff: 'HSE Approval', Name: '', Status: '', Reason: '', Date: undefined, __index: 2 },
-    { SignOff: 'Warehouse Approval', Name: '', Status: '', Reason: '', Date: undefined, __index: 3 }
-  ]);
+
+  const loggedInUserEmail = useMemo(
+    () => (props.context.pageContext?.user?.email || '').toLowerCase(),
+    [props.context]
+  );
+
+  const loggedInUser = useMemo(
+    () => users.find(u => (u.email || '').toLowerCase() === loggedInUserEmail),
+    [users, loggedInUserEmail]
+  );
 
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
     return {
@@ -113,12 +116,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       status,
       employeeId: _employeeId,
       employeeName: _employee?.[0]?.text,
-      jobTitle,
-      department,
-      division,
-      company,
-      requestType: isReplacementChecked ? 'Replacement' : 'New',
-      reason: isReplacementChecked ? reason : '',
+      _jobTitle,
+      _department,
+      _division,
+      _company,
+      requestType: _isReplacementChecked ? 'Replacement' : 'New',
+      reason: _isReplacementChecked ? _replacementReason : '',
       items: itemRows.map(r => {
         const hasTypes = r.types && r.types.length > 0;
         const sizeCsv = hasTypes
@@ -140,19 +143,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           othersText: r.item.toLowerCase() === 'others' ? r.otherPurpose : undefined
         };
       }),
-      approvals: approvalsRows
+      approvals: formsApprovalWorkflow
     };
-  }, [_employee, _employeeId, jobTitle, department, division, company, isReplacementChecked, reason, itemRows, approvalsRows, formName]);
+  }, [_employee, _employeeId, _jobTitle, _department, _division, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
     const missing: string[] = [];
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
-    if (!jobTitle?.trim()) missing.push('Job Title');
-    if (!department?.trim()) missing.push('Department');
-    if (!company?.trim()) missing.push('Company');
-    if (!division?.trim()) missing.push('Division');
-    if (requester.length == 0) missing.push('Requester');
+    if (!_jobTitle?.trim()) missing.push('Job Title');
+    if (!_department?.trim()) missing.push('Department');
+    if (!_company?.trim()) missing.push('Company');
+    if (!_division?.trim()) missing.push('Division');
+    if (_requester.length == 0) missing.push('Requester');
 
     if (missing.length) {
       return `Please fill in the required fields: ${missing.join(', ')}.`;
@@ -175,11 +178,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           return `Please select a Specific Detail for the required item "${r.item}".`;
         }
 
-        if (r.item.toLowerCase() === 'others' && r.otherPurpose == undefined) {
+        if (r.item.toLowerCase() === 'others' && (r.otherPurpose == undefined || r.otherPurpose.toString().trim() == '')) {
           return `Please fill in the Purpose field for the item "${r.item}".`;
         }
 
-        if (r.qty == undefined) {
+        if (r.qty == undefined || r.qty.toString().trim() === '') {
           return `Please enter a quantity for the required item "${r.item}".`;
         }
 
@@ -203,7 +206,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const hasAnySizes = (Array.isArray(r.itemSizes) && r.itemSizes.length > 0 && r.item.toLowerCase() !== 'others') || hasTypes;
 
         if (hasAnySizes) {
-
           if (hasTypes) {
             // typed sizes: at least one type must have a selection
             const anyTypeHasSelection = Object.values(r.selectedSizesByType || {}).some(v => !!v && String(v).trim().length > 0);
@@ -240,6 +242,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             }
           }
         }
+
+        const approvedForm = formsApprovalWorkflow.find(item => item.DepartmentManager?.id === loggedInUser?.id);
+
+        if (approvedForm && !approvedForm.Status) {
+          return 'Please update your approval status before submitting the form.';
+        }
+
+        if (approvedForm && approvedForm.Status !== 'Accepted' && !approvedForm.Reason) {
+          return 'Please provide a reason for rejection before submitting the form.';
+        }
       }
     }
 
@@ -249,11 +261,36 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
 
     // Example: if Replacement, require a reason
-    if (isReplacementChecked && !reason.trim()) return 'Please provide a reason for Replacement.';
+    if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
 
     return undefined;
-  }, [_employee, jobTitle, department, company, division, requester, itemRows, isReplacementChecked, reason]);
+  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason]);
 
+  const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
+    const dm = row?.DepartmentManager as IPersonaProps | undefined;
+    if (!dm) return false;
+
+    // Prefer email match (we stored email in secondaryText when we found a Graph match)
+    const dmEmail = (dm.secondaryText || '').toLowerCase();
+    if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
+      return true;
+    }
+
+    // Fallback to Graph id match
+    const dmId = dm.id ? String(dm.id).toLowerCase() : '';
+    const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+    if (dmId && currId && dmId === currId) {
+      return true;
+    }
+
+    // Last resort: display name match
+    const dmName = (dm.text || '').toLowerCase();
+    const currName = (loggedInUser?.displayName || '').toLowerCase();
+    if (dmName && currName && dmName === currName) {
+      return true;
+    }
+    return false;
+  }, [loggedInUserEmail, loggedInUser]);
   // ---------------------------
   // Data-loading functions (ported)
   // ---------------------------
@@ -527,13 +564,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         if (obj) {
           const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
-          const deptManagerPersonas: IPersonaProps | undefined = usersToUse
-            .filter(u => u.email?.toString() === obj.DepartmentManager?.EMail?.toString())
-            .map(u => ({
-              text: u.displayName || '',
-              secondaryText: u.email || '',
-              id: u.id
-            }) as IPersonaProps)[0];
+          const deptEmail = obj?.DepartmentManager?.EMail;
+          const deptTitle = obj?.DepartmentManager?.Title;
+          const match = (deptEmail && usersToUse.find(u => (u.email || '').toLowerCase() === String(deptEmail).toLowerCase()));
+
+          const deptManagerPersona: IPersonaProps | undefined = match
+            ? { text: match.displayName || deptTitle || '', secondaryText: match.email || match.jobTitle || '', id: match.id }
+            : (deptTitle ? { text: deptTitle, secondaryText: deptEmail || '', id: String(obj.DepartmentManager?.Id ?? deptTitle) } as IPersonaProps : undefined);
 
 
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
@@ -543,10 +580,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
             EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
-            DepartmentManager: deptManagerPersonas,
+            DepartmentManager: deptManagerPersona,
+            Status: undefined,
+            Reason: undefined,
+            Date: undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
-
           };
           result.push(temp);
         }
@@ -953,47 +992,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     );
   }, []);
 
-  // const toggleSizeType = useCallback(
-  //   (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string, id?: string) => {
-  //     setItemRows(prev =>
-  //       prev.map((r, idx) => {
-  //         if (idx !== rowIndex) return r;
-  //         if (!sizeVal) return r;
-
-  //         // If the item has types and a typeKey is provided, maintain one size per type
-  //         if (typeKey && r.types && r.types.length) {
-  //           const byType = { ...(r.selectedSizesByType || {}) };
-
-  //           if (typeof checked === 'boolean') {
-  //             if (checked) {
-  //               byType[typeKey] = sizeVal;               // select this size for this type
-  //             } else {
-  //               // Only clear if we're unchecking the currently selected size for this type
-  //               if (byType[typeKey] === sizeVal) {
-  //                 byType[typeKey] = undefined;
-  //               }
-  //             }
-  //           } else {
-  //             // Fallback toggle: toggle the same size for this type
-  //             byType[typeKey] = byType[typeKey] === sizeVal ? undefined : sizeVal;
-  //           }
-  //           return {
-  //             ...r,
-  //             selectedSizesByType: byType,
-  //             // Keep legacy fields untouched for typed items
-  //           };
-  //         }
-  //         return {
-  //           ...r,
-  //           itemSizeSelected: r.itemSizeSelected === sizeVal ? undefined : sizeVal,
-  //           selectedType: undefined,
-  //         };
-  //       })
-  //     );
-  //   },
-  //   []
-  // );
-
   const toggleSizeType = useCallback(
     (rowIndex: number, sizeVal?: string, checked?: boolean, typeKey?: string, id?: string) => {
       setItemRows(prev =>
@@ -1045,17 +1043,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const updateItemQty = useCallback((rowIndex: number, qty?: string) => {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, qty: qty } : r));
-  }, []);
-
-  // Approvals handlers
-  const onApprovalChange = useCallback((index: number, field: string, value: any) => {
-    setApprovalsRows(prev => {
-      const rows = prev && prev.length > 0 ? [...prev] : [];
-      while (rows.length <= index) rows.push({ SignOff: '', Name: '', Signature: '', Date: undefined, __index: rows.length });
-      // @ts-ignore
-      rows[index][field] = value;
-      return rows;
-    });
   }, []);
 
   // ---------------------------
@@ -1159,6 +1146,41 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
     setIsReplacementChecked(!!checked);
   }, []);
+
+  const handleApprovalChange = useCallback((id: number | string, field: string, value: any) => {
+    setFormsApprovalWorkflow(prev => {
+      if (!prev || prev.length === 0) return prev;
+
+      const i = prev.findIndex(r => String(r.Id ?? '') === String(id));
+      if (i < 0) return prev;
+
+      // Block edits unless the logged-in user is the Department Manager for this row
+      if (!canEditApprovalRow(prev[i])) return prev;
+
+      let next = [...prev];
+      const row: any = { ...next[i] };
+
+      switch (field) {
+        case 'Status':
+          row.Status = typeof value === 'string' ? value : (value?.text ?? value?.key ?? '').toString();
+          break;
+        case 'Reason':
+          row.Reason = value ?? '';
+          break;
+        case 'Date':
+          row.Date = value ? new Date(value) : undefined;
+          break;
+        default:
+          row[field] = value;
+      }
+      row.__index = i;
+      next[i] = row;
+
+      return next;
+    });
+  },
+    [canEditApprovalRow]
+  );
 
   // const handleSave = useCallback(async () => {
   //   try {
@@ -1281,16 +1303,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           <div className="row">
             <div className="form-group col-md-6">
-              <TextField label="Job Title" value={jobTitle} disabled={true} />
+              <TextField label="Job Title" value={_jobTitle} disabled={true} />
             </div>
             <div className="form-group col-md-6">
-              <TextField label="Department" value={department} disabled={true} />
+              <TextField label="Department" value={_department} disabled={true} />
             </div>
           </div>
 
           <div className="row">
-            <div className="form-group col-md-6"><TextField label="Division" value={division} disabled={true} /></div>
-            <div className="form-group col-md-6"><TextField label="Company" value={company} disabled={true} /></div>
+            <div className="form-group col-md-6"><TextField label="Division" value={_division} disabled={true} /></div>
+            <div className="form-group col-md-6"><TextField label="Company" value={_company} disabled={true} /></div>
           </div>
 
           <div className="row">
@@ -1307,12 +1329,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 resolveDelay={150}
                 disabled={false}
                 onChange={handleRequesterChange}
-                selectedItems={requester}
+                selectedItems={_requester}
               />
             </div>
 
             <div className="form-group col-md-6">
-              <NormalPeoplePicker label={"Submitter Name"} itemLimit={1} onResolveSuggestions={onFilterChanged} className={'ms-PeoplePicker'} key={'normal'} removeButtonAriaLabel={'Remove'} inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={submitter} />
+              <NormalPeoplePicker label={"Submitter Name"} itemLimit={1} onResolveSuggestions={onFilterChanged} className={'ms-PeoplePicker'} key={'normal'} removeButtonAriaLabel={'Remove'} inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
             </div>
           </div>
 
@@ -1320,12 +1342,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             <div className="form-group col-md-12 d-flex justify-content-between" >
               <Label htmlFor={""}>Reason for Request</Label>
 
-              <Checkbox label="New Request" className="align-items-center" checked={!isReplacementChecked} onChange={handleNewRequestChange} />
+              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} />
 
-              <Checkbox label="Replacement" className="align-items-center" checked={isReplacementChecked} onChange={handleReplacementChange} />
+              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} />
 
-              <TextField placeholder="Reason" disabled={!isReplacementChecked} value={reason}
-                onChange={(_e, v) => setReason(v || '')} />
+              <TextField placeholder="Reason" disabled={!_isReplacementChecked} value={_replacementReason}
+                onChange={(_e, v) => setReplacementReason(v || '')} />
             </div>
           </div>
         </Stack>
@@ -1592,34 +1614,37 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <div>
             <Label>Approvals / Sign-off</Label>
             <DetailsList
-              items={approvalsRows}
+              items={formsApprovalWorkflow}
               columns={[
-                { key: 'colSignOff', name: 'Sign off', fieldName: 'SignOff', minWidth: 120, isResizable: true },
                 {
-                  key: 'colName', name: 'Name', fieldName: 'Name', minWidth: 180, isResizable: true, onRender: (item: any) => (
-                    <div style={{ minWidth: 130 }}>
-
-                      <NormalPeoplePicker
-                        itemLimit={1}
-                        required={true}
-                        onResolveSuggestions={onFilterChanged}
-                        onChange={(items: IPersonaProps[] | undefined) => {
-                          const sel = items && items.length ? items[0] : undefined;
-                          // store display name and id (if available) in the Name field
-                          onApprovalChange(item.__index, 'Name', sel ? (sel.text || '') : '');
-                          // also store an id field for potential persistence
-                          onApprovalChange(item.__index, 'NameId', sel ? sel.id : undefined);
-                        }}
-                        selectedItems={item.Name ? [{ text: item.Name, id: item.NameId }] : []}
-                        resolveDelay={300}
-                        inputProps={{ 'aria-label': 'Approvee' }}
-                      />
+                  key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 120, isResizable: true,
+                  onRender: (item: any) => (
+                    <div>
+                      <span>{item.SignOffName}</span>
                     </div>
                   )
                 },
                 {
+                  key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 180, isResizable: true,
+                  onRender: (item: any, idx?: number) => {
+                    return (
+                      <div style={{ minWidth: 130 }}>
+                        <NormalPeoplePicker
+                          itemLimit={1}
+                          required={true}
+                          onResolveSuggestions={onFilterChanged}
+                          disabled={item.DepartmentManager != undefined}
+                          selectedItems={item.DepartmentManager ? [item.DepartmentManager] : []}
+                          resolveDelay={300}
+                          inputProps={{ 'aria-label': 'Approvee' }}
+                        />
+                      </div>
+                    );
+                  }
+                },
+                {
                   key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
-                  onRender: (item: any) => {
+                  onRender: (item: any, idx?: number) => {
                     const options = (lKPWorkflowStatus || []).slice().sort((a, b) => {
                       const ao = a?.Order ?? Number.POSITIVE_INFINITY;
                       const bo = b?.Order ?? Number.POSITIVE_INFINITY;
@@ -1629,31 +1654,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     return (
                       <ComboBox
                         placeholder={options.length ? 'Select status' : 'No status'}
-                        selectedKey={item.Status || undefined}   // Status holds the Title we store
+                        selectedKey={item.Status}   // Status holds the Title we store
                         options={options}
                         useComboBoxAsMenuWidth={true}
-                        disabled={!options.length}
-                        onChange={(_e, opt) => {
-                          // Store the selected Title in the row’s Status field
-                          const value = (opt?.text ?? opt?.key ?? '').toString();
-                          onApprovalChange(item.__index, 'Status', value);
-                        }}
+                        // disabled={!options.length}
+                        disabled={!canEditApprovalRow(item)}
+                        onChange={(_, option) => handleApprovalChange(item.Id!, 'Status', option)}
                       />
                     );
                   }
                 },
                 {
                   key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true,
-                  onRender: (item: any) => (
+                  onRender: (item: any, idx?: number) => (
                     <TextField value={item.Reason || ''}
-                      onChange={(ev, val) => onApprovalChange(item.__index, 'Reason', val || '')} />)
+                      disabled={!canEditApprovalRow(item)}
+                      onChange={(ev, newValue) => handleApprovalChange(item.Id!, 'Reason', newValue || '')}
+                    />)
                 },
                 {
                   key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
-                  onRender: (item: any) => (
+                  onRender: (item: any, idx?: number) => (
                     <DatePicker value={item.Date ? new Date(item.Date) : new Date()}
-                      onSelectDate={(date) => onApprovalChange(item.__index, 'Date', date)}
-                      strings={defaultDatePickerStrings} />)
+                      disabled={!canEditApprovalRow(item)}
+                      onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
+                      strings={defaultDatePickerStrings}
+                    />)
+
                 }
               ]}
               selectionMode={SelectionMode.none}

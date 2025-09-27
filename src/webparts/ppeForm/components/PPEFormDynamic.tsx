@@ -386,6 +386,9 @@ export default function PPEFormDynamic(props: IPpeFormWebPartProps) {
             SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
             EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
             DepartmentManager: deptManagerPersonas,
+            Status: undefined,
+            Reason: undefined,
+            Date: undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };
