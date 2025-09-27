@@ -1,9 +1,10 @@
  
- import {ISPListItem} from './ICommon';
-import { IEmployeeProps } from './IEmployeeProps';
+import { IPersonaProps } from '@fluentui/react';
+import {ISPListItem} from './ICommon';
 
  export interface IFormsApprovalWorkflow extends ISPListItem {
     FormName: string | undefined;
-    DepartmentName: string | undefined;
-    Manager: IEmployeeProps| undefined; // User ID
+    SignOffName: string | undefined;
+    EmployeeId?: number | undefined;
+    DepartmentManager?: IPersonaProps | undefined;
   };

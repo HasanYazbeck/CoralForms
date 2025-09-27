@@ -359,22 +359,33 @@ export default function PPEFormDynamic(props: IPpeFormWebPartProps) {
 
   const _getFormsApprovalWorkflow = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName/Id,FormName/Title,Order,Created,DepartmentName,Manager&$expand=FormName,ManagerName($select=Id,FullName)&$filter=substringof('${formName}', FormName)&$orderby=Order asc`;
+      const query: string = `?$select=Id,FormName/Id,FormName/Title,ManagerName/Id,RecordOrder,Created,SignOffName&$expand=FormName,ManagerName` +
+        `&$filter=substringof('${formName}', FormName/Title)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'd084f344-63cb-4426-ae51-d7f875f3f99a', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
+
       data.forEach((obj: any) => {
         if (obj) {
           const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
           let created: Date | undefined;
+          const deptManagerPersonas: IPersonaProps | undefined = usersToUse
+            .filter(u => u.email?.toString() === obj.DepartmentManager?.EMail?.toString())
+            .map(u => ({
+              text: u.displayName || '',
+              secondaryText: u.email || '',
+              id: u.id
+            }) as IPersonaProps)[0];
+
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? obj.FormName : undefined,
             Order: obj.Order !== undefined && obj.Order !== null ? obj.Order : undefined,
-            DepartmentName: obj.DepartmentName !== undefined && obj.DepartmentName !== null ? obj.DepartmentName : undefined,
-            Manager: obj.Manager !== undefined && obj.Manager !== null ? obj.Manager : undefined,
+            SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
+            EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
+            DepartmentManager: deptManagerPersonas,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };

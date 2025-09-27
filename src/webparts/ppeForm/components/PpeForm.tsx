@@ -303,14 +303,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
-      const query: string = `?$select=Id,EmployeeID,FullName,Division/Id,Division/Title,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,Department/Id,Department/Title,Manager/Id,Manager/FullName,Created&$expand=Division,Company,JobTitle,Department,Manager&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
+      const query: string = `?$select=Id,EmployeeID,FullName,Division/Id,Division/Title,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
+        `Department/Id,Department/Title,Manager/Id,Manager/FullName,Created,Author/EMail` +
+        `&$expand=Author,Division,Company,JobTitle,Department,Manager,Author` +
+        `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '6331f331-caa7-4732-a205-7abcd1f7d53f', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeeProps[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: IEmployeeProps = {
@@ -343,8 +346,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     try {
       const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
         `Employee/ID,Employee/FullName,RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
-        `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText` +
-        `&$expand=Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
+        `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail` +
+        `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
         `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '2f3c099b-5355-4796-b40a-6f2c728b849a', query);
       const data = await spCrudRef.current._getItemsWithQuery();
@@ -379,7 +382,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const _getCoralFormsList = useCallback(async (usersArg?: IUser[]): Promise<ICoralFormsList | undefined> => {
     try {
       const searchEscaped = formName.replace(/'/g, "''");
-      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created&$filter=substringof('${searchEscaped}', Title)`;
+      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created,Author/EMail&$expand=Author&$filter=substringof('${searchEscaped}', Title)`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '22a9fee1-dfe4-4ad0-8ce4-89d014c63049', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -387,7 +390,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       let result: ICoralFormsList = { Id: "" };
 
       if (ppeform) {
-        const createdBy = usersToUse?.find(u => u.id.toString() === ppeform.AuthorId?.toString());
+        const createdBy = usersToUse?.find(u => u.email?.toString() === ppeform.Author?.EMail?.toString());
         const created = ppeform.Created ? new Date(spHelpers.adjustDateForGMTOffset(ppeform.Created)) : undefined;
         result = {
           Id: ppeform.Id ?? undefined,
@@ -409,7 +412,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItems = useCallback(async (usersArg?: IUser[]) => {
     try {
-      const query: string = `?$select=Id,Title,Brands,RecordOrder,Created&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,Title,Brands,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '00f4b4fc-896d-40bb-9a03-3889e651d244', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItem[] = [];
@@ -417,7 +420,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: IPPEItem = {
@@ -441,14 +444,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
-      const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,RecordOrder,Created,PPEItem/Id,PPEItem/Title&$expand=PPEItem`;
+      const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,RecordOrder,Created,PPEItem/Id,PPEItem/Title,Author/EMail&$expand=Author,PPEItem`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '3435bbde-cb56-43cf-aacf-e975c65b68c3', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItemDetails[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: IPPEItemDetails = {
@@ -478,14 +481,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName,RecordOrder,Description,Created&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,FormName,RecordOrder,Description,Created,Author/EMail&$expand=Author&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '2edbaa23-948a-4560-a553-acbe7bc60e7b', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ILKPItemInstructionsForUse[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: ILKPItemInstructionsForUse = {
@@ -514,24 +517,36 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getFormsApprovalWorkflow = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName/Id,FormName/Title,RecordOrder,Created,DepartmentName,Manager&$expand=FormName,ManagerName($select=Id,FullName)&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,Author/EMail,FormName/Id,FormName/Title,ManagerName/Id,RecordOrder,Created,SignOffName,DepartmentManager/Id,DepartmentManager/Title,DepartmentManager/EMail&$expand=Author,FormName,ManagerName,DepartmentManager` +
+        `&$filter=substringof('${formName}', FormName/Title)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'd084f344-63cb-4426-ae51-d7f875f3f99a', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
+          const deptManagerPersonas: IPersonaProps | undefined = usersToUse
+            .filter(u => u.email?.toString() === obj.DepartmentManager?.EMail?.toString())
+            .map(u => ({
+              text: u.displayName || '',
+              secondaryText: u.email || '',
+              id: u.id
+            }) as IPersonaProps)[0];
+
+
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? obj.FormName : undefined,
             Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
-            DepartmentName: obj.DepartmentName !== undefined && obj.DepartmentName !== null ? obj.DepartmentName : undefined,
-            Manager: obj.Manager !== undefined && obj.Manager !== null ? obj.Manager : undefined,
+            SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
+            EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
+            DepartmentManager: deptManagerPersonas,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
+
           };
           result.push(temp);
         }
@@ -551,14 +566,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPWorkflowStatus = useCallback(async (usersArg?: IUser[]): Promise<ISPListItem[]> => {
     try {
-      const query: string = `?$select=Id,Title,RecordOrder,Created&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,Title,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '80eabd4a-6467-40d4-ae8f-fafcc77d334e', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ISPListItem[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       data.forEach((obj: any) => {
         if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.id.toString() === obj.AuthorId?.toString())[0] : undefined;
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
           const temp: ISPListItem = {
@@ -568,7 +583,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };
-          
+
           result.push(temp);
         }
       });
@@ -1583,6 +1598,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 {
                   key: 'colName', name: 'Name', fieldName: 'Name', minWidth: 180, isResizable: true, onRender: (item: any) => (
                     <div style={{ minWidth: 130 }}>
+
                       <NormalPeoplePicker
                         itemLimit={1}
                         required={true}
@@ -1604,18 +1620,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 {
                   key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
                   onRender: (item: any) => {
-                    const options = (lKPWorkflowStatus || [])
-                      .slice()
-                      .sort((a, b) => {
-                        const ao = a?.Order ?? Number.POSITIVE_INFINITY;
-                        const bo = b?.Order ?? Number.POSITIVE_INFINITY;
-                        return Number(ao) - Number(bo);
-                      })
-                      .map(s => ({
-                        key: String(s.Title ?? s.Id),  // use Title as key when available
-                        text: String(s.Title ?? '')
-                      }));
-
+                    const options = (lKPWorkflowStatus || []).slice().sort((a, b) => {
+                      const ao = a?.Order ?? Number.POSITIVE_INFINITY;
+                      const bo = b?.Order ?? Number.POSITIVE_INFINITY;
+                      return Number(ao) - Number(bo);
+                    })
+                      .map(s => ({ key: String(s.Title ?? s.Id), text: String(s.Title ?? '') }));
                     return (
                       <ComboBox
                         placeholder={options.length ? 'Select status' : 'No status'}

@@ -2,14 +2,14 @@ import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { ICommon, ISPListItem } from "./ICommon";
 
 export interface IEmployeeProps extends ISPListItem{
-  employeeID: number | undefined;
-  fullName: string;
-  jobTitle: ICommon | undefined;
-  company: ICommon | undefined;
-  division: ICommon | undefined;
-  department: ICommon | undefined;
-  employmentStatus: string | undefined;
-  manager: IEmployeeProps | undefined;
+  employeeID?: number | undefined;
+  fullName?: string;
+  jobTitle?: ICommon | undefined;
+  company?: ICommon | undefined;
+  division?: ICommon | undefined;
+  department?: ICommon | undefined;
+  employmentStatus?: string | undefined;
+  manager?: IEmployeeProps | undefined;
 }
 
 enum PPERequestReason {
