@@ -13,7 +13,7 @@ export class SPCrudOperations {
   private spHttpClient: SPHttpClient;
   private query?: string;
 
-  constructor(spHttpClient: SPHttpClient, siteUrl: string,listGUID?: string,query?: string) {
+  constructor(spHttpClient: SPHttpClient, siteUrl: string, listGUID?: string, query?: string) {
     this.spHttpClient = spHttpClient;
     this.siteUrl = siteUrl;
     this.listGUID = listGUID;
@@ -142,7 +142,7 @@ export class SPCrudOperations {
   }
 
   // Insert item List
-  public async _insertItem(item: any): Promise<void> {
+  public async _insertItem(item: any): Promise<number> {
     const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
     console.log("Item to insert:", JSON.stringify(item));
     const spHttpClientOptions: ISPHttpClientOptions = {
@@ -154,23 +154,45 @@ export class SPCrudOperations {
     };
 
     try {
-      const response: SPHttpClientResponse = await this.spHttpClient.post(
-        url,
-        SPHttpClient.configurations.v1,
-        spHttpClientOptions
-      );
+      const response: SPHttpClientResponse = await this.spHttpClient.post(url, SPHttpClient.configurations.v1, spHttpClientOptions);
 
       if (response.status === 201) {
-        // the item is created for response code 201
-        alert("A new Item inserted successfully.");
+
+        const created = await response.json();
+        return created?.Id as number;
       } else {
+        const t = await response.text();
         const responseJson = await response.json();
-        alert("Error Message: " +response.status +" - " +JSON.stringify(responseJson));
+        alert("Error Message: " + response.status + " - " + JSON.stringify(responseJson));
+        throw new Error(`Create Item failed: ${t}`);
       }
     } catch (error) {
-      // console.error("Error creating item:", error);
       throw error;
     }
+  }
+
+  // Add a new method that returns the created item (or at least the Id)
+  public async _insertItemReturn<T = any>(item: any): Promise<T> {
+    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
+    const spHttpClientOptions: ISPHttpClientOptions = {
+      headers: {
+        Accept: 'application/json;odata=nometadata',
+        'Content-Type': 'application/json;odata=nometadata',
+      },
+      body: JSON.stringify(item),
+    };
+
+    const response: SPHttpClientResponse = await this.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      spHttpClientOptions
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Insert failed: ${text}`);
+    }
+    return response.json() as Promise<T>;
   }
 
   // Get Items List

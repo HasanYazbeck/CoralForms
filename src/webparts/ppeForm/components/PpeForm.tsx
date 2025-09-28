@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MSGraphClientV3 } from "@microsoft/sp-http";
+import { ISPHttpClientOptions, MSGraphClientV3, SPHttpClient } from "@microsoft/sp-http";
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse, ISPListItem } from "../../../Interfaces/ICommon";
 
 // Components
@@ -78,7 +78,52 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Submit button state
   const [bannerText, setBannerText] = useState<string>();
   const [lKPWorkflowStatus, setlKPWorkflowStatus] = useState<ISPListItem[]>([]);
-  // Aggregated rows (one per unique Item) replacing manual add/remove paradigm
+
+  // TODO: Replace these with your actual list GUIDs or titles
+  const sharePointLists = {
+    PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
+    PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
+    PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
+  };
+  const webUrl = props.context.pageContext.web.absoluteUrl;
+
+  // const listUrl = (def: { by: 'id'; value: string }) =>
+  //   def.by === 'id'
+  //     ? `${webUrl}/_api/web/lists/getbyid('${def.value}')/items`
+  //     : `${webUrl}/_api/web/lists/getbytitle('${def.value}')/items`;
+
+  // Resolve a SharePoint user by email or login and return its numeric user Id
+  const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
+    if (!loginOrEmail) return undefined;
+    const url = `${webUrl}/_api/web/ensureuser`;
+    const options: ISPHttpClientOptions = {
+      headers: {
+        Accept: 'application/json;odata=nometadata',
+        'Content-Type': 'application/json;odata=verbose',
+        'odata-version': '',
+      },
+      body: JSON.stringify({'logonName': 'i:0#.f|membership|' + loginOrEmail})
+      // body: JSON.stringify({ logonName: loginOrEmail })
+    };
+    const res = await props.context.spHttpClient.post(url, SPHttpClient.configurations.v1, options);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
+    }
+    const u = await res.json();
+    return u?.Id;
+  }, [props.context.spHttpClient, webUrl]);
+
+  // Try to get an email from a Persona; fallback: look up from loaded Graph users by display name
+  const emailFromPersona = useCallback((p?: IPersonaProps): string | undefined => {
+    if (!p) return undefined;
+    const sec = String(p.secondaryText || '').trim();
+    if (sec.includes('@')) return sec; // already an email
+    // fallback by displayName
+    const byName = users.find(u => (u.displayName || '').toLowerCase() === String(p.text || '').toLowerCase());
+    return byName?.email;
+  }, [users]);
+
   interface ItemRowState {
     itemId: string;  // unique key per row
     item: string;
@@ -96,8 +141,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     selectedType?: string;              // unique list of Types for this item (if any)
     typeSizesMap?: Record<string, string[]>;
     selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
-
   }
+
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
 
   const loggedInUserEmail = useMemo(
@@ -120,8 +165,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       _department,
       _division,
       _company,
-      requestType: _isReplacementChecked ? 'Replacement' : 'New',
-      reason: _isReplacementChecked ? _replacementReason : '',
+      requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
+      replacementReason: _isReplacementChecked ? _replacementReason : '',
       items: itemRows.map(r => {
         const hasTypes = r.types && r.types.length > 0;
         const sizeCsv = hasTypes
@@ -155,7 +200,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (!_department?.trim()) missing.push('Department');
     if (!_company?.trim()) missing.push('Company');
     if (!_division?.trim()) missing.push('Division');
-    if (_requester.length == 0) missing.push('Requester');
+    if (_requester.length === 0) missing.push('Requester');
 
     if (missing.length) {
       return `Please fill in the required fields: ${missing.join(', ')}.`;
@@ -178,19 +223,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           return `Please select a Specific Detail for the required item "${r.item}".`;
         }
 
-        if (r.item.toLowerCase() === 'others' && (r.otherPurpose == undefined || r.otherPurpose.toString().trim() == '')) {
+        if (r.item.toLowerCase() === 'others' && (r.otherPurpose === undefined || r.otherPurpose.toString().trim() === '')) {
           return `Please fill in the Purpose field for the item "${r.item}".`;
         }
 
-        if (r.qty == undefined || r.qty.toString().trim() === '') {
+        if (r.qty === undefined || r.qty.toString().trim() === '') {
           return `Please enter a quantity for the required item "${r.item}".`;
         }
 
         // Validate quantity for all items, but only if a value is provided
         const qtyStr = (r.qty ?? '').toString().trim();
-        // if (r.required && !qtyStr) {
-        //   return `Please enter a quantity for the required item "${r.item}".`;
-        // }
 
         if (!qtyStr) continue; // only validate if set
 
@@ -244,14 +286,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         }
 
         const approvedForm = formsApprovalWorkflow.find(item => item.DepartmentManager?.id === loggedInUser?.id);
+        if (approvedForm && !approvedForm.Status) return 'Please update your approval status before submitting the form.';
+        if (approvedForm && approvedForm.Status === lKPWorkflowStatus.find(p => p.Title?.toLowerCase().includes("rejected")) && !approvedForm.Reason) return 'Please provide a reason for rejection before submitting the form.';
 
-        if (approvedForm && !approvedForm.Status) {
-          return 'Please update your approval status before submitting the form.';
-        }
-
-        if (approvedForm && approvedForm.Status !== 'Accepted' && !approvedForm.Reason) {
-          return 'Please provide a reason for rejection before submitting the form.';
-        }
       }
     }
 
@@ -264,7 +301,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
 
     return undefined;
-  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason]);
+  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
   const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
     const dm = row?.DepartmentManager as IPersonaProps | undefined;
@@ -1122,18 +1159,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const requesterOnFilterChanged = useCallback((filterText: string, currentPersonas: IPersonaProps[], limitResults?: number): IPersonaProps[] | Promise<IPersonaProps[]> => {
     if (!filterText || filterText.trim().length === 0) return [];
     const lower = filterText.toLowerCase();
-    const employeeMatches = employees
-      .filter(e => (e.fullName || '').toLowerCase().includes(lower))
-      .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName) }) as IPersonaProps);
+    // const employeeMatches = employees
+    //   .filter(e => (e.fullName || '').toLowerCase().includes(lower))
+    //   .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName) }) as IPersonaProps);
     const userMatches = users
       .filter(u => (u.displayName || '').toLowerCase().includes(lower))
       .map(u => ({ text: u.displayName || '', secondaryText: u.jobTitle, id: u.id }) as IPersonaProps);
-    const combined = employeeMatches.concat(userMatches);
-    const deduped: IPersonaProps[] = [];
-    const seen = new Set<string>();
-    combined.forEach(p => { const key = (p.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(p); } });
-    return limitResults ? deduped.slice(0, limitResults) : deduped;
-  }, [employees, users]);
+    // const combined = employeeMatches.concat(userMatches);
+    // const deduped: IPersonaProps[] = [];
+    // const seen = new Set<string>();
+    // combined.forEach(p => { const key = (p.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(p); } });
+    // return limitResults ? deduped.slice(0, limitResults) : deduped;
+    return userMatches
+  }, [users]);
 
   const handleRequesterChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
     if (items && items.length) setRequester([items[0]]); else setRequester([]);
@@ -1157,7 +1195,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       // Block edits unless the logged-in user is the Department Manager for this row
       if (!canEditApprovalRow(prev[i])) return prev;
 
-      let next = [...prev];
+      const next = [...prev];
       const row: any = { ...next[i] };
 
       switch (field) {
@@ -1209,17 +1247,144 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }
 
       setIsSubmitting(true);
+
       const payload = formPayload('Submitted');
-      // TODO: Wire to SharePoint persistence and/or workflow trigger here.
-      console.log('Submit payload:', payload);
-      setBannerText('Form submitted (demo). Hook this up to SharePoint to persist/trigger workflow.');
+      _createPPEForm(payload).then(async (newId) => {
+        await _createPPEItemDetailsRows(newId, payload);
+        // await createPPEApprovalsRows(newId, payload); 
+        console.log('Submit payload:', payload);
+        setBannerText('PPE Form is submitted Successfully.');
+      }).catch(err => {
+        console.log('Submit payload Error:', err);
+      });
     } catch (e) {
-      // console.error(e);
       setBannerText('Failed to submit.');
     } finally {
       setIsSubmitting(false);
     }
   }, [formPayload, validateBeforeSubmit]);
+
+  //   // Create parent PPEForm item and return its Id
+  const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
+    const requesterId = _requester?.[0].id ? _requester[0].id : undefined;
+    const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
+    const submitterId = await ensureUserId(submitterEmail);
+
+    // Adjust internal names to match your list
+    const body = {
+      EmployeeID: payload.employeeId,
+      EmployeeName: payload.employeeName,
+      JobTitle: payload._jobTitle,
+      Company: payload._company,
+      Division: payload._division,
+      Department: payload._department,
+      ReasonOfRequest: payload.requestType,
+      ReplacementReason: payload.replacementReason,
+      SubmitterName: submitterId,
+      RequesterName: requesterId
+    };
+    const listGuid = sharePointLists.PPEForm?.value;
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
+      listGuid, '');
+    const data = await spCrudRef.current._insertItem(body);
+    console.log(data);
+    return data as number;
+  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
+
+  // // Create detail rows for each required item
+  const _createPPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
+    const listGuid = sharePointLists.PPEFormItems?.value;
+
+    const requiredItems = (payload.items || []).filter(i => i.required);
+
+    if (requiredItems.length === 0) return;
+
+    const posts = requiredItems.map(item => {
+      // Map fields to your PPEItemDetails list’s internal names
+      const body = {
+        Brands: item.brand,
+        Quantity: item.qty,
+        Size: item.size,
+        Detail: item.selectedDetails,
+        OthersPurpose: item.othersText,
+        PPEFormId: parentId,
+        PPEItemId: item.selectedDetails
+      };
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+      const data = spCrudRef.current._insertItem(body);
+      console.log(data);
+      return data;
+
+    });
+    await Promise.all(posts);
+
+    //   props.context.spHttpClient.post(
+    //     listUrl(sharePointLists.PPEFormItems),
+    //     SPHttpClient.configurations.v1,
+    //     {
+    //       headers: {
+    //         Accept: 'application/json;odata=nometadata',
+    //         'Content-Type': 'application/json;odata=nometadata',
+    //       },
+    //       body: JSON.stringify(body)
+    //     }
+    //   ).then(async r => {
+    //     if (!r.ok) throw new Error(await r.text());
+    //   });
+    // });
+  }, [sharePointLists.PPEFormItems, props.context.spHttpClient]);
+
+  // // Optional: persist approvals (3rd list), one row per approver
+  // const createPPEApprovalsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
+  //   if (!sharePointLists.PPEFormApprovalWorkflow.value) return; // not configured
+
+  //   const rows = (payload.approvals || []).filter(a => a && (a.Status || a.Reason || a.Date));
+  //   if (rows.length === 0) return;
+
+  //   const posts = rows.map(async row => {
+  //     const dmEmail = emailFromPersona(row.DepartmentManager as IPersonaProps);
+  //     const dmId = await ensureUserId(dmEmail);
+
+  //     // If your Status is a Lookup, map Title->Id. Otherwise save string.
+  //     const statusLookup = lKPWorkflowStatus.find(s => (s.Title || '').toLowerCase() === String(row.Status || '').toLowerCase());
+  //     const body: any = {
+  //       PPEFormId: parentId,               // lookup to parent
+  //       DepartmentManagerId: dmId,         // person field
+  //       SignOffName: row.SignOffName,      // text
+  //       Reason: row.Reason || null,        // text
+  //       Date: row.Date || null,            // date
+  //     };
+  //     // Choose one depending on your column type:
+  //     // If Status is a Lookup:
+  //     // body.StatusId = statusLookup?.Id;
+  //     // If Status is Choice/Text:
+  //     body.Status = row.Status || (statusLookup?.Title || null);
+
+  //     const res = await props.context.spHttpClient.post(
+  //       listUrl(sharePointLists.PPEFormApprovalWorkflow),
+  //       SPHttpClient.configurations.v1,
+  //       {
+  //         headers: {
+  //           Accept: 'application/json;odata=nometadata',
+  //           'Content-Type': 'application/json;odata=nometadata',
+  //         },
+  //         body: JSON.stringify(body)
+  //       }
+  //     );
+  //     if (!res.ok) throw new Error(await res.text());
+  //   });
+
+  //   await Promise.all(posts);
+  // }, [sharePointLists.PPEFormApprovalWorkflow, ensureUserId, emailFromPersona, lKPWorkflowStatus, props.context.spHttpClient]);
+
+  // // Save everything to SharePoint (parent + details + approvals)
+  // const saveToSharePoint = useCallback(async () => {
+  //   const payload = formPayload('Submitted');
+  //   const parentId = await createPPEForm(payload);
+  //   await createPPEItemDetailsRows(parentId, payload);
+  //   await createPPEApprovalsRows(parentId, payload); // optional
+  //   return parentId;
+  // }, [formPayload, createPPEForm, createPPEItemDetailsRows, createPPEApprovalsRows]);
 
   // ---------------------------
   // Render
@@ -1633,7 +1798,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           itemLimit={1}
                           required={true}
                           onResolveSuggestions={onFilterChanged}
-                          disabled={item.DepartmentManager != undefined}
+                          disabled={item.DepartmentManager !== undefined}
                           selectedItems={item.DepartmentManager ? [item.DepartmentManager] : []}
                           resolveDelay={300}
                           inputProps={{ 'aria-label': 'Approvee' }}
@@ -1719,4 +1884,5 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       </form>
     </div>
   );
+
 }
