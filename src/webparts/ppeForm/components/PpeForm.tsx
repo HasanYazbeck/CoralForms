@@ -88,11 +88,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   };
   const webUrl = props.context.pageContext.web.absoluteUrl;
 
-  // const listUrl = (def: { by: 'id'; value: string }) =>
-  //   def.by === 'id'
-  //     ? `${webUrl}/_api/web/lists/getbyid('${def.value}')/items`
-  //     : `${webUrl}/_api/web/lists/getbytitle('${def.value}')/items`;
-
   // Resolve a SharePoint user by email or login and return its numeric user Id
   const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
     if (!loginOrEmail) return undefined;
@@ -232,7 +227,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         if (!r.required) continue;
 
         // 1) Detail is required when the item is marked required
-        if (!r.selectedDetail && r.item.toLowerCase() !== 'others') {
+        if (!r.selectedDetail && r.item.toLowerCase() !== 'others' || r.item.toLowerCase() !=='winter jacket') {
           return `Please select a Specific Detail for the required item "${r.item}".`;
         }
 
@@ -1263,15 +1258,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const payload = formPayload('Submitted');
       _createPPEForm(payload).then(async (newId) => {
         await _createPPEItemDetailsRows(newId, payload);
-        await _createPPEApprovalsRows(newId, payload); 
-        console.log('Submit payload:', payload);
+        await _createPPEApprovalsRows(newId, payload);
+        // console.log('Submit payload:', payload);
         showBanner('PPE Form is submitted Successfully.');
 
       }).catch(err => {
-        console.log('Submit payload Error:', err);
+        showBanner('Submit info Error:' + err.message + '. Please try again.');
+        // console.log('Submit payload Error:', err);
       });
     } catch (e) {
-      showBanner('Failed to submit.');
+      showBanner('Failed to submit. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1318,9 +1314,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         Brands: item.brand,
         Quantity: item.qty,
         Size: item.size,
+        PPEFormItemDetailId: item.itemId,
         OthersPurpose: item.othersText,
         IsRequiredRecord: item.required,
-        ItemId: item.itemId
+        ItemId: item.item,
       };
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
       const data = spCrudRef.current._insertItem(body);
@@ -1335,7 +1332,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const listGuid = sharePointLists.PPEFormApprovalWorkflow?.value;
     if (!listGuid) return; // not configured
 
-    const rows = (payload.approvals || []).filter(a => a && (a.Status || a.Reason || a.Date));
+    const rows = (payload.approvals || []);
     if (rows.length === 0) return;
 
     const posts = rows.map(async row => {
@@ -1346,19 +1343,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const statusLookup = lKPWorkflowStatus.find(s => (s.Title || '').toLowerCase() === String(row.Status || '').toLowerCase());
       const body: any = {
         PPEFormId: parentId,
-        // ApproverId:                // lookup to parent
-        DepartmentManagerId: dmId,         // person field
-        SignOffName: row.SignOffName,      // text
-        Reason: row.Reason || null,        // text
-        Date: row.Date || null,            // date
+        ApproverId: row.DepartmentManager?.id || null, // person field
+        FormApprovalsWorkflowId: dmId,
+        StatusId: statusLookup?.Id || null,
+        Reason: row.Reason || null,
       };
       // Choose one depending on your column type:
       // If Status is a Lookup:
       // body.StatusId = statusLookup?.Id;
       // If Status is Choice/Text:
-      body.Status = row.Status || (statusLookup?.Title || null);
+      // body.Status = row.Status || (statusLookup?.Title || null);
 
-       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
       const data = spCrudRef.current._insertItem(body);
       if (!data) throw new Error('Failed to create PPE Item Details');
       return data;

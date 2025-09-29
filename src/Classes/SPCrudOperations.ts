@@ -144,27 +144,27 @@ export class SPCrudOperations {
   // Insert item List
   public async _insertItem(item: any): Promise<number> {
     const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
-    console.log("Item to insert:", JSON.stringify(item));
+    // console.log("Item to insert:", JSON.stringify(item));
     const spHttpClientOptions: ISPHttpClientOptions = {
       body: JSON.stringify(item),
       headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
+        "Accept": "application/json;odata=nometadata",
+        "Content-Type": "application/json;odata=nometadata",
       },
     };
 
     try {
       const response: SPHttpClientResponse = await this.spHttpClient.post(url, SPHttpClient.configurations.v1, spHttpClientOptions);
-
       if (response.status === 201) {
-
         const created = await response.json();
         return created?.Id as number;
       } else {
-        const t = await response.text();
-        const responseJson = await response.json();
-        alert("Error Message: " + response.status + " - " + JSON.stringify(responseJson));
-        throw new Error(`Create Item failed: ${t}`);
+        const errorText = await response.text();
+        let parsed: any;
+        try { parsed = JSON.parse(errorText); } catch { /* non-JSON */ }
+        const message = parsed?.error?.message?.value || parsed?.error?.message ||
+          errorText || `HTTP ${response.status}`;
+        throw new Error(`Create Item failed: ${response.status} - ${message}`);
       }
     } catch (error) {
       throw error;
@@ -401,11 +401,7 @@ export class SPCrudOperations {
   }
 
   // Update Choices Field within a list
-  public async _updateChoicesField(
-    fieldColumnName: string,
-    itemId: string,
-    item: any
-  ): Promise<SPHttpClientResponse> {
+  public async _updateChoicesField(fieldColumnName: string, itemId: string, item: any): Promise<SPHttpClientResponse> {
     const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/fields/getbytitle(${fieldColumnName})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
@@ -436,4 +432,25 @@ export class SPCrudOperations {
       throw error;
     }
   }
+
+  // const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
+  //   if (!loginOrEmail) return undefined;
+  //   const url = `${webUrl}/_api/web/ensureuser`;
+  //   const options: ISPHttpClientOptions = {
+  //     headers: {
+  //       Accept: 'application/json;odata=nometadata',
+  //       'Content-Type': 'application/json;odata=verbose',
+  //       'odata-version': '',
+  //     },
+  //     body: JSON.stringify({ 'logonName': 'i:0#.f|membership|' + loginOrEmail })
+  //     // body: JSON.stringify({ logonName: loginOrEmail })
+  //   };
+  //   const res = await props.context.spHttpClient.post(url, SPHttpClient.configurations.v1, options);
+  //   if (!res.ok) {
+  //     const t = await res.text();
+  //     throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
+  //   }
+  //   const u = await res.json();
+  //   return u?.Id;
+  // }, [props.context.spHttpClient, webUrl]);
 }
