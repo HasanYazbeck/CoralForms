@@ -11,4 +11,5 @@ export interface IFormsApprovalWorkflow extends ISPListItem {
   Reason: string | undefined;
   Date: Date | undefined;
   Order?: number | undefined;
+  IsFinalFormApprover: boolean | undefined;
 };

@@ -5,8 +5,6 @@ import { BaseClientSideWebPart } from "@microsoft/sp-webpart-base";
 import { IReadonlyTheme, ThemeProvider, ThemeChangedEventArgs } from '@microsoft/sp-component-base';
 import { IPpeFormWebPartProps } from "./components/IPpeFormProps";
 import PpeForm from "./components/PpeForm";
-// import PPEFormDynamic from "./components/PPEFormDynamic";
-// import TEMPPpeForm from "./components/TempPPEForm";
 
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
