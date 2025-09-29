@@ -150,6 +150,7 @@ export class SPCrudOperations {
       headers: {
         "Accept": "application/json;odata=nometadata",
         "Content-Type": "application/json;odata=nometadata",
+        'OData-Version': '3.0',
       },
     };
 
