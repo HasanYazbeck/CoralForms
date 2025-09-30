@@ -4,7 +4,7 @@ import {IUser} from './IUser';
   export interface ICommon {
     id: string | undefined;
     label?: string;
-    title?: string;
+    title: string;
   }
 
   export interface DateRange {
