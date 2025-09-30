@@ -37,6 +37,7 @@ import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkfl
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
 // import { IPPEForm } from "../../../Interfaces/IPPEForm";
+// import { IPPEForm } from "../../../Interfaces/IPPEForm";
 const stackStyles: IStackStyles = {
   root: {
     background: DefaultPalette.themeTertiary,
@@ -299,31 +300,31 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return undefined;
   }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
-  const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
-    const dm = row?.DepartmentManager as IPersonaProps | undefined;
-    if (!dm) return false;
+  // const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
+  //   const dm = row?.DepartmentManager as IPersonaProps | undefined;
+  //   if (!dm) return false;
 
-    // Prefer email match (we stored email in secondaryText when we found a Graph match)
-    const dmEmail = (dm.secondaryText || '').toLowerCase();
-    if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
-      return true;
-    }
+  //   // Prefer email match (we stored email in secondaryText when we found a Graph match)
+  //   const dmEmail = (dm.secondaryText || '').toLowerCase();
+  //   if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
+  //     return true;
+  //   }
 
-    // Fallback to Graph id match
-    const dmId = dm.id ? String(dm.id).toLowerCase() : '';
-    const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-    if (dmId && currId && dmId === currId) {
-      return true;
-    }
+  //   // Fallback to Graph id match
+  //   const dmId = dm.id ? String(dm.id).toLowerCase() : '';
+  //   const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+  //   if (dmId && currId && dmId === currId) {
+  //     return true;
+  //   }
 
-    // Last resort: display name match
-    const dmName = (dm.text || '').toLowerCase();
-    const currName = (loggedInUser?.displayName || '').toLowerCase();
-    if (dmName && currName && dmName === currName) {
-      return true;
-    }
-    return false;
-  }, [loggedInUserEmail, loggedInUser]);
+  //   // Last resort: display name match
+  //   const dmName = (dm.text || '').toLowerCase();
+  //   const currName = (loggedInUser?.displayName || '').toLowerCase();
+  //   if (dmName && currName && dmName === currName) {
+  //     return true;
+  //   }
+  //   return false;
+  // }, [loggedInUserEmail, loggedInUser]);
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -674,13 +675,28 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   //   try {
   //     const ppeFormGUID = sharePointLists.PPEForm.value;
   //     const query: string = `?$select=Id,EmployeeID,EmployeeRecord/Id,EmployeeRecord/FullName,ReasonForRequest,ReplacementReason,JobTitleRecord/Id,JobTitleRecord/Title,CompanyRecord/Id,CompanyRecord/Title,DivisionRecord/Id,DivisionRecord/Title,DepartmentRecord/Id,DepartmentRecord/Title,RecordOrder,Created,Author/EMail` +
-  //       `RequesterName/Id,RequesterName/EMail,RequesterName/Title , SubmitterName/Id,SubmitterName/EMail,SubmitterName/Title` +
+  //       `RequesterName/Id,RequesterName/EMail,RequesterName/Title,SubmitterName/Id,SubmitterName/EMail,SubmitterName/Title` +
   //       `&$expand=EmployeeRecord,Author,JobTitleRecord,CompanyRecord,DivisionRecord,DepartmentRecord,RequesterName,SubmitterName` +
   //       `&$orderby=RecordOrder asc`;
   //     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, ppeFormGUID, query);
   //     const data = await spCrudRef.current._getItemsWithQuery();
-  //     const result: IPPEForm [] = [];
+  //     const result: IPPEForm[] = [];
   //     const usersToUse = usersArg && usersArg.length ? usersArg : users;
+
+  //     const toIUser = (p?: { Id?: any; Title?: string; EMail?: string }): IUser => {
+  //       if (!p) {
+  //         return { id: '', displayName: '' }; // safe fallback to satisfy non-optional IUser
+  //       }
+  //       const email = (p.EMail || '').toLowerCase();
+  //       const match = usersToUse.find(u => (u.email || '').toLowerCase() === email);
+  //       if (match) return match;
+  //       return {
+  //         id: String(p.Id ?? p.EMail ?? p.Title ?? ''),
+  //         displayName: p.Title || '',
+  //         email: p.EMail
+  //       };
+  //     };
+
   //     data.forEach((obj: any) => {
   //       if (obj) {
   //         const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
@@ -696,10 +712,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   //           company: obj.CompanyRecord !== undefined && obj.CompanyRecord !== null ? { id: obj.CompanyRecord.Id, title: obj.CompanyRecord.Title } : undefined,
   //           division: obj.DivisionRecord !== undefined && obj.DivisionRecord !== null ? { id: obj.DivisionRecord.Id, title: obj.DivisionRecord.Title } : undefined,
   //           department: obj.DepartmentRecord !== undefined && obj.DepartmentRecord !== null ? { id: obj.DepartmentRecord.Id, title: obj.DepartmentRecord.Title } : undefined,
-  //           requesterName: obj.RequesterName !== undefined && obj.RequesterName !== null ? (usersToUse.find(u => u.email?.toString() === obj.RequesterName?.EMail?.toString()) ? { text: usersToUse.find(u => u.email?.toString() === obj.RequesterName?.EMail?.toString())?.displayName || '', secondaryText: usersToUse.find(u => u.email?.toString() === obj.RequesterName?.EMail?.toString())?.email || '', id: usersToUse.find(u => u.email?.toString() === obj.RequesterName?.EMail?.toString())?.id || '' } as IPersonaProps : { text: obj.RequesterName.Title || '', secondaryText: obj.RequesterName.EMail || '', id: String(obj.RequesterName.Id ?? obj.RequesterName.Title) } as IPersonaProps) : undefined,
-  //           submitterName: obj.SubmitterName !== undefined && obj.SubmitterName !== null ? (usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString()) ? { text: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.displayName || '', secondaryText: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.email || '', id: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.id || '' } as IPersonaProps : { text: obj.SubmitterName.Title || '', secondaryText: obj.SubmitterName.EMail || '', id: String(obj.SubmitterName.Id ?? obj.SubmitterName.Title) } as IPersonaProps) : undefined,
-  //           // submitterName: obj.SubmitterName !== undefined && obj.SubmitterName !== null ? (usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString()) ? { text: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.displayName || '', secondaryText: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.email || '', id: usersToUse.find(u => u.email?.toString() === obj.SubmitterName?.EMail?.toString())?.id || '' } as IPersonaProps : { text: obj.SubmitterName.Title || '', secondaryText: obj.SubmitterName.EMail || '', id: String(obj
+  //           requesterName: toIUser(obj.RequesterName),
+  //           submitterName: toIUser(obj.SubmitterName),
+  //           dateRequested: created !== undefined ? created : undefined,
   //           Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
+  //           ppeItems: [],
   //           Created: created !== undefined ? created : undefined,
   //           CreatedBy: createdBy !== undefined ? createdBy : undefined,
   //         };
@@ -707,13 +724,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   //         result.push(temp);
   //       }
   //     });
-  //     setlKPWorkflowStatus(result);
+  //     // setlKPWorkflowStatus(result);
   //     return result;
   //   } catch (error) {
-  //     setlKPWorkflowStatus([]);
+  //     // setlKPWorkflowStatus([]);
   //     return [];
   //   }
-  // }, [props.context, spHelpers]);
+  // }, [props.context, spHelpers,users, sharePointLists.PPEForm]);
 
 
   // ---------------------------
@@ -1251,40 +1268,40 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     setIsReplacementChecked(!!checked);
   }, []);
 
-  const handleApprovalChange = useCallback((id: number | string, field: string, value: any) => {
-    setFormsApprovalWorkflow(prev => {
-      if (!prev || prev.length === 0) return prev;
+  // const handleApprovalChange = useCallback((id: number | string, field: string, value: any) => {
+  //   setFormsApprovalWorkflow(prev => {
+  //     if (!prev || prev.length === 0) return prev;
 
-      const i = prev.findIndex(r => String(r.Id ?? '') === String(id));
-      if (i < 0) return prev;
+  //     const i = prev.findIndex(r => String(r.Id ?? '') === String(id));
+  //     if (i < 0) return prev;
 
-      // Block edits unless the logged-in user is the Department Manager for this row
-      if (!canEditApprovalRow(prev[i])) return prev;
+  //     // Block edits unless the logged-in user is the Department Manager for this row
+  //     if (!canEditApprovalRow(prev[i])) return prev;
 
-      const next = [...prev];
-      const row: any = { ...next[i] };
+  //     const next = [...prev];
+  //     const row: any = { ...next[i] };
 
-      switch (field) {
-        case 'Status':
-          row.Status = value ? String(value.key) : '';
-          break;
-        case 'Reason':
-          row.Reason = value ?? '';
-          break;
-        case 'Date':
-          row.Date = value ? new Date(value) : undefined;
-          break;
-        default:
-          row[field] = value;
-      }
-      row.__index = i;
-      next[i] = row;
+  //     switch (field) {
+  //       case 'Status':
+  //         row.Status = value ? String(value.key) : '';
+  //         break;
+  //       case 'Reason':
+  //         row.Reason = value ?? '';
+  //         break;
+  //       case 'Date':
+  //         row.Date = value ? new Date(value) : undefined;
+  //         break;
+  //       default:
+  //         row[field] = value;
+  //     }
+  //     row.__index = i;
+  //     next[i] = row;
 
-      return next;
-    });
-  },
-    [canEditApprovalRow]
-  );
+  //     return next;
+  //   });
+  // },
+  //   [canEditApprovalRow]
+  // );
 
   const showBanner = useCallback((text: string) => {
     setBannerText(text);
@@ -1852,7 +1869,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         <Separator />
         {/* Approvals sign-off table */}
-        <Stack horizontal styles={stackStyles} className="mt-3 mb-3">
+        {/* <Stack horizontal styles={stackStyles} className="mt-3 mb-3">
           <div>
             <Label>Approvals / Sign-off</Label>
             <DetailsList
@@ -1955,7 +1972,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               }}
             />
           </div>
-        </Stack>
+        </Stack> */}
         <Separator />
 
         <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />

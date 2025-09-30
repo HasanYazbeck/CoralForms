@@ -2,6 +2,7 @@ import { IPersonaProps } from '@fluentui/react';
 import { IEmployeeProps } from './IEmployeeProps';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IUser } from './IUser';
+import { IPPEItemDetails } from './IPPEItemDetails';
 
 // export interface IPPEForm extends ISPListItem {
 //     EmployeeID?: number;
@@ -23,11 +24,12 @@ enum PPERequestReason {
 
 export interface IPPEForm extends IEmployeeProps {
   context?: WebPartContext
-  requesterName: IUser;
-  submitterName: IUser;
-  dateRequested: Date;
+  requesterName: IUser | undefined;
+  submitterName: IUser | undefined;
+  dateRequested: Date | undefined;
   reasonForRequest: PPERequestReason;
   replacementReason: string;
   employeeRecord: IPersonaProps | undefined;
+  ppeItems? : IPPEItemDetails[];
 }
 
