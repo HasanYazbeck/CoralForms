@@ -12,8 +12,7 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
   private _isDarkTheme: boolean = false;
   private _themeProvider: ThemeProvider;
   private _themeVariant: IReadonlyTheme | undefined;
-  public spCrudRef : SPCrudOperations;
-
+  public spCrudRef: SPCrudOperations;
   protected async onInit(): Promise<void> {
     await super.onInit();
 
@@ -87,10 +86,11 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
         context: this.context,
         ThemeColor: this._themeVariant?.palette?.themePrimary,
         IsDarkTheme: this._isDarkTheme,
-        HasTeamsContext: !!this.context.sdks.microsoftTeams
+        HasTeamsContext: !!this.context.sdks.microsoftTeams,
       });
 
     ReactDom.render(element, this.domElement);
   }
-
 }
+
+

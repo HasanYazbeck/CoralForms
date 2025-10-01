@@ -17,7 +17,7 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({
     const grid: React.CSSProperties = {
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-start',
+        justifyContent: 'space-between',
         flexWrap: 'nowrap',
         flexDirection: 'row',
         border: '1px solid #000',
@@ -38,14 +38,14 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({
     };
     return (
         <div style={grid}>
-            <div style={{ ...cell, flexDirection: 'column', gap: 6}}>
+            <div style={{ ...cell, flexDirection: 'column', gap: 6 , minWidth: '20%'}}>
                 <div>{docCode}</div>
                 <div>Version: {version}</div>
             </div>
-            <div style={{ ...cell, justifyContent: 'flex-start !important', alignItems: 'flex-start !important' }}>
+            <div style={{ ...cell, justifyContent: 'center !important', alignItems: 'center !important' }}>
                 This document is confidential and property of The Coral Oil Co.
             </div>
-            <div style={{ ...cell, justifyContent: 'center', alignItems: 'flex-end !important' }}>
+            <div style={{ ...cell, justifyContent: 'center', alignItems: 'center !important' }}>
                 Effective Date: {effectiveDate}
             </div>
             <div style={{ ...cell, borderRight: 0, justifyContent: 'center', fontWeight: 600 }}>

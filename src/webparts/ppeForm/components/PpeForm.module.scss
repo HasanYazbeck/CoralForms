@@ -74,7 +74,9 @@
 .formHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
+  align-content: center;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
   margin-bottom: 24px;
   gap: 16px;
 }

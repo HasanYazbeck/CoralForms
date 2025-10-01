@@ -1,19 +1,14 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-// import { IUser } from "../../../Interfaces/IUser";
 import { IPersonaProps } from "@fluentui/react";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
 import { IPPEItemDetails } from "../../../Interfaces/IPPEItemDetails";
-// import { ICommon } from "../../../Interfaces/ICommon";
 
 export interface IPpeFormWebPartProps {
   context: WebPartContext;
   ThemeColor: string | undefined;
   IsDarkTheme: boolean;
   HasTeamsContext: boolean;
-  // Optional pre-fetched items from the 'ListsGUIDs' SharePoint list
-  // SharePointListsGUIDs?: Map<string, ICommon>;
-  // Optional callbacks from host to control navigation
   onClose?: () => void;
   onSubmitted?: (newFormId?: number) => void;
   // Optional: when provided, the form opens in edit mode and loads this form

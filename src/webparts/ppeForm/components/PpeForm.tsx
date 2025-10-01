@@ -154,6 +154,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     [users, loggedInUserEmail]
   );
 
+  // Whether the form is in edit mode (has a valid formId)
+  const isEditMode = useMemo(() => {
+    const editFormId = props.formId ? Number(props.formId) : undefined;
+    return !!(editFormId && editFormId > 0);
+  }, [props.formId]);
+
+  // Only Requester or Submitter can edit the main form (approvals keep their existing permissions)
+  const canEditForm = useMemo(() => {
+    const current = (loggedInUserEmail || '').toLowerCase();
+    const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
+    const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
+    if (current && (current === requesterEmail || current === submitterEmail)) return true;
+
+    // Fallbacks: try id or display name when email isn't available
+    const reqId = _requester?.[0]?.id ? String(_requester[0].id).toLowerCase() : '';
+    const subId = _submitter?.[0]?.id ? String(_submitter[0].id).toLowerCase() : '';
+    const curId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+    if (curId && (curId === reqId || curId === subId)) return true;
+
+    const reqName = (_requester?.[0]?.text || '').toLowerCase();
+    const subName = (_submitter?.[0]?.text || '').toLowerCase();
+    const curName = (loggedInUser?.displayName || '').toLowerCase();
+    if (curName && (curName === reqName || curName === subName)) return true;
+
+    return false;
+  }, [loggedInUserEmail, emailFromPersona, _requester, _submitter, loggedInUser]);
+
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
     return {
       formName,
@@ -1268,6 +1295,26 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     setItemRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, qty: qty } : r));
   }, []);
 
+  // Sanitize quantity input to allow only 0-99 digits
+  const sanitizeQty = useCallback((value?: string): string => {
+    const digits = (value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    let num = parseInt(digits, 10);
+    if (!Number.isFinite(num) || num < 0) num = 0;
+    if (num > 99) num = 99;
+    return String(num);
+  }, []);
+
+  // Block non-numeric key entries except navigation and clipboard combos
+  const handleQtyKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (allowedKeys.includes(e.key)) return;
+    if ((e.ctrlKey || e.metaKey) && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) return;
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
+  }, []);
+
   // ---------------------------
   // Handlers
   // ---------------------------
@@ -1666,7 +1713,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
                 onInputChange={onInputChange}
                 resolveDelay={50}
-                disabled={false}
+                disabled={!canEditForm}
                 selectedItems={_employee}
                 onChange={(items) => {
                   const selectedText = items?.[0]?.text || '';
@@ -1707,7 +1754,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
                 onInputChange={onInputChange}
                 resolveDelay={150}
-                disabled={false}
+                disabled={!canEditForm}
                 onChange={handleRequesterChange}
                 selectedItems={_requester}
               />
@@ -1722,11 +1769,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             <div className="form-group col-md-12 d-flex justify-content-between" >
               <Label htmlFor={""}>Reason for Request</Label>
 
-              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} />
+              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditForm} />
 
-              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} />
+              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditForm} />
 
-              <TextField placeholder="Reason" disabled={!_isReplacementChecked} value={_replacementReason}
+              <TextField placeholder="Reason" disabled={!_isReplacementChecked || !canEditForm} value={_replacementReason}
                 onChange={(_e, v) => setReplacementReason(v || '')} />
             </div>
           </div>
@@ -1764,6 +1811,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         ariaLabel="Required"
                         id={r.item}
                         onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
+                        disabled={!canEditForm}
                         styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }}
                       />
                     )
@@ -1781,6 +1829,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                 <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                                   <Checkbox label={brand} checked={brandChecked}
                                     onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
+                                    disabled={!canEditForm || !r.requiredRecord}
                                     styles={{
                                       root: { alignItems: 'flex-start' }, // top-align text if wrapped
                                       label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -1807,7 +1856,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   <TextField placeholder={detail} multiline autoAdjustHeight resizable
                                     scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
                                     value={r.otherPurpose ?? undefined}
-                                    disabled={!r.requiredRecord}
+                                    disabled={!r.requiredRecord || !canEditForm}
                                     key={`purpose-${r.itemId}-${r.requiredRecord ? 'on' : 'off'}`}
                                     // eslint-disable-next-line react/jsx-no-bind
                                     onChange={(ev, newValue) => updateOtherPurpose(itemRows.indexOf(r), newValue ?? '')}
@@ -1826,6 +1875,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   label={detail}
                                   checked={checked}
                                   onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
+                                  disabled={!canEditForm || !r.requiredRecord}
                                   styles={{
                                     root: { alignItems: 'flex-start' }, // top-align text if wrapped
                                     label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -1841,17 +1891,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   },
                   {
                     key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 30, maxWidth: 40, onRender: (r: ItemRowState) => (
-                      <TextField value={r.qty || ''} type='number'
-                        onChange={(_e, v) => updateItemQty(itemRows.indexOf(r), v || '')} min={0} max={99}
+                      <TextField
+                        value={r.qty || ''}
+                        type='text'
+                        onChange={(_e, v) => {
+                          const next = sanitizeQty(v);
+                          updateItemQty(itemRows.indexOf(r), next);
+                        }}
+                        onKeyDown={handleQtyKeyDown}
+                        disabled={!canEditForm || !r.requiredRecord}
                         styles={{
                           root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
-                          field: {
-                            '&::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                            '&::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                            // Remove arrows in Chrome, Edge, Safari
-                            MozAppearance: 'textfield',
-                            appearance: 'textfield',
-                          }
                         }}
                       />
                     )
@@ -1875,7 +1925,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               selectedKey={r.itemSizeSelected || undefined}
                               options={sizes.map(s => ({ key: s, text: s }))}
                               styles={{ root: { width: 140 } }}
-                              disabled={!sizes.length}
+                              disabled={!sizes.length || !canEditForm || !r.requiredRecord}
                               onChange={(_e, opt) => {
                                 const val = opt?.key ? String(opt.key) : undefined;
                                 // If cleared, consider it as unchecked
@@ -1916,6 +1966,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                                 label={size}
                                                 checked={sizeChecked}
                                                 onChange={(_e, ch) => toggleSizeType(itemRows.indexOf(r), size, !!ch, type, id)}
+                                                disabled={!canEditForm || !r.requiredRecord}
                                                 styles={{
                                                   root: { alignItems: 'flex-start' },
                                                   label: {
@@ -1954,6 +2005,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   label={size}
                                   checked={sizeChecked}
                                   onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size, !!ch)}
+                                  disabled={!canEditForm || !r.requiredRecord}
                                   styles={{
                                     root: { alignItems: 'flex-start' },
                                     label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -1993,112 +2045,114 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           )}
         </Stack>
 
-        <Separator />
-        {/* Approvals sign-off table */}
-        <Stack horizontal styles={stackStyles} className="mt-3 mb-3">
-          <div>
-            <Label>Approvals / Sign-off</Label>
-            <DetailsList
-              items={formsApprovalWorkflow}
-              columns={[
-                {
-                  key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 120, isResizable: true,
-                  onRender: (item: any) => (
-                    <div>
-                      <span>{item.SignOffName}</span>
-                    </div>
-                  )
-                },
-                {
-                  key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 180, isResizable: true,
-                  onRender: (item: any, idx?: number) => {
-                    return (
-                      <div style={{ minWidth: 130 }}>
-                        <NormalPeoplePicker
-                          itemLimit={1}
-                          required={true}
-                          onResolveSuggestions={onFilterChanged}
-                          disabled={item.DepartmentManager !== undefined}
-                          selectedItems={item.DepartmentManager ? [item.DepartmentManager] : []}
-                          resolveDelay={300}
-                          inputProps={{ 'aria-label': 'Approvee' }}
-                        />
-                      </div>
-                    );
-                  }
-                },
-                {
-                  key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
-                  onRender: (item: any, idx?: number) => {
-                    const sorted = (lKPWorkflowStatus || []).slice()
-                      .sort((a, b) => {
-                        const ao = a?.Order ?? Number.POSITIVE_INFINITY;
-                        const bo = b?.Order ?? Number.POSITIVE_INFINITY;
-                        return Number(ao) - Number(bo);
-                      });
-
-
-                    const isFinalApprover = !!item.IsFinalFormApprover;
-                    const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
-
-                    const options = sorted.map(s => {
-                      const id = String(s.Id);
-                      const title = String(s.Title ?? '').trim();
-                      const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
-                      return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
-                    });
-                    const selectedKey = item.Status ? String(item.Status) : undefined;
-
-                    return (
-                      <ComboBox
-                        placeholder={options.length ? 'Select status' : 'No status'}
-                        selectedKey={selectedKey}
-                        options={options}
-                        useComboBoxAsMenuWidth={true}
-                        disabled={!canEditApprovalRow(item)}
-                        onChange={(_, option) => handleApprovalChange(item.Id!, 'Status', option)}
-                      />
-                    );
-                  }
-                },
-                {
-                  key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true,
-                  onRender: (item: any, idx?: number) => (
-                    <TextField value={item.Reason || ''}
-                      disabled={!canEditApprovalRow(item)}
-                      onChange={(ev, newValue) => handleApprovalChange(item.Id!, 'Reason', newValue || '')}
-                    />)
-                },
-                {
-                  key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
-                  onRender: (item: any, idx?: number) => (
-                    <DatePicker value={item.Date ? new Date(item.Date) : new Date()}
-                      disabled={!canEditApprovalRow(item)}
-                      onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
-                      strings={defaultDatePickerStrings}
-                    />)
-
-                }
-              ]}
-              selectionMode={SelectionMode.none}
-              setKey="approvalsList"
-              layoutMode={DetailsListLayoutMode.fixedColumns}
-              styles={{
-                // target cells and rows
-                contentWrapper: {
-                  selectors: {
-                    '.ms-DetailsRow-fields': {
-                      alignItems: 'center'  // stretch to max height of tallest cell in the row
+        {/* Approvals sign-off table - only show on Edit */}
+        {isEditMode && <Separator /> &&
+          (
+            <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection">
+              <div style={{ width: '100%', flex: 1 }}>
+                <Label>Approvals / Sign-off</Label>
+                <DetailsList
+                  items={formsApprovalWorkflow}
+                  columns={[
+                    {
+                      key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 120, isResizable: true,
+                      onRender: (item: any) => (
+                        <div>
+                          <span>{item.SignOffName}</span>
+                        </div>
+                      )
                     },
-                    '.ms-DetailsRow-cell': {
-                      padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                    {
+                      key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 180, isResizable: true,
+                      onRender: (item: any, idx?: number) => {
+                        return (
+                          <div style={{ minWidth: 130 }}>
+                            <NormalPeoplePicker
+                              itemLimit={1}
+                              required={true}
+                              onResolveSuggestions={onFilterChanged}
+                              disabled={item.DepartmentManager !== undefined}
+                              selectedItems={item.DepartmentManager ? [item.DepartmentManager] : []}
+                              resolveDelay={300}
+                              inputProps={{ 'aria-label': 'Approvee' }}
+                            />
+                          </div>
+                        );
+                      }
                     },
-                  }
-                }
-              }}
-            />
-          </div>
-        </Stack>
+                    {
+                      key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
+                      onRender: (item: any, idx?: number) => {
+                        const sorted = (lKPWorkflowStatus || []).slice()
+                          .sort((a, b) => {
+                            const ao = a?.Order ?? Number.POSITIVE_INFINITY;
+                            const bo = b?.Order ?? Number.POSITIVE_INFINITY;
+                            return Number(ao) - Number(bo);
+                          });
+
+
+                        const isFinalApprover = !!item.IsFinalFormApprover;
+                        const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
+
+                        const options = sorted.map(s => {
+                          const id = String(s.Id);
+                          const title = String(s.Title ?? '').trim();
+                          const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
+                          return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
+                        });
+                        const selectedKey = item.Status ? String(item.Status) : undefined;
+
+                        return (
+                          <ComboBox
+                            placeholder={options.length ? 'Select status' : 'No status'}
+                            selectedKey={selectedKey}
+                            options={options}
+                            useComboBoxAsMenuWidth={true}
+                            disabled={!canEditApprovalRow(item)}
+                            onChange={(_, option) => handleApprovalChange(item.Id!, 'Status', option)}
+                          />
+                        );
+                      }
+                    },
+                    {
+                      key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true,
+                      onRender: (item: any, idx?: number) => (
+                        <TextField value={item.Reason || ''}
+                          disabled={!canEditApprovalRow(item)}
+                          onChange={(ev, newValue) => handleApprovalChange(item.Id!, 'Reason', newValue || '')}
+                        />)
+                    },
+                    {
+                      key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
+                      onRender: (item: any, idx?: number) => (
+                        <DatePicker value={item.Date ? new Date(item.Date) : new Date()}
+                          disabled={!canEditApprovalRow(item)}
+                          onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
+                          strings={defaultDatePickerStrings}
+                        />)
+
+                    }
+                  ]}
+                  selectionMode={SelectionMode.none}
+                  setKey="approvalsList"
+                  layoutMode={DetailsListLayoutMode.fixedColumns}
+                  styles={{
+                    // target cells and rows
+                    contentWrapper: {
+                      selectors: {
+                        '.ms-DetailsRow-fields': {
+                          alignItems: 'center'  // stretch to max height of tallest cell in the row
+                        },
+                        '.ms-DetailsRow-cell': {
+                          padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                        },
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </Stack>
+          )}
         <Separator />
 
         <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />
@@ -2108,7 +2162,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <PrimaryButton
             text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canEditForm}
           />
         </div>
       </form>
