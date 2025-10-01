@@ -13,6 +13,8 @@ export interface IPpeFormWebPartProps {
   // Optional callbacks from host to control navigation
   onClose?: () => void;
   onSubmitted?: (newFormId?: number) => void;
+  // Optional: when provided, the form opens in edit mode and loads this form
+  formId?: number;
 }
 
 export interface IPpeFormWebPartState {

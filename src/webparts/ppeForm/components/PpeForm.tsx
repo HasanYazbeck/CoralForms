@@ -79,6 +79,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerText, setBannerText] = useState<string>();
   const [bannerTick, setBannerTick] = useState(0);
   const [lKPWorkflowStatus, setlKPWorkflowStatus] = useState<ISPListItem[]>([]);
+  const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
 
   // TODO: Replace these with your actual list GUIDs or titles
   const sharePointLists = {
@@ -825,6 +826,126 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     return () => { cancelled = true; };
   }, [_getEmployees, _getUsers, _getLKPWorkflowStatus, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, _getPPEFormApprovalWorkflows, props.context]);
+
+  // Prefill when editing an existing form
+  useEffect(() => {
+    const formId = props.formId;
+    if (!formId || prefilledFormId === formId) return;
+    // Wait until base items are loaded and itemRows initialized
+    if (loading || itemRows.length === 0) return;
+
+    let cancelled = false;
+
+    const toPersona = (obj?: { Id?: any; Title?: string; EMail?: string; FullName?: string }): IPersonaProps | undefined => {
+      if (!obj) return undefined;
+      const text = obj.FullName || obj.Title || '';
+      const email = obj.EMail || '';
+      const id = obj.Id != null ? String(obj.Id) : text;
+      return { text, secondaryText: email, id } as IPersonaProps;
+    };
+
+    const load = async () => {
+      try {
+        // Load PPEForm header by Id
+        const headerQuery = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,` +
+          `EmployeeRecord/Id,EmployeeRecord/FullName,` +
+          `JobTitleRecord/Id,JobTitleRecord/Title,` +
+          `DepartmentRecord/Id,DepartmentRecord/Title,` +
+          `DivisionRecord/Id,DivisionRecord/Title,` +
+          `CompanyRecord/Id,CompanyRecord/Title,` +
+          `RequesterName/Id,RequesterName/Title,RequesterName/EMail,` +
+          `SubmitterName/Id,SubmitterName/Title,SubmitterName/EMail` +
+          `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+          `&$filter=Id eq ${formId}`;
+
+        const formCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, sharePointLists.PPEForm.value, headerQuery);
+        const headerItems = await formCrud._getItemsWithQuery();
+        const header = Array.isArray(headerItems) ? headerItems[0] : undefined;
+
+        if (header && !cancelled) {
+          // Top-level fields prefill
+          const employeePersona = toPersona({ Id: header?.EmployeeRecord?.Id, FullName: header?.EmployeeRecord?.FullName });
+          setEmployee(employeePersona ? [employeePersona] : []);
+          setEmployeeId(header?.EmployeeID != null ? Number(header.EmployeeID) : undefined);
+
+          const jt = header?.JobTitleRecord ? { id: header.JobTitleRecord.Id ? String(header.JobTitleRecord.Id) : undefined, title: header.JobTitleRecord.Title || '' } : { id: undefined, title: '' };
+          const dept = header?.DepartmentRecord ? { id: header.DepartmentRecord.Id ? String(header.DepartmentRecord.Id) : undefined, title: header.DepartmentRecord.Title || '' } : { id: undefined, title: '' };
+          const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
+          const comp = header?.CompanyRecord ? { id: header.CompanyRecord.Id ? String(header.CompanyRecord.Id) : undefined, title: header.CompanyRecord.Title || '' } : { id: undefined, title: '' };
+          setJobTitleId(jt);
+          setDepartmentId(dept);
+          setDivisionId(div);
+          setCompanyId(comp);
+
+          const requesterPersona = toPersona({ Id: header?.RequesterName?.Id, Title: header?.RequesterName?.Title, EMail: header?.RequesterName?.EMail });
+          setRequester(requesterPersona ? [requesterPersona] : []);
+          const submitterPersona = toPersona({ Id: header?.SubmitterName?.Id, Title: header?.SubmitterName?.Title, EMail: header?.SubmitterName?.EMail });
+          setSubmitter(submitterPersona ? [submitterPersona] : []);
+
+          const reason: string = header?.ReasonForRequest || '';
+          setIsReplacementChecked(/replacement/i.test(reason));
+          setReplacementReason(header?.ReplacementReason || '');
+        }
+
+        // Load child PPEFormItems rows for this form
+        const itemsQuery = `?$select=Id,Brands,Quantity,Size,OthersPurpose,IsRequiredRecord,` +
+          `PPEFormID/Id,Item/Id,Item/Title,PPEFormItemDetail/Id,PPEFormItemDetail/Title` +
+          `&$expand=PPEFormID,Item,PPEFormItemDetail` +
+          `&$filter=PPEFormID/Id eq ${formId}`;
+
+        const itemsCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, sharePointLists.PPEFormItems.value, itemsQuery);
+        const childRows = await itemsCrud._getItemsWithQuery();
+
+        if (!cancelled && Array.isArray(childRows)) {
+          setItemRows(prev => prev.map(r => {
+            const match = childRows.find((cr: any) => Number(cr?.Item?.Id) === Number(r.itemId));
+            if (!match) return r;
+
+            const next = { ...r } as any;
+            next.required = !!match.IsRequiredRecord;
+            next.brandSelected = match.Brands || undefined;
+            next.qty = match.Quantity != null && match.Quantity !== '' ? String(match.Quantity) : undefined;
+
+            // Detail title
+            const detailTitle = match?.PPEFormItemDetail?.Title || (match?.PPEFormItemDetail?.Id ? (ppeItemDetails.find(d => Number(d.Id) === Number(match.PPEFormItemDetail.Id))?.Title) : undefined);
+            if (detailTitle) next.selectedDetail = detailTitle;
+
+            // Size mapping
+            const sizeStr: string = match.Size || '';
+            if (Array.isArray(r.types) && r.types.length > 0) {
+              const parts = sizeStr.split(',');
+              const byType: Record<string, string | undefined> = { ...(r.selectedSizesByType || {}) };
+              (r.types || []).forEach((t, i) => {
+                const val = (parts[i] || '').trim();
+                byType[t] = val || undefined;
+              });
+              next.selectedSizesByType = byType;
+              next.itemSizeSelected = undefined;
+            } else {
+              next.itemSizeSelected = sizeStr || undefined;
+            }
+
+            // Others purpose
+            if ((r.item || '').toLowerCase() === 'others') {
+              next.otherPurpose = match.OthersPurpose || undefined;
+            }
+
+            return next as typeof r;
+          }));
+        }
+
+        if (!cancelled) setPrefilledFormId(formId);
+      } catch (e) {
+        // swallow prefill errors, show minimal message
+        setBannerText('Failed to load the selected form for editing.');
+        setBannerTick(t => t + 1);
+      }
+    };
+
+    load();
+
+    return () => { cancelled = true; };
+  }, [props.formId, prefilledFormId, loading, itemRows.length, props.context, sharePointLists.PPEForm.value, sharePointLists.PPEFormItems.value, ppeItemDetails]);
 
   useEffect(() => {
     if (!bannerText) return;

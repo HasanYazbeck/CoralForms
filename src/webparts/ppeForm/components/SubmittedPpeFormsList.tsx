@@ -66,9 +66,9 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       { key: 'colEmpId', name: 'Emp #', fieldName: 'employeeID', minWidth: 70, maxWidth: 90 },
       { key: 'colEmployee', name: 'Employee', fieldName: 'employeeName', minWidth: 150, isResizable: true },
       { key: 'colReason', name: 'Reason', fieldName: 'reason', minWidth: 110 },
-      { key: 'colJobTitle', name: 'Job Title', fieldName: 'jobTitle', minWidth: 120 },
-      { key: 'colDept', name: 'Department', fieldName: 'department', minWidth: 120 },
-      { key: 'colDivision', name: 'Division', fieldName: 'division', minWidth: 120 },
+      { key: 'colJobTitle', name: 'Job Title', fieldName: 'jobTitle', minWidth: 120, isResizable: true },
+      { key: 'colDept', name: 'Department', fieldName: 'department', minWidth: 120, isResizable: true },
+      { key: 'colDivision', name: 'Division', fieldName: 'division', minWidth: 120, isResizable: true },
       { key: 'colCompany', name: 'Company', fieldName: 'company', minWidth: 120 },
       { key: 'colRequester', name: 'Requester', fieldName: 'requester', minWidth: 140 },
       { key: 'colSubmitter', name: 'Submitter', fieldName: 'submitter', minWidth: 140 },
@@ -77,7 +77,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         name: 'Created',
         fieldName: 'created',
         minWidth: 140,
-        onRender: (row: Row) => (row.created ? row.created.toLocaleString() : '')
+        onRender: (row: Row) => (row.created ? row.created.toLocaleDateString() : '')
       }
     ],
     []
@@ -143,16 +143,21 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       await Promise.all(
         ids.map(async id => {
           const url = `${base}(${id})`;
+
           const res = await context.spHttpClient.post(url, SPHttpClient.configurations.v1, {
             headers: {
               'IF-MATCH': '*',
               'X-HTTP-Method': 'DELETE',
-              Accept: 'application/json;odata=nometadata'
+              // Headers to satisfy SharePoint DELETE over POST
+              'Accept': 'application/json;odata=nometadata',
+              'Content-Type': 'application/json;odata=nometadata',
+              'odata-version': ''
             }
           });
-          if (!res.ok) {
+          // 204 No Content is normal; allow 404 as "already deleted"
+          if (!res.ok && res.status !== 404) {
             const t = await res.text();
-            throw new Error(`Delete failed for ID ${id}: ${t}`);
+            throw new Error(`Delete failed for ID ${id}: ${t || res.statusText}`);
           }
         })
       );

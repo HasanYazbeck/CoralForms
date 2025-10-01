@@ -10,14 +10,14 @@ const PPEFormListGuid = '7afa2286-c552-4ff6-952e-1c09f32734cd';
 
 const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
     const [mode, setMode] = React.useState<Mode>('list');
-    // const [formId, setFormId] = React.useState<number | undefined>(undefined);
+    const [formId, setFormId] = React.useState<number | undefined>(undefined);
 
     React.useEffect(() => {
         const url = new URL(window.location.href);
         const m = (url.searchParams.get('mode') || '').toLowerCase();
-        // const id = url.searchParams.get('formId') || undefined;
+        const id = url.searchParams.get('formId') || undefined;
         if (m === 'add') setMode('add');
-        else if (m === 'edit') { setMode('edit'); /* setFormId(id ? Number(id) : undefined); */ }
+        else if (m === 'edit') { setMode('edit'); setFormId(id ? Number(id) : undefined); }
         else setMode('list');
     }, []);
 
@@ -32,7 +32,8 @@ const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
             {mode !== 'list' && <CommandBar items={topBarItems} />}
             {mode === 'list' && (
                 <SubmittedPpeFormsList context={props.context} listGuid={PPEFormListGuid}
-                    onAddNew={() => setMode('add')} onEdit={(_id) => { setMode('edit'); }} />
+                    onAddNew={() => { setFormId(undefined); setMode('add'); }}
+                    onEdit={(id) => { setFormId(id); setMode('edit'); }} />
             )}
             {mode !== 'list' && (
                 <PpeForm
@@ -40,6 +41,7 @@ const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
                     ThemeColor={props.ThemeColor}
                     IsDarkTheme={props.IsDarkTheme}
                     HasTeamsContext={props.HasTeamsContext}
+                    formId={formId}
                     onClose={() => setMode('list')}
                     onSubmitted={() => setMode('list')}
                 />
