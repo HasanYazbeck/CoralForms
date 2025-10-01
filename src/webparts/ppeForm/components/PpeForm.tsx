@@ -19,7 +19,7 @@ import { Separator } from '@fluentui/react/lib/Separator';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
 import {
   PrimaryButton,
-  // DefaultButton 
+  DefaultButton
 } from '@fluentui/react';
 
 // Styles
@@ -1363,6 +1363,22 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     setBannerTick(t => t + 1);
   }, []);
 
+  // Navigate back to host list view (via callback or URL params)
+  const goBackToHost = useCallback(() => {
+    if (typeof props.onClose === 'function') {
+      props.onClose();
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mode');
+    url.searchParams.delete('formId');
+    window.location.href = url.toString();
+  }, [props.onClose]);
+
+  const handleCancel = useCallback(() => {
+    goBackToHost();
+  }, [goBackToHost]);
+
   // const handleSave = useCallback(async () => {
   //   try {
   //     showBanner(undefined);
@@ -1390,20 +1406,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       setIsSubmitting(true);
       const payload = formPayload('Submitted');
-      _createPPEForm(payload).then(async (newId) => {
-        await _createPPEItemDetailsRows(newId, payload);
-        // await _createPPEApprovalsRows(newId, payload);
-        showBanner('PPE Form is submitted Successfully.');
+      const newId = await _createPPEForm(payload);
+      await _createPPEItemDetailsRows(newId, payload);
+      // await _createPPEApprovalsRows(newId, payload);
 
-      }).catch(err => {
-        showBanner('Submit info Error:' + err.message + '. Please try again.');
-      });
-    } catch (e) {
-      showBanner('Failed to submit. Please try again.');
+      // Popup success and go back to host
+      try { window.alert('PPE Form submitted successfully.'); } catch { /* ignore */ }
+      if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
+    } catch (err: any) {
+      showBanner('Submit info Error: ' + (err?.message || err) + '. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formPayload, validateBeforeSubmit, showBanner]);
+  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost]);
 
 
   //   // Create parent PPEForm item and return its Id
@@ -2030,11 +2045,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-          {/* <DefaultButton
-            text={isSaving ? 'Saving…' : 'Save as Draft'}
-            onClick={handleSave}
-            disabled={isSaving || isSubmitting}
-          /> */}
+          <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
           <PrimaryButton
             text={isSubmitting ? 'Submitting…' : 'Submit'}
             onClick={handleSubmit}

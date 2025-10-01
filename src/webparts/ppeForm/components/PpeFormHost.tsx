@@ -35,8 +35,14 @@ const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
                     onAddNew={() => setMode('add')} onEdit={(_id) => { setMode('edit'); }} />
             )}
             {mode !== 'list' && (
-                <PpeForm context={props.context} ThemeColor={props.ThemeColor} IsDarkTheme={props.IsDarkTheme}
-                    HasTeamsContext={props.HasTeamsContext} />
+                <PpeForm
+                    context={props.context}
+                    ThemeColor={props.ThemeColor}
+                    IsDarkTheme={props.IsDarkTheme}
+                    HasTeamsContext={props.HasTeamsContext}
+                    onClose={() => setMode('list')}
+                    onSubmitted={() => setMode('list')}
+                />
             )}
         </Stack>
     );

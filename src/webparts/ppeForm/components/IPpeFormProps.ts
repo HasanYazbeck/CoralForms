@@ -10,6 +10,9 @@ export interface IPpeFormWebPartProps {
   ThemeColor: string | undefined;
   IsDarkTheme: boolean;
   HasTeamsContext: boolean;
+  // Optional callbacks from host to control navigation
+  onClose?: () => void;
+  onSubmitted?: (newFormId?: number) => void;
 }
 
 export interface IPpeFormWebPartState {
