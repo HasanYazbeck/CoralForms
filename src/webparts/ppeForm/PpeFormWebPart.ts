@@ -5,12 +5,14 @@ import { BaseClientSideWebPart } from "@microsoft/sp-webpart-base";
 import { IReadonlyTheme, ThemeProvider, ThemeChangedEventArgs } from '@microsoft/sp-component-base';
 import { IPpeFormWebPartProps } from "./components/IPpeFormProps";
 import PpeFormHost from "./components/PpeFormHost";
+import { SPCrudOperations } from "../../Classes/SPCrudOperations";
 
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
   private _isDarkTheme: boolean = false;
   private _themeProvider: ThemeProvider;
   private _themeVariant: IReadonlyTheme | undefined;
+  public spCrudRef : SPCrudOperations;
 
   protected async onInit(): Promise<void> {
     await super.onInit();
@@ -21,9 +23,32 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
       this._themeVariant = this._themeProvider.tryGetTheme();
       // Register a handler to be notified if the theme variant changes
       this._themeProvider.themeChangedEvent.add(this, this._handleThemeChangedEvent);
+      // try {
+      //   await this._fetchSharePointSiteListsGUIDs();
+      // } catch (e) {
+      //   // swallow fetch error and continue
+      //   this._listsGUIDs = new Map();
+      // }
       resolve();
     });
   }
+
+  // Fetch all items from the 'ListsGUIDs' SharePoint list and cache them
+  // private async _fetchSharePointSiteListsGUIDs(): Promise<void> {
+  //   const webUrl = this.context.pageContext.web.absoluteUrl;
+  //   try {
+  //     this.spCrudRef = new SPCrudOperations(this.context.spHttpClient, webUrl);
+  //     const data = await this.spCrudRef._getSharePointListsGUID();
+
+  //     if (!data) {
+  //       this._listsGUIDs = new Map();
+  //       return;
+  //     }
+  //     this._listsGUIDs = data;
+  //   } catch (e) {
+  //     this._listsGUIDs = new Map();
+  //   }
+  // }
 
   private _handleThemeChangedEvent(args: ThemeChangedEventArgs): void {
     this._themeVariant = args.theme;
@@ -62,9 +87,10 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
         context: this.context,
         ThemeColor: this._themeVariant?.palette?.themePrimary,
         IsDarkTheme: this._isDarkTheme,
-        HasTeamsContext: !!this.context.sdks.microsoftTeams,
+        HasTeamsContext: !!this.context.sdks.microsoftTeams
       });
 
     ReactDom.render(element, this.domElement);
   }
+
 }

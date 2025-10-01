@@ -15,8 +15,11 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({
     page = 1
 }) => {
     const grid: React.CSSProperties = {
-        display: 'grid',
-        gridTemplateColumns: '240px 1fr 260px 44px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        flexWrap: 'nowrap',
+        flexDirection: 'row',
         border: '1px solid #000',
         margin: '12px 0',
         fontSize: 12,
@@ -32,11 +35,10 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({
         flexDirection: 'column',
         gap: '6px',
         flexWrap: 'nowrap',
-        // maxWidth: '65%'
     };
     return (
         <div style={grid}>
-            <div style={{ ...cell, flexDirection: 'column', gap: 6 ,maxWidth: '60%'}}>
+            <div style={{ ...cell, flexDirection: 'column', gap: 6}}>
                 <div>{docCode}</div>
                 <div>Version: {version}</div>
             </div>

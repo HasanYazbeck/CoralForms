@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ISPHttpClientOptions, MSGraphClientV3, SPHttpClient } from "@microsoft/sp-http";
-import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from "../../../Interfaces/ICommon";
+import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse, ISPListItem } from "../../../Interfaces/ICommon";
 
 // Components
 import { ComboBox, DefaultPalette, DetailsListLayoutMode } from "@fluentui/react";
@@ -36,7 +36,6 @@ import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/
 import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
-import { lKPWorkflowStatus } from "../../../Enums/enums";
 const stackStyles: IStackStyles = {
   root: {
     background: DefaultPalette.themeTertiary,
@@ -56,6 +55,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const spCrudRef = useRef<SPCrudOperations | undefined>(undefined);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const bannerTopRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [_jobTitle, setJobTitleId] = useState<ICommon>({ id: '', title: '' });
   const [_department, setDepartmentId] = useState<ICommon>({ id: '', title: '' });
   const [_division, setDivisionId] = useState<ICommon>({ id: '', title: '' });
@@ -72,6 +72,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [ppeItems, setPpeItems] = useState<IPPEItem[]>([]);
   const [ppeItemDetails, setPpeItemDetails] = useState<IPPEItemDetails[]>([]);
   const [itemInstructionsForUse, setItemInstructionsForUse] = useState<ILKPItemInstructionsForUse[]>([]);
+  const [lKPWorkflowStatus, setLKPWorkflowStatus] = useState<ISPListItem[]>([]);
   const [formsApprovalWorkflow, setFormsApprovalWorkflow] = useState<IFormsApprovalWorkflow[]>([]);
   const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
@@ -80,13 +81,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
 
-
   // TODO: Replace these with your actual list GUIDs or titles
   const sharePointLists = {
     PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
     PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
     PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
+    LKPWorkflowStatus: { value: '80eabd4a-6467-40d4-ae8f-fafcc77d334e' }
   };
+
   const webUrl = props.context.pageContext.web.absoluteUrl;
 
   // Resolve a SharePoint user by email or login and return its numeric user Id
@@ -139,7 +141,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     typeSizesMap?: Record<string, string[]>;
     selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
   }
-
 
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
 
@@ -204,7 +205,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
 
     // Ensure at least one item is required or has any selection
-  const anyRequired = itemRows.some(r => r.requiredRecord);
+    const anyRequired = itemRows.some(r => r.requiredRecord);
     if (!anyRequired) return 'Please select at least one item or mark one as Required.';
 
     if (anyRequired) {
@@ -372,11 +373,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Employee');
+      if (!listGuid) throw new Error('Employees list Guid not found');
+
       const query: string = `?$select=Id,EmployeeID,FullName,Division/Id,Division/Title,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
         `Department/Id,Department/Title,Manager/Id,Manager/FullName,Created,Author/EMail` +
         `&$expand=Author,Division,Company,JobTitle,Department,Manager,Author` +
         `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '6331f331-caa7-4732-a205-7abcd1f7d53f', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeeProps[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -413,12 +418,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployeesPPEItemsCriteria = useCallback(async (usersArg?: IUser[], employeeID?: string) => {
     try {
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Employee_PPE_Items_Criteria');
+      if (!listGuid) throw new Error('Employee_PPE_Items_Criteria Guid not found');
+
       const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
         `Employee/ID,Employee/FullName,RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
         `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail` +
         `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
         `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '2f3c099b-5355-4796-b40a-6f2c728b849a', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       let result: IEmployeesPPEItemsCriteria;
 
@@ -450,9 +460,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getCoralFormsList = useCallback(async (usersArg?: IUser[]): Promise<ICoralFormsList | undefined> => {
     try {
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Coral_Forms_List');
+      if (!listGuid) throw new Error('Coral_Forms_List guid not found');
+
       const searchEscaped = formName.replace(/'/g, "''");
       const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created,Author/EMail&$expand=Author&$filter=substringof('${searchEscaped}', Title)`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '22a9fee1-dfe4-4ad0-8ce4-89d014c63049', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       const ppeform = data.find((obj: any) => obj !== null);
@@ -481,8 +495,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItems = useCallback(async (usersArg?: IUser[]) => {
     try {
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items');
+      if (!listGuid) throw new Error('PPE_Items list not found');
+
       const query: string = `?$select=Id,Title,Brands,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '00f4b4fc-896d-40bb-9a03-3889e651d244', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItem[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -513,8 +531,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items_Details');
+      if (!listGuid) throw new Error('PPE_Items_Details Guid not found');
+
       const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,RecordOrder,Created,PPEItem/Id,PPEItem/Title,Author/EMail&$expand=Author,PPEItem`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '3435bbde-cb56-43cf-aacf-e975c65b68c3', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItemDetails[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -550,8 +572,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items_Details');
+      if (!listGuid) throw new Error('PPE_Items_Details guid list not found');
+
       const query: string = `?$select=Id,FormName,RecordOrder,Description,Created,Author/EMail&$expand=Author&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '2edbaa23-948a-4560-a553-acbe7bc60e7b', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ILKPItemInstructionsForUse[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -584,14 +611,56 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context, spHelpers]);
 
+  const _getLKPWorkflowStatus = useCallback(async (usersArg?: IUser[], formName?: string) => {
+    try {
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('LKP_Workflow_Status');
+      if (!listGuid) throw new Error('LKP_Workflow_Status guid list not found');
+
+      const query: string = `?$select=Id,Title,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: ISPListItem[] = [];
+      const usersToUse = usersArg && usersArg.length ? usersArg : users;
+      data.forEach((obj: any) => {
+        if (obj) {
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
+          let created: Date | undefined;
+          if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          const temp: ISPListItem = {
+            Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            Title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.Order : undefined,
+            Created: created !== undefined ? created : undefined,
+            CreatedBy: createdBy !== undefined ? createdBy : undefined,
+          };
+          result.push(temp);
+        }
+      });
+      // sort by Order (ascending). If Order is missing, place those items at the end.
+      result.sort((a, b) => {
+        const aOrder = (a && a.Order !== undefined && a.Order !== null) ? Number(a.Order) : Number.POSITIVE_INFINITY;
+        const bOrder = (b && b.Order !== undefined && b.Order !== null) ? Number(b.Order) : Number.POSITIVE_INFINITY;
+        return aOrder - bOrder;
+      });
+      setLKPWorkflowStatus(result);
+    } catch (error) {
+      setLKPWorkflowStatus([]);
+      // console.error('An error has occurred while retrieving items!', error);
+    }
+  }, [props.context, spHelpers]);
+
   const _getPPEFormApprovalWorkflows = useCallback(async (usersArg?: IUser[], formId?: number) => {
     try {
-      const PPEFormApprovalWorkflowGUID = sharePointLists.PPEFormApprovalWorkflow.value;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Form_Approval_Workflow');
+      if (!listGuid) throw new Error('PPE_Form_Approval_Workflow guid list not found');
+
       const query: string = `?$select=Id,SignOffName,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason` +
         `&$expand=Author,PPEForm,StatusRecord,Approver` +
         (formId && formId > 0 ? `&$filter=PPEForm/Id eq ${formId}` : '') +
         `&$orderby=OrderRecord asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, PPEFormApprovalWorkflowGUID, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -657,6 +726,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       if (coralListResult && coralListResult.hasInstructionForUse) {
         if (coralListResult.hasInstructionForUse) await _getLKPItemInstructionsForUse(fetchedUsers, formName);
         if (coralListResult.hasWorkflow) {
+          await _getLKPWorkflowStatus(fetchedUsers);
           const editFormId = props.formId ? Number(props.formId) : undefined;
           if (editFormId && editFormId > 0) {
             await _getPPEFormApprovalWorkflows(fetchedUsers, editFormId);
@@ -826,6 +896,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       });
     }
   }, [bannerText, bannerTick]);
+
+  // When we start submitting/updating, scroll to where the loader overlay is rendered
+  useEffect(() => {
+    if (!isSubmitting) return;
+    // Wait for overlay to render, then scroll it into view
+    requestAnimationFrame(() => {
+      if (overlayRef.current && overlayRef.current.scrollIntoView) {
+        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+      } else if (containerRef.current) {
+        try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      } else {
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      }
+    });
+  }, [isSubmitting]);
   // ---------------------------
   // Row helpers
   // ---------------------------
@@ -1295,7 +1380,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, []);
 
   const handleNewRequestChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    if (checked) setIsReplacementChecked(false);
+    if (checked) {
+      setIsReplacementChecked(false);
+      setReplacementReason('');
+    }
   }, []);
 
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
@@ -1368,11 +1456,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       setIsSubmitting(true);
       const payload = formPayload('Submitted');
-      const newId = await _createPPEForm(payload);
-      await _createPPEItemDetailsRows(newId, payload);
-      // Popup success and go back to host
-      try { window.alert('PPE Form submitted successfully.'); } catch { /* ignore */ }
-      if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
+      const editFormId = props.formId ? Number(props.formId) : undefined;
+      if (editFormId && editFormId > 0) {
+        // Update existing parent + replace child rows
+        await _updatePPEForm(editFormId, payload);
+        await _replacePPEItemDetailsRows(editFormId, payload);
+        try { window.alert('PPE Form updated successfully.'); } catch { /* ignore */ }
+        if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
+      } else {
+        // Create new parent and children
+        const newId = await _createPPEForm(payload);
+        await _createPPEItemDetailsRows(newId, payload);
+        // Popup success and go back to host
+        try { window.alert('PPE Form submitted successfully.'); } catch { /* ignore */ }
+        if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
+      }
     } catch (err: any) {
       showBanner('Submit info Error: ' + (err?.message || err) + '. Please try again.');
     } finally {
@@ -1410,6 +1508,34 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return data as number;
   }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
 
+  // Update existing PPEForm item
+  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>): Promise<void> => {
+    const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
+    const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
+    const requesterId = await ensureUserId(requesterEmail);
+    const submitterId = await ensureUserId(submitterEmail);
+
+    const _employeeSPId = _employee ? Number(_employee[0]?.id) : undefined;
+    if (_employeeSPId == null) throw new Error('Employee is required');
+
+    const body = {
+      EmployeeRecordId: _employeeSPId,
+      SubmitterNameId: submitterId ?? null,
+      RequesterNameId: requesterId ?? null,
+      JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
+      CompanyRecordId: _company?.id ? Number(_company.id) : null,
+      DivisionRecordId: _division?.id ? Number(_division.id) : null,
+      DepartmentRecordId: _department?.id ? Number(_department.id) : null,
+      ReasonForRequest: payload.requestType ?? null,
+      ReplacementReason: payload.replacementReason ?? null,
+      EmployeeID: payload.employeeId ?? null,
+    };
+    const listGuid = sharePointLists.PPEForm?.value;
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
+      listGuid, '');
+    await spCrudRef.current._updateItem(String(formId), body);
+  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+
   // // Create detail rows for each required item
   const _createPPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
     const listGuid = sharePointLists.PPEFormItems?.value;
@@ -1437,6 +1563,22 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     });
     await Promise.all(posts);
   }, [sharePointLists.PPEFormItems, props.context.spHttpClient]);
+
+  // Replace child rows: delete existing detail rows then insert current required ones
+  const _replacePPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
+    const listGuid = sharePointLists.PPEFormItems?.value;
+    // First, fetch existing children for this parent form
+    const query = `?$select=Id&$filter=PPEFormID/Id eq ${parentId}`;
+    const itemsOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+    const existing = await itemsOps._getItemsWithQuery();
+    if (Array.isArray(existing) && existing.length) {
+      // Delete all existing children
+      const delOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+      await Promise.all(existing.map((row: any) => delOps._deleteItem(Number(row.Id))));
+    }
+    // Insert current selection
+    await _createPPEItemDetailsRows(parentId, payload);
+  }, [sharePointLists.PPEFormItems, props.context.spHttpClient, _createPPEItemDetailsRows]);
 
   // ---------------------------
   // Render
@@ -1476,8 +1618,29 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
-    <div className={styles.ppeFormBackground} ref={containerRef}>
+    <div className={styles.ppeFormBackground} ref={containerRef} style={{ position: 'relative' }}>
       <div ref={bannerTopRef} />
+      {isSubmitting && (
+        <div
+          ref={overlayRef}
+          aria-busy="true"
+          role="dialog"
+          aria-modal="true"
+          aria-label={props.formId ? 'Updating form' : 'Submitting form'}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(255,255,255,0.6)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'all'
+          }}
+        >
+          <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
+        </div>
+      )}
       {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
       <form>
         <div className={styles.formHeader}>
@@ -1943,7 +2106,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
           <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
           <PrimaryButton
-            text={isSubmitting ? 'Submitting…' : 'Submit'}
+            text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
             onClick={handleSubmit}
             disabled={isSubmitting}
           />

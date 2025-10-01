@@ -20,6 +20,35 @@ export class SPCrudOperations {
     this.query = query;
   }
 
+  public async _getSharePointListGUID(listName?: string): Promise<string | undefined> {
+    try {
+      // Escape single quotes in title if provided
+      const safeTitle = listName ? listName.replace(/'/g, "''") : undefined;
+      const baseUrl: string = `${this.siteUrl}/_api/web/lists?$select=Id,Title,Fields`;
+      const filter = safeTitle ? `&$filter=Title eq '${safeTitle}'` : '';
+      const listUrl: string = `${baseUrl}${filter}`;
+      // Resolve the list GUID by title first
+      const response = await this.spHttpClient.get(listUrl, SPHttpClient.configurations.v1);
+
+      if (!response.ok) {
+        return;
+      }
+
+      if (response.status === 200) {
+        const responseData: any = await response.json();
+        const data: any[] = responseData["value"] || [];
+        if (data.length == 1) {
+          return data[0].Id.toString();
+        }
+      } else {
+        const responseError: any = await response.json();
+        throw new Error(`Error retrieving items. Status: ${responseError.status}`);
+      }
+    } catch (e) {
+      return;
+    }
+  }
+
   // Create List
   public async _createList(
     listName: string,

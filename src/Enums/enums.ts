@@ -1,4 +1,3 @@
-import { ISPListItem } from "../Interfaces/ICommon";
 
 // This enum is used when adding a column to SharePoint List, then a fieldType should be passed.
 export enum FieldTypeKind {
@@ -21,9 +20,9 @@ export enum FormsApprovalLevels {
   FILA = 5
 }
 // Example status options for workflow status field
-export const lKPWorkflowStatus: ISPListItem[] = [
-  { Id: "1", Title: 'Pending' },
-  { Id: "2", Title: 'Approved' },
-  { Id: "3", Title: 'Rejected' },
-  { Id: "4", Title: 'Closed' },
-];
+// export const lKPWorkflowStatus: ISPListItem[] = [
+//   { Id: "1", Title: 'Pending' },
+//   { Id: "2", Title: 'Approved' },
+//   { Id: "3", Title: 'Rejected' },
+//   { Id: "4", Title: 'Closed' },
+// ];

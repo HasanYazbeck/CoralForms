@@ -5,6 +5,7 @@ import {IUser} from './IUser';
     id: string | undefined;
     label?: string;
     title: string;
+    guid?: string | undefined;
   }
 
   export interface DateRange {
