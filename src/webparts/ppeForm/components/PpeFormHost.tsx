@@ -12,14 +12,32 @@ const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
     const [mode, setMode] = React.useState<Mode>('list');
     const [formId, setFormId] = React.useState<number | undefined>(undefined);
 
+    // Initialize mode based on (priority) props.formId > URL formId > explicit mode param
     React.useEffect(() => {
-        const url = new URL(window.location.href);
+        const href = (window.top?.location?.href) || window.location.href;
+        const url = new URL(href);
+        const urlId = url.searchParams.get('formId');
         const m = (url.searchParams.get('mode') || '').toLowerCase();
-        const id = url.searchParams.get('formId') || undefined;
+
+        const propId = props.formId && props.formId > 0 ? props.formId : undefined;
+        const queryId = urlId && Number(urlId) > 0 ? Number(urlId) : undefined;
+
+        if (propId) {
+            setFormId(propId);
+            setMode('edit');
+            return;
+        }
+
+        if (queryId) {
+            setFormId(queryId);
+            setMode('edit');
+            return;
+        }
+
         if (m === 'add') setMode('add');
-        else if (m === 'edit') { setMode('edit'); setFormId(id ? Number(id) : undefined); }
+        else if (m === 'edit') { setMode('edit'); setFormId(queryId); }
         else setMode('list');
-    }, []);
+    }, [props.formId]);
 
     const topBarItems: ICommandBarItemProps[] = React.useMemo(() => {
         if (mode === 'list') return [];

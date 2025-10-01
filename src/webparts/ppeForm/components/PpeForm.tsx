@@ -1804,7 +1804,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     }}>{r.item}</span>
                   },
                   {
-                    key: 'colRequired', name: 'Required', fieldName: 'requiredRecord', minWidth: 50, maxWidth: 70,
+                    key: 'colRequired', name: 'Required', fieldName: 'requiredRecord', minWidth: 70, maxWidth: 70,
                     onRender: (r: ItemRowState) => (
                       <Checkbox
                         checked={!!r.requiredRecord}
@@ -1817,7 +1817,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     )
                   },
                   {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 140, isResizable: false,
+                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
                     onRender: (r: ItemRowState) => {
                       return (
                         <>
@@ -1844,7 +1844,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     }
                   },
                   {
-                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 230, isResizable: true, onRender: (r: ItemRowState) => (
+                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 300, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
                         {r.details.map(detail => {
                           // ...inside the onRender of colDetails...
@@ -1890,7 +1890,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     )
                   },
                   {
-                    key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 30, maxWidth: 40, onRender: (r: ItemRowState) => (
+                    key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 50, maxWidth: 50, onRender: (r: ItemRowState) => (
                       <TextField
                         value={r.qty || ''}
                         type='text'
@@ -1909,7 +1909,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                   // ...existing code...
                   {
-                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 200, isResizable: true,
+                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 230, isResizable: true,
                     onRender: (r: ItemRowState) => {
                       if (r.item.toLowerCase() === 'others') {
                         // Show Sizes only if Required is checked
@@ -2049,13 +2049,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         {isEditMode && <Separator /> &&
           (
             <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection">
-              <div style={{ width: '100%', flex: 1 }}>
+              <div>
                 <Label>Approvals / Sign-off</Label>
                 <DetailsList
                   items={formsApprovalWorkflow}
                   columns={[
                     {
-                      key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 120, isResizable: true,
+                      key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 140, isResizable: true,
                       onRender: (item: any) => (
                         <div>
                           <span>{item.SignOffName}</span>
@@ -2063,10 +2063,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       )
                     },
                     {
-                      key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 180, isResizable: true,
+                      key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 200, isResizable: true,
                       onRender: (item: any, idx?: number) => {
                         return (
-                          <div style={{ minWidth: 130 }}>
+                          // <div style={{ minWidth: 130 }}>
                             <NormalPeoplePicker
                               itemLimit={1}
                               required={true}
@@ -2076,7 +2076,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               resolveDelay={300}
                               inputProps={{ 'aria-label': 'Approvee' }}
                             />
-                          </div>
+                          // </div>
                         );
                       }
                     },

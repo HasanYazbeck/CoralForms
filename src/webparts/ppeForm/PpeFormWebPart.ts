@@ -32,23 +32,6 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
     });
   }
 
-  // Fetch all items from the 'ListsGUIDs' SharePoint list and cache them
-  // private async _fetchSharePointSiteListsGUIDs(): Promise<void> {
-  //   const webUrl = this.context.pageContext.web.absoluteUrl;
-  //   try {
-  //     this.spCrudRef = new SPCrudOperations(this.context.spHttpClient, webUrl);
-  //     const data = await this.spCrudRef._getSharePointListsGUID();
-
-  //     if (!data) {
-  //       this._listsGUIDs = new Map();
-  //       return;
-  //     }
-  //     this._listsGUIDs = data;
-  //   } catch (e) {
-  //     this._listsGUIDs = new Map();
-  //   }
-  // }
-
   private _handleThemeChangedEvent(args: ThemeChangedEventArgs): void {
     this._themeVariant = args.theme;
     this.render();
@@ -81,13 +64,33 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
 
   public render(): void {
 
-    const element: React.ReactElement<IPpeFormWebPartProps> =
-      React.createElement(PpeFormHost, {
-        context: this.context,
-        ThemeColor: this._themeVariant?.palette?.themePrimary,
-        IsDarkTheme: this._isDarkTheme,
-        HasTeamsContext: !!this.context.sdks.microsoftTeams,
-      });
+    // Read formId from the page URL so the form can be deep-linked
+    const getQueryNumber = (name: string): number | undefined => {
+      try {
+        const href = (window.top?.location?.href) || window.location.href;
+        const v = new URL(href).searchParams.get(name) || undefined;
+        const n = v != null ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : undefined;
+      } catch { return undefined; }
+    };
+    const formId = getQueryNumber('formId');
+
+    const element = React.createElement(PpeFormHost, {
+      context: this.context,
+      ThemeColor: this._themeVariant?.palette?.themePrimary,
+      IsDarkTheme: this._isDarkTheme,
+      HasTeamsContext: !!this.context.sdks.microsoftTeams,
+      formId,
+    });
+
+    // const element: React.ReactElement<IPpeFormWebPartProps> =
+    //   React.createElement(PpeFormHost, {
+    //     context: this.context,
+    //     ThemeColor: this._themeVariant?.palette?.themePrimary,
+    //     IsDarkTheme: this._isDarkTheme,
+    //     HasTeamsContext: !!this.context.sdks.microsoftTeams,
+    //     formId,
+    //   });
 
     ReactDom.render(element, this.domElement);
   }
