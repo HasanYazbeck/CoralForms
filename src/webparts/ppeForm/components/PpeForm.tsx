@@ -36,8 +36,7 @@ import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/
 import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
-// import { IPPEForm } from "../../../Interfaces/IPPEForm";
-// import { IPPEForm } from "../../../Interfaces/IPPEForm";
+import { IPPEForm } from "../../../Interfaces/IPPEForm";
 const stackStyles: IStackStyles = {
   root: {
     background: DefaultPalette.themeTertiary,
@@ -726,66 +725,67 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context, spHelpers]);
 
-  // const _getPPEFormPerEmployee = useCallback(async (usersArg?: IUser[], employeeListId?: number, employeeHRId?: number): Promise<ISPListItem[]> => {
-  //   try {
-  //     const ppeFormGUID = sharePointLists.PPEForm.value;
-  //     const query: string = `?$select=Id,EmployeeID,EmployeeRecord/Id,EmployeeRecord/FullName,ReasonForRequest,ReplacementReason,JobTitleRecord/Id,JobTitleRecord/Title,CompanyRecord/Id,CompanyRecord/Title,DivisionRecord/Id,DivisionRecord/Title,DepartmentRecord/Id,DepartmentRecord/Title,RecordOrder,Created,Author/EMail` +
-  //       `RequesterName/Id,RequesterName/EMail,RequesterName/Title,SubmitterName/Id,SubmitterName/EMail,SubmitterName/Title` +
-  //       `&$expand=EmployeeRecord,Author,JobTitleRecord,CompanyRecord,DivisionRecord,DepartmentRecord,RequesterName,SubmitterName` +
-  //       `&$orderby=RecordOrder asc`;
-  //     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, ppeFormGUID, query);
-  //     const data = await spCrudRef.current._getItemsWithQuery();
-  //     const result: IPPEForm[] = [];
-  //     const usersToUse = usersArg && usersArg.length ? usersArg : users;
+  const _getPPEFormPerEmployee = useCallback(async (usersArg?: IUser[], employeeListId?: number): Promise<ISPListItem[]> => {
+    try {
+      const ppeFormGUID = sharePointLists.PPEForm.value;
+      const query: string = `?$select=Id,EmployeeID,EmployeeRecord/Id,EmployeeRecord/FullName,ReasonForRequest,ReplacementReason,JobTitleRecord/Id,JobTitleRecord/Title,CompanyRecord/Id,CompanyRecord/Title,DivisionRecord/Id,DivisionRecord/Title,DepartmentRecord/Id,DepartmentRecord/Title,RecordOrder,Created,Author/EMail` +
+        `RequesterName/Id,RequesterName/EMail,RequesterName/Title,SubmitterName/Id,SubmitterName/EMail,SubmitterName/Title` +
+        `&$expand=EmployeeRecord,Author,JobTitleRecord,CompanyRecord,DivisionRecord,DepartmentRecord,RequesterName,SubmitterName` +
+        `&$filter=EmployeeRecord/Id eq ${employeeListId}`+
+        `&$orderby=RecordOrder asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, ppeFormGUID, query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: IPPEForm[] = [];
+      const usersToUse = usersArg && usersArg.length ? usersArg : users;
 
-  //     const toIUser = (p?: { Id?: any; Title?: string; EMail?: string }): IUser => {
-  //       if (!p) {
-  //         return { id: '', displayName: '' }; // safe fallback to satisfy non-optional IUser
-  //       }
-  //       const email = (p.EMail || '').toLowerCase();
-  //       const match = usersToUse.find(u => (u.email || '').toLowerCase() === email);
-  //       if (match) return match;
-  //       return {
-  //         id: String(p.Id ?? p.EMail ?? p.Title ?? ''),
-  //         displayName: p.Title || '',
-  //         email: p.EMail
-  //       };
-  //     };
+      const toIUser = (p?: { Id?: any; Title?: string; EMail?: string }): IUser => {
+        if (!p) {
+          return { id: '', displayName: '' }; // safe fallback to satisfy non-optional IUser
+        }
+        const email = (p.EMail || '').toLowerCase();
+        const match = usersToUse.find(u => (u.email || '').toLowerCase() === email);
+        if (match) return match;
+        return {
+          id: String(p.Id ?? p.EMail ?? p.Title ?? ''),
+          displayName: p.Title || '',
+          email: p.EMail
+        };
+      };
 
-  //     data.forEach((obj: any) => {
-  //       if (obj) {
-  //         const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
-  //         let created: Date | undefined;
-  //         if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
-  //         const temp: IPPEForm = {
-  //           Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-  //           employeeID: obj.EmployeeID !== undefined && obj.EmployeeID !== null ? obj.EmployeeID : undefined,
-  //           employeeRecord: obj.EmployeeRecord !== undefined && obj.EmployeeRecord !== null ? { Id: obj.EmployeeRecord.Id, primaryText: obj.EmployeeRecord.FullName } as IPersonaProps : undefined,
-  //           reasonForRequest: obj.ReasonForRequest !== undefined && obj.ReasonForRequest !== null ? obj.ReasonForRequest : undefined,
-  //           replacementReason: obj.ReplacementReason !== undefined && obj.ReplacementReason !== null ? obj.ReplacementReason : undefined,
-  //           jobTitle: obj.JobTitleRecord !== undefined && obj.JobTitleRecord !== null ? { id: obj.JobTitleRecord.Id, title: obj.JobTitleRecord.Title } : undefined,
-  //           company: obj.CompanyRecord !== undefined && obj.CompanyRecord !== null ? { id: obj.CompanyRecord.Id, title: obj.CompanyRecord.Title } : undefined,
-  //           division: obj.DivisionRecord !== undefined && obj.DivisionRecord !== null ? { id: obj.DivisionRecord.Id, title: obj.DivisionRecord.Title } : undefined,
-  //           department: obj.DepartmentRecord !== undefined && obj.DepartmentRecord !== null ? { id: obj.DepartmentRecord.Id, title: obj.DepartmentRecord.Title } : undefined,
-  //           requesterName: toIUser(obj.RequesterName),
-  //           submitterName: toIUser(obj.SubmitterName),
-  //           dateRequested: created !== undefined ? created : undefined,
-  //           Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
-  //           ppeItems: [],
-  //           Created: created !== undefined ? created : undefined,
-  //           CreatedBy: createdBy !== undefined ? createdBy : undefined,
-  //         };
+      data.forEach((obj: any) => {
+        if (obj) {
+          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
+          let created: Date | undefined;
+          if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          const temp: IPPEForm = {
+            Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            employeeID: obj.EmployeeID !== undefined && obj.EmployeeID !== null ? obj.EmployeeID : undefined,
+            employeeRecord: obj.EmployeeRecord !== undefined && obj.EmployeeRecord !== null ? { Id: obj.EmployeeRecord.Id, primaryText: obj.EmployeeRecord.FullName } as IPersonaProps : undefined,
+            reasonForRequest: obj.ReasonForRequest !== undefined && obj.ReasonForRequest !== null ? obj.ReasonForRequest : undefined,
+            replacementReason: obj.ReplacementReason !== undefined && obj.ReplacementReason !== null ? obj.ReplacementReason : undefined,
+            jobTitle: obj.JobTitleRecord !== undefined && obj.JobTitleRecord !== null ? { id: obj.JobTitleRecord.Id, title: obj.JobTitleRecord.Title } : undefined,
+            company: obj.CompanyRecord !== undefined && obj.CompanyRecord !== null ? { id: obj.CompanyRecord.Id, title: obj.CompanyRecord.Title } : undefined,
+            division: obj.DivisionRecord !== undefined && obj.DivisionRecord !== null ? { id: obj.DivisionRecord.Id, title: obj.DivisionRecord.Title } : undefined,
+            department: obj.DepartmentRecord !== undefined && obj.DepartmentRecord !== null ? { id: obj.DepartmentRecord.Id, title: obj.DepartmentRecord.Title } : undefined,
+            requesterName: toIUser(obj.RequesterName),
+            submitterName: toIUser(obj.SubmitterName),
+            dateRequested: created !== undefined ? created : undefined,
+            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
+            ppeItems: [],
+            Created: created !== undefined ? created : undefined,
+            CreatedBy: createdBy !== undefined ? createdBy : undefined,
+          };
 
-  //         result.push(temp);
-  //       }
-  //     });
-  //     // setlKPWorkflowStatus(result);
-  //     return result;
-  //   } catch (error) {
-  //     // setlKPWorkflowStatus([]);
-  //     return [];
-  //   }
-  // }, [props.context, spHelpers,users, sharePointLists.PPEForm]);
+          result.push(temp);
+        }
+      });
+      // setlKPWorkflowStatus(result);
+      return result;
+    } catch (error) {
+      // setlKPWorkflowStatus([]);
+      return [];
+    }
+  }, [props.context, spHelpers,users, sharePointLists.PPEForm]);
 
 
   // ---------------------------
