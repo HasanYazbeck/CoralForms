@@ -4,7 +4,7 @@ import { Version } from "@microsoft/sp-core-library";
 import { BaseClientSideWebPart } from "@microsoft/sp-webpart-base";
 import { IReadonlyTheme, ThemeProvider, ThemeChangedEventArgs } from '@microsoft/sp-component-base';
 import { IPpeFormWebPartProps } from "./components/IPpeFormProps";
-import PpeForm from "./components/PpeForm";
+import PpeFormHost from "./components/PpeFormHost";
 
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
@@ -58,7 +58,7 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
   public render(): void {
 
     const element: React.ReactElement<IPpeFormWebPartProps> =
-      React.createElement(PpeForm, {
+      React.createElement(PpeFormHost, {
         context: this.context,
         ThemeColor: this._themeVariant?.palette?.themePrimary,
         IsDarkTheme: this._isDarkTheme,
