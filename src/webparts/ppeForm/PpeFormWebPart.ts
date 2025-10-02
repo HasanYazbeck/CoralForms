@@ -6,6 +6,8 @@ import { IReadonlyTheme, ThemeProvider, ThemeChangedEventArgs } from '@microsoft
 import { IPpeFormWebPartProps } from "./components/IPpeFormProps";
 import PpeFormHost from "./components/PpeFormHost";
 import { SPCrudOperations } from "../../Classes/SPCrudOperations";
+import MicrosoftGraphService from '../../Classes/MicrosoftGraphServices';
+import { IUser } from "../../Interfaces/IUser";
 
 export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPartProps> {
 
@@ -13,8 +15,12 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
   private _themeProvider: ThemeProvider;
   private _themeVariant: IReadonlyTheme | undefined;
   public spCrudRef: SPCrudOperations;
+  private graphService: MicrosoftGraphService;
+
+
   protected async onInit(): Promise<void> {
     await super.onInit();
+    this.graphService = new MicrosoftGraphService(this.context);
 
     return new Promise<void>(async (resolve, reject) => {
       this._themeProvider = this.context.serviceScope.consume(ThemeProvider.serviceKey);
@@ -58,6 +64,25 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
     ReactDom.unmountComponentAtNode(this.domElement);
   }
 
+  public async getGroupMembers(groupEmail: string): Promise<IUser[]> {
+    const members = await this.graphService.getGroupMembersByEmail(groupEmail);
+    const users: IUser[] = members.map(member => ({
+      id: member.id,
+      displayName: member.displayName,
+      mail: member.mail,
+      userPrincipalName: member.userPrincipalName,
+      jobTitle: member.jobTitle,
+      mobilePhone: member.mobilePhone,
+      officeLocation: member.officeLocation,
+      businessPhones: member.businessPhones, 
+      department: member.department,  
+      manager: member.manager? member.manager.displayName : undefined,
+      photo: member.photo ? `data:${member.photo['@odata.mediaContentType']};base64,${member.photo['@odata.mediaContent']} ` : undefined
+    }));
+    console.log("Group Members:", users);
+    return users;
+  }
+
   protected get dataVersion(): Version {
     return Version.parse("1.0");
   }
@@ -74,7 +99,7 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
       } catch { return undefined; }
     };
     const formId = getQueryNumber('formId');
-
+    // this.showGroupMembers("testdevteam@softflow.com.lb");
     const element = React.createElement(PpeFormHost, {
       context: this.context,
       ThemeColor: this._themeVariant?.palette?.themePrimary,
@@ -82,16 +107,6 @@ export default class PpeFormWebPart extends BaseClientSideWebPart<IPpeFormWebPar
       HasTeamsContext: !!this.context.sdks.microsoftTeams,
       formId,
     });
-
-    // const element: React.ReactElement<IPpeFormWebPartProps> =
-    //   React.createElement(PpeFormHost, {
-    //     context: this.context,
-    //     ThemeColor: this._themeVariant?.palette?.themePrimary,
-    //     IsDarkTheme: this._isDarkTheme,
-    //     HasTeamsContext: !!this.context.sdks.microsoftTeams,
-    //     formId,
-    //   });
-
     ReactDom.render(element, this.domElement);
   }
 }
