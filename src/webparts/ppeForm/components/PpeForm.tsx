@@ -80,9 +80,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerText, setBannerText] = useState<string>();
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
+  // Track whether we already applied PPE criteria for a given employee to avoid re-applying
+  // const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
 
   // TODO: Replace these with your actual list GUIDs or titles
-  const sharePointLists = {
+  const sharePointLists = { 
     PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
     PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
     PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
@@ -154,6 +156,57 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     [users, loggedInUserEmail]
   );
 
+  // Cache: sharepoint group membership by group name (lowercased)
+  const [groupMembership, setGroupMembership] = useState<Record<string, boolean>>({});
+
+  // Helper to resolve the intended SharePoint group name for an approval row.
+  // Tries common fields if present; falls back to SignOffName.
+  const resolveGroupNameForRow = useCallback((row: IFormsApprovalWorkflow): string | undefined => {
+    const fromGroupName = row?.DepartmentManager?.text || row?.SignOffName;
+    const fallback = row?.SignOffName;
+    const raw = (fromGroupName || fallback);
+    if (!raw) return undefined;
+    const name = String(raw).trim();
+    return name.length ? name : undefined;
+  }, []);
+
+  // Precompute current user's membership in any groups referenced by the approval rows
+  useEffect(() => {
+    // Get unique group names (case-insensitive)
+    const names = Array.from(new Set((formsApprovalWorkflow || [])
+      .map(r => resolveGroupNameForRow(r))
+      .filter((g): g is string => !!g)
+      .map(g => g.toLowerCase())));
+
+    if (!names.length) return;
+
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+
+    let disposed = false;
+    (async () => {
+      try {
+        const entries = await Promise.all(names.map(async n => {
+          try {
+            const isMember = await ops._IsMemberOfSharePointGroup(n);
+            return [n, !!isMember] as const;
+          } catch {
+            return [n, false] as const;
+          }
+        }));
+        if (disposed) return;
+        setGroupMembership(prev => {
+          const next = { ...prev };
+          entries.forEach(([k, v]) => { next[k] = v; });
+          return next;
+        });
+      } catch {
+        // swallow membership calculation errors
+      }
+    })();
+
+    return () => { disposed = true; };
+  }, [formsApprovalWorkflow, props.context]);
+
   // Whether the form is in edit mode (has a valid formId)
   const isEditMode = useMemo(() => {
     const editFormId = props.formId ? Number(props.formId) : undefined;
@@ -161,25 +214,22 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [props.formId]);
 
   // Only Requester or Submitter can edit the main form (approvals keep their existing permissions)
-  const canEditForm = useMemo(() => {
-    const current = (loggedInUserEmail || '').toLowerCase();
-    const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
-    const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
-    if (current && (current === requesterEmail || current === submitterEmail)) return true;
+    const canEditForm = useMemo(() => {
+      const current = (loggedInUserEmail || '').toLowerCase();
+      const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
+      if (current && submitterEmail && current === submitterEmail) return true;
 
     // Fallbacks: try id or display name when email isn't available
-    const reqId = _requester?.[0]?.id ? String(_requester[0].id).toLowerCase() : '';
-    const subId = _submitter?.[0]?.id ? String(_submitter[0].id).toLowerCase() : '';
-    const curId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-    if (curId && (curId === reqId || curId === subId)) return true;
+      const subId = _submitter?.[0]?.id ? String(_submitter[0].id).toLowerCase() : '';
+      const curId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+      if (curId && subId && curId === subId) return true;
 
-    const reqName = (_requester?.[0]?.text || '').toLowerCase();
-    const subName = (_submitter?.[0]?.text || '').toLowerCase();
-    const curName = (loggedInUser?.displayName || '').toLowerCase();
-    if (curName && (curName === reqName || curName === subName)) return true;
+  const subName = (_submitter?.[0]?.text || '').toLowerCase();
+  const curName = (loggedInUser?.displayName || '').toLowerCase();
+  if (curName && subName && curName === subName) return true;
 
     return false;
-  }, [loggedInUserEmail, emailFromPersona, _requester, _submitter, loggedInUser]);
+  }, [loggedInUserEmail, emailFromPersona, _submitter, loggedInUser]);
 
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
     return {
@@ -326,6 +376,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
   const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
+    // If user is a member of the SharePoint group associated with this row, allow edit
+    const grpName = resolveGroupNameForRow(row);
+    if (grpName) {
+      const key = grpName.toLowerCase();
+      if (groupMembership[key]) return true;
+    }
+
     const dm = row?.DepartmentManager as IPersonaProps | undefined;
     if (!dm) return false;
 
@@ -349,7 +406,35 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       return true;
     }
     return false;
-  }, [loggedInUserEmail, loggedInUser]);
+  }, [loggedInUserEmail, loggedInUser, groupMembership, resolveGroupNameForRow]);
+
+  // const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
+
+    
+  //   const dm = row?.DepartmentManager as IPersonaProps | undefined;
+  //   if (!dm) return false;
+
+  //   // Prefer email match (we stored email in secondaryText when we found a Graph match)
+  //   const dmEmail = (dm.secondaryText || '').toLowerCase();
+  //   if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
+  //     return true;
+  //   }
+
+  //   // Fallback to Graph id match
+  //   const dmId = dm.id ? String(dm.id).toLowerCase() : '';
+  //   const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+  //   if (dmId && currId && dmId === currId) {
+  //     return true;
+  //   }
+
+  //   // Last resort: display name match
+  //   const dmName = (dm.text || '').toLowerCase();
+  //   const currName = (loggedInUser?.displayName || '').toLowerCase();
+  //   if (dmName && currName && dmName === currName) {
+  //     return true;
+  //   }
+  //   return false;
+  // }, [loggedInUserEmail, loggedInUser]);
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -683,7 +768,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Form_Approval_Workflow');
       if (!listGuid) throw new Error('PPE_Form_Approval_Workflow guid list not found');
 
-      const query: string = `?$select=Id,SignOffName,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason` +
+      const query: string = `?$select=Id,SignOffName,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason,Modified`+
         `&$expand=Author,PPEForm,StatusRecord,Approver` +
         (formId && formId > 0 ? `&$filter=PPEForm/Id eq ${formId}` : '') +
         `&$orderby=OrderRecord asc`;
@@ -702,8 +787,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const deptApproverPersona: IPersonaProps | undefined = match
             ? { text: match.displayName || approverTitle || '', secondaryText: match.email || match.jobTitle || '', id: match.id }
             : (approverTitle ? { text: approverTitle, secondaryText: approverEmail || '', id: String(obj.Approver?.Id ?? approverTitle) } as IPersonaProps : undefined);
-
-          if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          let approvalDate: Date | undefined = undefined;
+          if (obj.Created) {
+            approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          } else if (obj.Modified) {
+            approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Modified));
+          }
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? { title: obj.FormName.Title, id: obj.FormName.Id } : undefined,
@@ -713,8 +802,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             DepartmentManager: deptApproverPersona,
             IsFinalFormApprover: obj.IsFinalFormApprover !== undefined && obj.IsFinalFormApprover !== null ? obj.IsFinalFormApprover : false,
             Status: obj.StatusRecord !== undefined && obj.StatusRecord !== null ? { id: obj.StatusRecord.Id?.toString(), title: obj.StatusRecord.Title } : undefined,
-            Reason: undefined,
-            Date: created !== undefined ? created : undefined,
+            Reason: obj.Reason !== undefined && obj.Reason !== null ? obj.Reason : undefined,
+            Date: approvalDate,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
           };
@@ -744,8 +833,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setLoading(true);
       const fetchedUsers = await _getUsers();
       const coralListResult = await _getCoralFormsList(fetchedUsers);
-      // Fetch base PPE Items first (brands) then details (sizes & detail rows)
-      // await _getLKPWorkflowStatus(fetchedUsers);
       await _getPPEItems(fetchedUsers);
       await _getPPEItemsDetails(fetchedUsers);
 
@@ -1052,71 +1139,120 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Apply employee PPE criteria to pre-select details (assumption: label matches detail title)
   // useEffect(() => {
-  //   if (!employeePPEItemsCriteria || !employeePPEItemsCriteria.employeeID) return;
-  //   const map: Record<string, string> = {};
+  //   const c = employeePPEItemsCriteria;
+  //   // Only apply when we are creating a new form (not editing) and we have an employee criteria loaded
+  //   if (isEditMode) return;
+  //   if (!c || !c.employeeID) return;
+  //   if (!itemRows || itemRows.length === 0) return;
+  //   // Prevent re-applying for the same employee
 
-  //   Object.entries(employeePPEItemsCriteria).forEach(([key, value]) => {
-  //     const itemDetail = spHelpers.CamelString(key.split(/(?=[A-Z])/).join(" "));
-  //     const itemValue = value || "";
+  // ---------------------------
+  // HSE approver group membership (for item edit permission)
+  // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
+  // ---------------------------
+  const [isHSEApproverMember, setIsHSEApproverMember] = React.useState<boolean>(false);
 
-  //     if (itemDetail && spHelpers.CamelString(itemDetail) === ppeItemMap.find(i => i.Title?.toLowerCase() === itemDetail.toLowerCase())?.Title) {
-  //       map[key] = itemValue;
+  useEffect(() => {
+    // Only check when in edit mode and the 3rd approval level is HSE Approval
+    const third = (formsApprovalWorkflow && formsApprovalWorkflow.length >= 3) ? formsApprovalWorkflow[2] : undefined;
+    const isThirdHSE = !!third && String(third.SignOffName || '').toLowerCase().includes('hse');
+
+    if (!isEditMode || !isThirdHSE) {
+      setIsHSEApproverMember(false);
+      return;
+    }
+
+    let cancelled = false;
+    const groupTitle: string = (third && third.DepartmentManager && third.DepartmentManager.text)
+      ? String(third.DepartmentManager.text)
+      : 'HSEApproverGroup';
+
+    try {
+      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+      ops._IsMemberOfSharePointGroup(groupTitle)
+        .then(result => { if (!cancelled) setIsHSEApproverMember(!!result); })
+        .catch(() => { if (!cancelled) setIsHSEApproverMember(false); });
+    } catch {
+      setIsHSEApproverMember(false);
+    }
+
+    return () => { cancelled = true; };
+  }, [formsApprovalWorkflow, isEditMode, props.context]);
+
+  // Derived permission: can edit items grid
+  const canEditItems = React.useMemo(() => {
+    return !!canEditForm || !!isHSEApproverMember;
+  }, [canEditForm, isHSEApproverMember]);
+  //   const empKey = String(c.employeeID);
+  //   if (criteriaAppliedForEmployeeId && criteriaAppliedForEmployeeId === empKey) return;
+
+  //   const normalize = (v?: string) => (v || '').trim().toLowerCase();
+  //   const contains = (text: string, needle: string) => normalize(text).includes(normalize(needle));
+
+  //   const nextRows = itemRows.map(r => {
+  //     // Don't override if the row was already interacted with
+  //     if (typeof r.requiredRecord !== 'undefined' || r.selectedDetail) return r;
+
+  //     const name = normalize(r.item || '');
+  //     const details = (r.details || []);
+  //     const detailsLower = details.map(d => normalize(d));
+  //     const hasCoverallsDetail = detailsLower.some(d => /coveralls/.test(d));
+
+  //     const findDetail = (label?: string): string | undefined => {
+  //       if (!label) return undefined;
+  //       const l = normalize(label);
+  //       const exact = details.find(d => normalize(d) === l);
+  //       if (exact) return exact;
+  //       const partial = details.find(d => contains(d, l) || contains(l, d));
+  //       return partial;
+  //     };
+
+  //     const setReq = (selectedDetail?: string) => ({ ...r, requiredRecord: true, selectedDetail });
+
+  //     // Rain Suit
+  //     if (name === 'rain suit') {
+  //       const match = findDetail(c.rainSuit);
+  //       return setReq(match);
   //     }
-  //     switch (itemDetail) {
-  //       case "Reflective Vest":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Safety Helmet":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Safety Shoes":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Rain Suit":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Winter Jacket":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Uniform Coveralls":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Uniform Top":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       case "Uniform Pants":
-  //         map[key] = itemValue;
-  //         break;
-
-  //       default:
-  //         break;
+  //     // Winter Jacket: special UI, just mark required
+  //     if (name === 'winter jacket') {
+  //       return setReq(undefined);
   //     }
+  //     // Uniform / body cover: choose Coveralls vs non-Coveralls
+  //     if (name.includes('uniform') || hasCoverallsDetail || name.includes('coveralls') || name.includes('body')) {
+  //       if (c.uniformCoveralls) {
+  //         const cv = details.find(d => /coveralls/i.test(d));
+  //         return setReq(cv);
+  //       }
+  //       if (c.uniformTop || c.uniformPants) {
+  //         const nonCv = details.find(d => !/coveralls/i.test(d)) || details[0];
+  //         return setReq(nonCv);
+  //       }
+  //     }
+  //     // Reflective Vest
+  //     if (name === 'reflective vest') {
+  //       const match = findDetail(c.reflectiveVest);
+  //       return match ? setReq(match) : r;
+  //     }
+  //     // Safety Helmet
+  //     if (name === 'safety helmet') {
+  //       const match = findDetail(c.safetyHelmet);
+  //       return match ? setReq(match) : r;
+  //     }
+  //     // Safety Shoes
+  //     if (name === 'safety shoes') {
+  //       const match = findDetail(c.safetyShoes);
+  //       return match ? setReq(match) : r;
+  //     }
+
+  //     return r;
   //   });
 
-  //   const labelFields: (string | undefined)[] = [
-  //     employeePPEItemsCriteria.rainSuit,
-  //     employeePPEItemsCriteria.uniformCoveralls,
-  //     employeePPEItemsCriteria.uniformTop,
-  //     employeePPEItemsCriteria.uniformPants,
-  //     employeePPEItemsCriteria.winterJacket
-  //   ].filter(Boolean);
-
-  //   if (!labelFields.length) return;
-
-  //   setItemRows(prev => prev.map(r => {
-  //     const matched = r.details.filter(d => labelFields.some(l => l && l.toLowerCase() === d.toLowerCase()));
-  //     if (!matched.length) return r;
-  //     return { ...r, selectedDetails: r.selectedDetail };
-  //   }));
-
-  // }, [employeePPEItemsCriteria]);
+  //   // Only update if something actually changed
+  //   const changed = nextRows.some((nr, i) => nr !== itemRows[i]);
+  //   if (changed) setItemRows(nextRows);
+  //   setCriteriaAppliedForEmployeeId(empKey);
+  // }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId]);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => {
@@ -1452,7 +1588,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       switch (field) {
         case 'Status':
-          row.Status = value ? String(value.key) : '';
+          row.Status = value ? { id: String(value.key), title: String(value.text ?? '') } : undefined;
           break;
         case 'Reason':
           row.Reason = value ?? '';
@@ -1811,7 +1947,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         ariaLabel="Required"
                         id={r.item}
                         onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
-                        disabled={!canEditForm}
+                        disabled={!canEditItems}
                         styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }}
                       />
                     )
@@ -1829,7 +1965,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                 <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                                   <Checkbox label={brand} checked={brandChecked}
                                     onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
-                                    disabled={!canEditForm || !r.requiredRecord}
+                                    disabled={!canEditItems || !r.requiredRecord}
                                     styles={{
                                       root: { alignItems: 'flex-start' }, // top-align text if wrapped
                                       label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -1856,7 +1992,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   <TextField placeholder={detail} multiline autoAdjustHeight resizable
                                     scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
                                     value={r.otherPurpose ?? undefined}
-                                    disabled={!r.requiredRecord || !canEditForm}
+                                    disabled={!r.requiredRecord || !canEditItems}
                                     key={`purpose-${r.itemId}-${r.requiredRecord ? 'on' : 'off'}`}
                                     // eslint-disable-next-line react/jsx-no-bind
                                     onChange={(ev, newValue) => updateOtherPurpose(itemRows.indexOf(r), newValue ?? '')}
@@ -1875,7 +2011,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   label={detail}
                                   checked={checked}
                                   onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
-                                  disabled={!canEditForm || !r.requiredRecord}
+                                  disabled={!canEditItems || !r.requiredRecord}
                                   styles={{
                                     root: { alignItems: 'flex-start' }, // top-align text if wrapped
                                     label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -1899,7 +2035,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           updateItemQty(itemRows.indexOf(r), next);
                         }}
                         onKeyDown={handleQtyKeyDown}
-                        disabled={!canEditForm || !r.requiredRecord}
+                        disabled={!canEditItems || !r.requiredRecord}
                         styles={{
                           root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
                         }}
@@ -1920,12 +2056,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                         return (
                           <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                            <ComboBox
+                              <ComboBox
                               placeholder={sizes.length ? 'Size' : 'No sizes'}
                               selectedKey={r.itemSizeSelected || undefined}
                               options={sizes.map(s => ({ key: s, text: s }))}
                               styles={{ root: { width: 140 } }}
-                              disabled={!sizes.length || !canEditForm || !r.requiredRecord}
+                              disabled={!sizes.length || !canEditItems || !r.requiredRecord}
                               onChange={(_e, opt) => {
                                 const val = opt?.key ? String(opt.key) : undefined;
                                 // If cleared, consider it as unchecked
@@ -1966,7 +2102,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                                 label={size}
                                                 checked={sizeChecked}
                                                 onChange={(_e, ch) => toggleSizeType(itemRows.indexOf(r), size, !!ch, type, id)}
-                                                disabled={!canEditForm || !r.requiredRecord}
+                                                disabled={!canEditItems || !r.requiredRecord}
                                                 styles={{
                                                   root: { alignItems: 'flex-start' },
                                                   label: {
@@ -2005,7 +2141,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   label={size}
                                   checked={sizeChecked}
                                   onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size, !!ch)}
-                                  disabled={!canEditForm || !r.requiredRecord}
+                                  disabled={!canEditItems || !r.requiredRecord}
                                   styles={{
                                     root: { alignItems: 'flex-start' },
                                     label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
@@ -2048,8 +2184,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         {/* Approvals sign-off table - only show on Edit */}
         {isEditMode && <Separator /> &&
           (
-            <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection">
-              <div>
+            <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection" style={{ width: '100%' }}>
+              <div style={{ width: '100%' }}>
                 <Label>Approvals / Sign-off</Label>
                 <DetailsList
                   items={formsApprovalWorkflow}
@@ -2100,7 +2236,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
                           return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
                         });
-                        const selectedKey = item.Status ? String(item.Status) : undefined;
+                        // item.Status is ICommon { id, title }
+                        const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
 
                         return (
                           <ComboBox
@@ -2115,7 +2252,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       }
                     },
                     {
-                      key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 160, isResizable: true,
+                      key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <TextField value={item.Reason || ''}
                           disabled={!canEditApprovalRow(item)}
@@ -2125,7 +2262,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     {
                       key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
                       onRender: (item: any, idx?: number) => (
-                        <DatePicker value={item.Date ? new Date(item.Date) : new Date()}
+                        <DatePicker value={item.Date ? new Date(item.Date) : undefined}
                           disabled={!canEditApprovalRow(item)}
                           onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
@@ -2137,6 +2274,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   setKey="approvalsList"
                   layoutMode={DetailsListLayoutMode.fixedColumns}
                   styles={{
+                    root: { width: '100%' },
                     // target cells and rows
                     contentWrapper: {
                       selectors: {

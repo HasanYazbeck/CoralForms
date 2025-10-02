@@ -463,24 +463,24 @@ export class SPCrudOperations {
     }
   }
 
-  // const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
-  //   if (!loginOrEmail) return undefined;
-  //   const url = `${webUrl}/_api/web/ensureuser`;
-  //   const options: ISPHttpClientOptions = {
-  //     headers: {
-  //       Accept: 'application/json;odata=nometadata',
-  //       'Content-Type': 'application/json;odata=verbose',
-  //       'odata-version': '',
-  //     },
-  //     body: JSON.stringify({ 'logonName': 'i:0#.f|membership|' + loginOrEmail })
-  //     // body: JSON.stringify({ logonName: loginOrEmail })
-  //   };
-  //   const res = await props.context.spHttpClient.post(url, SPHttpClient.configurations.v1, options);
-  //   if (!res.ok) {
-  //     const t = await res.text();
-  //     throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
-  //   }
-  //   const u = await res.json();
-  //   return u?.Id;
-  // }, [props.context.spHttpClient, webUrl]);
+  public async _IsMemberOfSharePointGroup(groupName: string): Promise<boolean | undefined> {
+
+    try {
+      const endpoint: string = `${this.siteUrl}/_api/web/currentuser/groups`;
+      const response: SPHttpClientResponse = await this.spHttpClient.get(
+        endpoint,
+        SPHttpClient.configurations.v1
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const groups = data.value.map((g: any) => g.Title.toLowerCase());
+        return groups.includes(groupName.toLowerCase());
+      }
+    }
+    catch (e) {
+      return;
+    }
+  }
+
 }
