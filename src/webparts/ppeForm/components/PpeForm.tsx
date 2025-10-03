@@ -80,6 +80,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerText, setBannerText] = useState<string>();
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
+  // const [groupMembership, setGroupMembership] = useState<Record<string, boolean>>({});
+  const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
+  const [lockedApprovalRowIds, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
+  const [isHSEApproverMember, setIsHSEApproverMember] = React.useState<boolean>(false);
+
   // Track whether we already applied PPE criteria for a given employee to avoid re-applying
   // const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
 
@@ -155,13 +160,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     () => users.find(u => (u.email || '').toLowerCase() === loggedInUserEmail),
     [users, loggedInUserEmail]
   );
-
-  // Cache: sharepoint group membership by group name (lowercased)
-  const [groupMembership, setGroupMembership] = useState<Record<string, boolean>>({});
-  const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
-  const [lockedApprovalRowIds, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
-
-
   // Helper to resolve the intended SharePoint group name for an approval row.
   // Tries common fields if present; falls back to SignOffName.
   const resolveGroupNameForRow = useCallback((row: IFormsApprovalWorkflow): string | undefined => {
@@ -172,43 +170,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const name = String(raw).trim();
     return name.length ? name : undefined;
   }, []);
-
-  // Precompute current user's membership in any groups referenced by the approval rows
-  useEffect(() => {
-    // Get unique group names (case-insensitive)
-    const names = Array.from(new Set((formsApprovalWorkflow || [])
-      .map(r => resolveGroupNameForRow(r))
-      .filter((g): g is string => !!g)
-      .map(g => g.toLowerCase())));
-
-    if (!names.length) return;
-
-    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-
-    let disposed = false;
-    (async () => {
-      try {
-        const entries = await Promise.all(names.map(async n => {
-          try {
-            const isMember = await ops._IsMemberOfSharePointGroup(n);
-            return [n, !!isMember] as const;
-          } catch {
-            return [n, false] as const;
-          }
-        }));
-        if (disposed) return;
-        setGroupMembership(prev => {
-          const next = { ...prev };
-          entries.forEach(([k, v]) => { next[k] = v; });
-          return next;
-        });
-      } catch {
-        // swallow membership calculation errors
-      }
-    })();
-
-    return () => { disposed = true; };
-  }, [formsApprovalWorkflow, props.context]);
 
   // Fetch and cache members for each referenced SharePoint group name
   useEffect(() => {
@@ -252,6 +213,44 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return () => { disposed = true; };
   }, [formsApprovalWorkflow, props.context, resolveGroupNameForRow, groupMembers]);
 
+  // Precompute current user's membership in any groups referenced by the approval rows
+  // useEffect(() => {
+  //   // Get unique group names (case-insensitive)
+  //   const names = Array.from(new Set((formsApprovalWorkflow || [])
+  //     .map(r => resolveGroupNameForRow(r))
+  //     .filter((g): g is string => !!g)
+  //     .map(g => g.toLowerCase())));
+
+  //   if (!names.length) return;
+
+  //   const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
+
+  //   let disposed = false;
+  //   (async () => {
+  //     try {
+  //       const entries = await Promise.all(names.map(async n => {
+  //         try {
+  //           const isMember = await ops._IsMemberOfSharePointGroup(n);
+  //           return [n, !!isMember] as const;
+  //         } catch {
+  //           return [n, false] as const;
+  //         }
+  //       }));
+  //       if (disposed) return;
+  //       setGroupMembership(prev => {
+  //         const next = { ...prev };
+  //         entries.forEach(([k, v]) => { next[k] = v; });
+  //         return next;
+  //       });
+  //     } catch {
+  //       // swallow membership calculation errors
+  //     }
+  //   })();
+
+  //   return () => { disposed = true; };
+  // }, [formsApprovalWorkflow, props.context]);
+
+
   // Auto-select logged-in user as DepartmentManager if they are in the group's members and the row has no DepartmentManager yet
   useEffect(() => {
     if (!formsApprovalWorkflow || !formsApprovalWorkflow.length) return;
@@ -287,9 +286,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Only Requester or Submitter can edit the main form (approvals keep their existing permissions)
   const canEditForm = useMemo(() => {
+    const firstStagePendingForm = formsApprovalWorkflow && formsApprovalWorkflow.length === 1
+      && formsApprovalWorkflow[0].Status?.title.toLowerCase() === 'pending';
+
     const current = (loggedInUserEmail || '').toLowerCase();
+    const curName = (loggedInUser?.displayName || '').toLowerCase();
+
     const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
-    if (current && submitterEmail && current === submitterEmail) return true;
+    const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
+    if (current && submitterEmail && current === submitterEmail && firstStagePendingForm) return true;
+    if (current && requesterEmail && current === requesterEmail && firstStagePendingForm) return true;
 
     // Fallbacks: try id or display name when email isn't available
     const subId = _submitter?.[0]?.id ? String(_submitter[0].id).toLowerCase() : '';
@@ -297,11 +303,43 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (curId && subId && curId === subId) return true;
 
     const subName = (_submitter?.[0]?.text || '').toLowerCase();
-    const curName = (loggedInUser?.displayName || '').toLowerCase();
+
     if (curName && subName && curName === subName) return true;
 
     return false;
-  }, [loggedInUserEmail, emailFromPersona, _submitter, loggedInUser]);
+  }, [loggedInUserEmail, emailFromPersona, _submitter, _requester, formsApprovalWorkflow, loggedInUser]);
+
+
+  useEffect(() => {
+    // Only check when in edit mode and the 3rd approval level is HSE Approval
+    const third = (formsApprovalWorkflow && formsApprovalWorkflow.length >= 3) ? formsApprovalWorkflow[2] : undefined;
+    const isThirdHSE = !!third && String(third.SignOffName || '').toLowerCase().includes('hse');
+
+    if (!isEditMode || !isThirdHSE) {
+      setIsHSEApproverMember(false);
+      return;
+    }
+
+    let cancelled = false;
+    const groupTitle: string = (third && third.DepartmentManagerApprover && third.DepartmentManagerApprover.text)
+      ? String(third.DepartmentManagerApprover.text)
+      : 'HSEApproverGroup';
+
+    try {
+      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+      ops._IsMemberOfSharePointGroup(groupTitle)
+        .then(result => { if (!cancelled) setIsHSEApproverMember(!!result); })
+        .catch(() => { if (!cancelled) setIsHSEApproverMember(false); });
+    } catch {
+      setIsHSEApproverMember(false);
+    }
+
+    return () => { cancelled = true; };
+  }, [formsApprovalWorkflow, isEditMode, props.context]);
+  // Derived permission: can edit items grid
+  const canEditItems = React.useMemo(() => {
+    return !!canEditForm || !!isHSEApproverMember;
+  }, [canEditForm, isHSEApproverMember]);
 
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
     return {
@@ -448,6 +486,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
   const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
+
+    // if (row.Status?.label?.toLowerCase() !== "pending" ||
+    //   row.Status?.title?.toLowerCase() !== "pending") return false;
+
     // If this row is locked to the current user, enforce self-only edits
     const rid = String(row?.Id ?? '');
     if (rid && lockedApprovalRowIds[rid]) {
@@ -455,11 +497,32 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const dmEmail = (dm?.secondaryText || '').toLowerCase();
       if (!dmEmail || dmEmail !== loggedInUserEmail) return false;
     }
+    // If this row already has a non-Pending Status set by a Department Manager, lock it for everyone except that same user
+    const statusTitle = (row?.Status?.title || '').trim().toLowerCase();
+    if (statusTitle && statusTitle !== 'pending') {
+      const dm = row?.DepartmentManagerApprover;
+      if (!dm) return false;
+
+      const dmEmail = (dm.secondaryText || '').toLowerCase();
+      const myEmail = (loggedInUserEmail || '').toLowerCase();
+      if (dmEmail && myEmail && dmEmail === myEmail) {
+        return true; // allow the same approver to modify (optional)
+      }
+      // Fallbacks for id/name matching
+      const dmId = dm.id ? String(dm.id).toLowerCase() : '';
+      const myId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+      if (dmId && myId && dmId === myId) return true;
+      const dmName = (dm.text || '').toLowerCase();
+      const myName = (loggedInUser?.displayName || '').toLowerCase();
+      if (dmName && myName && dmName === myName) return true;
+      return false; // someone else in the group already acted
+    }
+
     // If user is a member of the SharePoint group associated with this row, allow edit
     const grpName = resolveGroupNameForRow(row);
     if (grpName) {
       const key = grpName.toLowerCase();
-      if (groupMembership[key]) return true;
+      if (groupMembers[key]) return true;
     }
 
     const dm = row?.DepartmentManagerApprover as IPersonaProps | undefined;
@@ -485,11 +548,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       return true;
     }
     return false;
-  }, [loggedInUserEmail, loggedInUser, groupMembership, resolveGroupNameForRow, lockedApprovalRowIds]);
+  }, [loggedInUserEmail, loggedInUser, groupMembers, resolveGroupNameForRow, lockedApprovalRowIds]);
 
   // const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
-
-
   //   const dm = row?.DepartmentManager as IPersonaProps | undefined;
   //   if (!dm) return false;
 
@@ -847,7 +908,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Form_Approval_Workflow');
       if (!listGuid) throw new Error('PPE_Form_Approval_Workflow guid list not found');
 
-      const query: string = `?$select=Id,SignOffName,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason,Modified,Editor/Id,Editor/EMail,Editor/Title` +
+      const query: string = `?$select=Id,SignOffName,FinalLevel,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason,Modified,Editor/Id,Editor/EMail,Editor/Title` +
         `&$expand=Author,Editor,PPEForm,StatusRecord,Approver` +
         (formId && formId > 0 ? `&$filter=PPEForm/Id eq ${formId}` : '') +
         `&$orderby=OrderRecord asc`;
@@ -889,6 +950,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
             DepartmentManagerApprover: deptApproverPersona,
             ApproverGroup: deptApproverGroupPersona,
+            FinalLevel: obj.FinalLevel !== undefined && obj.FinalLevel !== null ? obj.FinalLevel : false,
             IsFinalFormApprover: obj.IsFinalFormApprover !== undefined && obj.IsFinalFormApprover !== null ? obj.IsFinalFormApprover : false,
             Status: obj.StatusRecord !== undefined && obj.StatusRecord !== null ? { id: obj.StatusRecord.Id?.toString(), title: obj.StatusRecord.Title } : undefined,
             Reason: obj.Reason !== undefined && obj.Reason !== null ? obj.Reason : undefined,
@@ -917,7 +979,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // ---------------------------
   useEffect(() => {
     let cancelled = false;
-
     const load = async () => {
       setLoading(true);
       const fetchedUsers = await _getUsers();
@@ -950,9 +1011,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setLoading(false);
       }
     };
-
     load();
-
     return () => { cancelled = true; };
   }, [_getEmployees, _getUsers, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, _getPPEFormApprovalWorkflows, props.context, props.formId]);
 
@@ -1077,6 +1136,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     return () => { cancelled = true; };
   }, [props.formId, prefilledFormId, loading, itemRows.length, props.context, sharePointLists.PPEForm.value, sharePointLists.PPEFormItems.value, ppeItemDetails]);
+
 
   useEffect(() => {
     if (!bannerText) return;
@@ -1239,39 +1299,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // HSE approver group membership (for item edit permission)
   // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
   // ---------------------------
-  const [isHSEApproverMember, setIsHSEApproverMember] = React.useState<boolean>(false);
 
-  useEffect(() => {
-    // Only check when in edit mode and the 3rd approval level is HSE Approval
-    const third = (formsApprovalWorkflow && formsApprovalWorkflow.length >= 3) ? formsApprovalWorkflow[2] : undefined;
-    const isThirdHSE = !!third && String(third.SignOffName || '').toLowerCase().includes('hse');
 
-    if (!isEditMode || !isThirdHSE) {
-      setIsHSEApproverMember(false);
-      return;
-    }
-
-    let cancelled = false;
-    const groupTitle: string = (third && third.DepartmentManagerApprover && third.DepartmentManagerApprover.text)
-      ? String(third.DepartmentManagerApprover.text)
-      : 'HSEApproverGroup';
-
-    try {
-      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
-      ops._IsMemberOfSharePointGroup(groupTitle)
-        .then(result => { if (!cancelled) setIsHSEApproverMember(!!result); })
-        .catch(() => { if (!cancelled) setIsHSEApproverMember(false); });
-    } catch {
-      setIsHSEApproverMember(false);
-    }
-
-    return () => { cancelled = true; };
-  }, [formsApprovalWorkflow, isEditMode, props.context]);
-
-  // Derived permission: can edit items grid
-  const canEditItems = React.useMemo(() => {
-    return !!canEditForm || !!isHSEApproverMember;
-  }, [canEditForm, isHSEApproverMember]);
   //   const empKey = String(c.employeeID);
   //   if (criteriaAppliedForEmployeeId && criteriaAppliedForEmployeeId === empKey) return;
 
@@ -1678,9 +1707,31 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       switch (field) {
         case 'Status':
           row.Status = value ? { id: String(value.key), title: String(value.text ?? '') } : undefined;
+          // If the logged-in user belongs to the Department Manager group options for this row,
+          // auto-set DepartmentManagerApprover to the logged-in user persona
+          if (value) {
+            const grpName = resolveGroupNameForRow(row as IFormsApprovalWorkflow);
+            const key = (grpName || '').toLowerCase();
+            const members = key ? (groupMembers[key] || []) : [];
+            if (members.length) {
+              const me = members.find(m => {
+                const email = (m.secondaryText || '').toLowerCase();
+                const mid = m.id ? String(m.id).toLowerCase() : '';
+                const myId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
+                const name = (m.text || '').toLowerCase();
+                const myName = (loggedInUser?.displayName || '').toLowerCase();
+                return (email && loggedInUserEmail && email === loggedInUserEmail)
+                  || (mid && myId && mid === myId)
+                  || (name && myName && name === myName);
+              });
+              if (me) {
+                row.DepartmentManagerApprover = me;
+              }
+            }
+          }
           break;
         case 'DepartmentManager':
-          row.DepartmentManager = value as IPersonaProps | undefined;
+          row.DepartmentManagerApprover = value as IPersonaProps | undefined;
           break;
         case 'Reason':
           row.Reason = value ?? '';
@@ -1692,12 +1743,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           row[field] = value;
       }
       row.__index = i;
+      row.__dirty = true; // mark as changed so we only persist modified rows
       next[i] = row;
 
       return next;
     });
   },
-    [canEditApprovalRow]
+    [canEditApprovalRow, resolveGroupNameForRow, groupMembers, loggedInUserEmail, loggedInUser]
   );
 
   const showBanner = useCallback((text: string) => {
@@ -1723,6 +1775,37 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const handleSubmit = useCallback(async () => {
     try {
+      const editFormId = props.formId ? Number(props.formId) : undefined;
+
+      // If the user cannot edit the header but can approve, allow approvals-only update
+      if (!canEditForm && editFormId && editFormId > 0) {
+        const editableDirty = (formsApprovalWorkflow || []).filter(r => canEditApprovalRow(r) && (r as any).__dirty);
+        // Validation: cannot reject without a reason
+        const missingReasonOnReject = editableDirty.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
+        if (missingReasonOnReject.length) {
+          const names = missingReasonOnReject.map(r => r.SignOffName || r.Id).join(', ');
+          showBanner(`Reason is required when rejecting for: ${names}`);
+          return;
+        }
+        if (!editableDirty.length) {
+          showBanner('No approval changes to save or you do not have permission to update.');
+          return;
+        }
+        setIsSubmitting(true);
+        try {
+          const saved = await _saveApprovalWorkflowChanges(editFormId);
+          if (saved > 0) {
+            try { window.alert('Your approval has been saved.'); } catch { /* ignore */ }
+            if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
+          } else {
+            showBanner('No approval changes to save.');
+          }
+        } finally {
+          setIsSubmitting(false);
+        }
+        return; // stop further header edits
+      }
+
       const validationError = validateBeforeSubmit();
       if (validationError) {
         showBanner(validationError);
@@ -1731,17 +1814,29 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       setIsSubmitting(true);
       const payload = formPayload('Submitted');
-      const editFormId = props.formId ? Number(props.formId) : undefined;
       if (editFormId && editFormId > 0) {
         // Update existing parent + replace child rows
+        // Validation: cannot reject without a reason (for any dirty approval rows)
+        const dirtyRows = (formsApprovalWorkflow || []).filter(r => (r as any).__dirty);
+        const missingReasonOnReject = dirtyRows.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
+        if (missingReasonOnReject.length) {
+          const names = missingReasonOnReject.map(r => r.SignOffName || r.Id).join(', ');
+          showBanner(`Reason is required when rejecting for: ${names}`);
+          setIsSubmitting(false);
+          return;
+        }
         await _updatePPEForm(editFormId, payload);
         await _replacePPEItemDetailsRows(editFormId, payload);
+        // Persist approval changes if any
+        await _saveApprovalWorkflowChanges(editFormId);
         try { window.alert('PPE Form updated successfully.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
       } else {
         // Create new parent and children
         const newId = await _createPPEForm(payload);
         await _createPPEItemDetailsRows(newId, payload);
+        // No approvals to save typically on create, but call saver in case
+        await _saveApprovalWorkflowChanges(newId);
         // Popup success and go back to host
         try { window.alert('PPE Form submitted successfully.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
@@ -1751,7 +1846,43 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost]);
+  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditForm, formsApprovalWorkflow, canEditApprovalRow]);
+
+  // Persist approval changes for only rows the user is allowed to edit and that were modified
+  const _saveApprovalWorkflowChanges = useCallback(async (formId: number): Promise<number> => {
+    const listGuid = sharePointLists.PPEFormApprovalWorkflow?.value;
+    if (!listGuid) return 0;
+    const rows = (formsApprovalWorkflow || []).filter(r => canEditApprovalRow(r) && (r as any).__dirty);
+    if (!rows.length) return 0;
+
+    // Guard: cannot reject without a reason
+    const invalid = rows.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
+    if (invalid.length) {
+      const names = invalid.map(r => r.SignOffName || r.Id).join(', ');
+      throw new Error(`Reason is required when rejecting for: ${names}`);
+    }
+
+    // const sortedRows = rows.sort((a, b) => {
+    //   // Ensure numeric comparison if order is string
+    //   return Number(b.Order) - Number(a.Order);
+    // });
+
+    // const highestOrderItem = sortedRows[0];
+
+    const updates = rows.map(async (row) => {
+
+      const body: any = {
+        StatusRecordId: row.Status?.id ? Number(row.Status.id) : null,
+        Reason: row.Reason ?? null,
+        // IsFinalApprover: highestOrderItem?.Order === highestOrderItem?.FinalLevel,
+      };
+      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+      return ops._updateItem(String(row.Id), body);
+    });
+
+    const res = await Promise.all(updates);
+    return res.length;
+  }, [formsApprovalWorkflow, canEditApprovalRow, props.context, sharePointLists.PPEFormApprovalWorkflow]);
 
   //   // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
@@ -1785,18 +1916,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Update existing PPEForm item
   const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>): Promise<void> => {
-    const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
-    const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
-    const requesterId = await ensureUserId(requesterEmail);
-    const submitterId = await ensureUserId(submitterEmail);
+    // const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
+    // const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
+    // const requesterId = await ensureUserId(requesterEmail);
+    // const submitterId = await ensureUserId(submitterEmail);
 
     const _employeeSPId = _employee ? Number(_employee[0]?.id) : undefined;
     if (_employeeSPId == null) throw new Error('Employee is required');
 
     const body = {
       EmployeeRecordId: _employeeSPId,
-      SubmitterNameId: submitterId ?? null,
-      RequesterNameId: requesterId ?? null,
+      // SubmitterNameId: submitterId ?? null,
+      // RequesterNameId: requesterId ?? null,
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DivisionRecordId: _division?.id ? Number(_division.id) : null,
@@ -1861,7 +1992,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
-        <Spinner label={"Preparing PPE form — fresh items coming right up!"} size={SpinnerSize.large} />
+        <Spinner label={"Preparing PPE form.. "} size={SpinnerSize.large} />
       </div>
     );
   }
@@ -2274,7 +2405,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         </Stack>
 
         {/* Approvals sign-off table - only show on Edit */}
-        {isEditMode && <Separator /> &&
+        {isEditMode &&
+          <Separator /> &&
           (
             <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection" style={{ width: '100%' }}>
               <div style={{ width: '100%' }}>
@@ -2295,27 +2427,49 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       onRender: (item: any, idx?: number) => {
                         const grpName = resolveGroupNameForRow(item as IFormsApprovalWorkflow);
                         const key = (grpName || '').toLowerCase();
+
                         const members = key ? (groupMembers[key] || []) : [];
-                        const selectedKey = item.DepartmentManagerApprover?.id ? String(item.DepartmentManagerApprover.id) : undefined;
-                        const canEditThis = canEditApprovalRow(item as IFormsApprovalWorkflow);
+                        const originalSelectedKey = item.DepartmentManagerApprover?.secondaryText ? item.DepartmentManagerApprover.secondaryText : undefined;
+                        // const canEditThis = canEditApprovalRow(item as IFormsApprovalWorkflow);
+
+                        const isPending = String((item?.Status?.title || item?.Status?.Title || '') as string).toLowerCase() === 'pending';
+                        const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === (loggedInUserEmail || '').toLowerCase());
+
+                        // Decide selectedKey based on rules: prefer logged-in user where requested
+                        const computedSelectedKey = (isMember ? (loggedInUserEmail || originalSelectedKey) : originalSelectedKey) as string | undefined;
+
                         return (
-                          <ComboBox
-                            placeholder={members.length ? 'Select approver' : 'No group'}
-                            selectedKey={selectedKey}
-                            options={members.map(m => ({ key: String(m.id), text: m.text || (m.secondaryText || ''), data: m }))}
-                            useComboBoxAsMenuWidth
-                            disabled={!canEditThis}
-                            onChange={(_, opt) => {
-                              // Resolve persona from option data or reconstruct from option fields
-                              const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
-                              handleApprovalChange(item.Id!, 'DepartmentManager', persona);
-                              const rid = String(item.Id ?? '');
-                              if (rid) {
-                                const selEmail = (persona?.secondaryText || '').toLowerCase();
-                                setLockedApprovalRowIds(prev => ({ ...prev, [rid]: selEmail === loggedInUserEmail }));
-                              }
-                            }}
-                          />
+                          <>
+                            {
+                              // If status is NOT pending and user is NOT in the group → show disabled text field with approver name
+                              !isPending && !isMember ? (
+                                <TextField
+                                  value={item?.DepartmentManagerApprover?.text || ''}
+                                  disabled
+                                />
+                              ) : (
+                                // Otherwise show a ComboBox, possibly disabled when pending and not a member
+                                <ComboBox
+                                  placeholder={members.length ? 'Select approver' : ''}
+                                  selectedKey={computedSelectedKey}
+                                  options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
+                                  useComboBoxAsMenuWidth
+                                  disabled={prefilledFormId ? true : false}
+                                  // disabled={isPending ? !isMember : !canEditThis}
+                                  onChange={(_, opt) => {
+                                    // Resolve persona from option data or reconstruct from option fields
+                                    const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
+                                    handleApprovalChange(item.Id!, 'DepartmentManager', persona);
+                                    const rid = String(item.Id ?? '');
+                                    if (rid) {
+                                      const selEmail = (persona?.secondaryText || '').toLowerCase();
+                                      setLockedApprovalRowIds(prev => ({ ...prev, [rid]: selEmail === loggedInUserEmail }));
+                                    }
+                                  }}
+                                />
+                              )
+                            }
+                          </>
                         );
                       }
                     },
@@ -2328,7 +2482,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             const bo = b?.Order ?? Number.POSITIVE_INFINITY;
                             return Number(ao) - Number(bo);
                           });
-
 
                         const isFinalApprover = !!item.IsFinalFormApprover;
                         const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
@@ -2358,6 +2511,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <TextField value={item.Reason || ''}
+                          placeholder="Enter reason"
                           disabled={!canEditApprovalRow(item)}
                           onChange={(ev, newValue) => handleApprovalChange(item.Id!, 'Reason', newValue || '')}
                         />)
@@ -2366,7 +2520,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <DatePicker value={item.Date ? new Date(item.Date) : undefined}
-                          disabled={!canEditApprovalRow(item)}
+                          // disabled={!canEditApprovalRow(item)}
+                          disabled={prefilledFormId ? true : false}
                           onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
                         />)
@@ -2409,11 +2564,4 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       </form>
     </div>
   );
-
-
-  // import { MSGraphClient } from '@microsoft/sp-http';
-
-
-
-
 }

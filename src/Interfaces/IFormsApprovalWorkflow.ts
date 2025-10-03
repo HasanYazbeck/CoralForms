@@ -6,6 +6,7 @@ export interface IFormsApprovalWorkflow extends ISPListItem {
   FormName?: ICommon | undefined;
   EmployeeId?: number | undefined;
   SignOffName: string | undefined;
+  FinalLevel: number | undefined;
   ApproverGroup?: IPersonaProps | undefined;
   DepartmentManagerApprover?: IPersonaProps | undefined;
   Status: ICommon | undefined;
