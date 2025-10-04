@@ -14,4 +14,5 @@ export interface IFormsApprovalWorkflow extends ISPListItem {
   Date: Date | undefined;
   Order?: number | undefined;
   IsFinalFormApprover: boolean | undefined;
+  ModifiedByPersona?: IPersonaProps | undefined;
 };

@@ -31,6 +31,7 @@ type Row = {
   submitter?: string;
   submitterEmail?: string;
   created?: Date;
+  workflowStatus?: string;
 };
 
 export interface SubmittedPpeFormsListProps {
@@ -72,11 +73,9 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       { key: 'colCompany', name: 'Company', fieldName: 'company', minWidth: 120 },
       { key: 'colRequester', name: 'Requester', fieldName: 'requester', minWidth: 140 },
       { key: 'colSubmitter', name: 'Submitter', fieldName: 'submitter', minWidth: 140 },
+      { key: 'colworkflowStatus', name: 'Workflow Status', fieldName: 'workflowStatus', minWidth: 200, isResizable: true },
       {
-        key: 'colCreated',
-        name: 'Date Submitted',
-        fieldName: 'created',
-        minWidth: 140,
+        key: 'colCreated',  name: 'Date Submitted', fieldName: 'created', minWidth: 140,
         onRender: (row: Row) => (row.created ? row.created.toLocaleDateString() : '')
       }
     ],
@@ -95,10 +94,11 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         return;
       }
 
-      const select = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,EmployeeRecord/FullName,` +
+      const select = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,EmployeeRecord/FullName,` +
         `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+        `&$filter=substringof('closed',tolower(WorkflowStatus))` +
         `&$orderby=Created desc`;
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, guid, select);
@@ -119,7 +119,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           requesterEmail: obj.RequesterName?.EMail ?? undefined,
           submitter: obj.SubmitterName?.Title ?? undefined,
           submitterEmail: obj.SubmitterName?.EMail ?? undefined,
-          created
+          created,
+          workflowStatus: obj.WorkflowStatus ?? undefined
         };
       });
 
