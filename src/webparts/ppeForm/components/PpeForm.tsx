@@ -80,56 +80,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerText, setBannerText] = useState<string>();
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
-  // const [groupMembership, setGroupMembership] = useState<Record<string, boolean>>({});
-  const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
-  const [lockedApprovalRowIds, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
-  const [isHSEApproverMember, setIsHSEApproverMember] = React.useState<boolean>(false);
-
-  // Track whether we already applied PPE criteria for a given employee to avoid re-applying
-  // const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
-
-  // TODO: Replace these with your actual list GUIDs or titles
-  const sharePointLists = {
-    PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
-    PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
-    PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
-    LKPWorkflowStatus: { value: '80eabd4a-6467-40d4-ae8f-fafcc77d334e' }
-  };
-
-  const webUrl = props.context.pageContext.web.absoluteUrl;
-
-  // Resolve a SharePoint user by email or login and return its numeric user Id
-  const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
-    if (!loginOrEmail) return undefined;
-    const url = `${webUrl}/_api/web/ensureuser`;
-    const options: ISPHttpClientOptions = {
-      headers: {
-        Accept: 'application/json;odata=nometadata',
-        'Content-Type': 'application/json;odata=verbose',
-        'odata-version': '',
-      },
-      body: JSON.stringify({ 'logonName': 'i:0#.f|membership|' + loginOrEmail })
-      // body: JSON.stringify({ logonName: loginOrEmail })
-    };
-    const res = await props.context.spHttpClient.post(url, SPHttpClient.configurations.v1, options);
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
-    }
-    const u = await res.json();
-    return u?.Id;
-  }, [props.context.spHttpClient, webUrl]);
-
-  // Try to get an email from a Persona; fallback: look up from loaded Graph users by display name
-  const emailFromPersona = useCallback((p?: IPersonaProps): string | undefined => {
-    if (!p) return undefined;
-    const sec = String(p.secondaryText || '').trim();
-    if (sec.includes('@')) return sec; // already an email
-    // fallback by displayName
-    const byName = users.find(u => (u.displayName || '').toLowerCase() === String(p.text || '').toLowerCase());
-    return byName?.email;
-  }, [users]);
-
+  const [isHSEApprovalLevel, setIsHSEApprovalLevel] = React.useState<boolean>(false);
+  const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
+  const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
+  const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
+  // const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
+  // const [, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
+  const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
     item: string;
@@ -148,433 +105,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     typeSizesMap?: Record<string, string[]>;
     selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
   }
-
-  const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
-
-  const loggedInUserEmail = useMemo(
-    () => (props.context.pageContext?.user?.email || '').toLowerCase(),
-    [props.context]
-  );
-
-  const loggedInUser = useMemo(
-    () => users.find(u => (u.email || '').toLowerCase() === loggedInUserEmail),
-    [users, loggedInUserEmail]
-  );
-  // Helper to resolve the intended SharePoint group name for an approval row.
-  // Tries common fields if present; falls back to SignOffName.
-  const resolveGroupNameForRow = useCallback((row: IFormsApprovalWorkflow): string | undefined => {
-    const fromGroupName = row?.ApproverGroup?.text || row?.SignOffName;
-    const fallback = row?.SignOffName;
-    const raw = (fromGroupName || fallback);
-    if (!raw) return undefined;
-    const name = String(raw).trim();
-    return name.length ? name : undefined;
-  }, []);
-
-  // Fetch and cache members for each referenced SharePoint group name
-  useEffect(() => {
-    const names = Array.from(new Set((formsApprovalWorkflow || [])
-      .map(r => resolveGroupNameForRow(r))
-      .filter((g): g is string => !!g)
-      .map(g => g.trim())
-      .filter(Boolean)));
-
-    if (!names.length) return;
-
-    const webUrl = props.context.pageContext.web.absoluteUrl;
-    const esc = (s: string) => s.replace(/'/g, "''");
-
-    let disposed = false;
-    (async () => {
-      for (const name of names) {
-        const key = name.toLowerCase();
-        if (groupMembers[key]) continue; // already cached
-        try {
-          const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
-          const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
-          if (!resp || resp.status !== 200) {
-            // cache empty to avoid re-fetch loop
-            if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-            continue;
-          }
-          const json = await resp.json();
-          const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
-            text: u?.Title || u?.Email || u?.LoginName || '',
-            secondaryText: u?.Email || '',
-            id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
-          } as IPersonaProps)) : [];
-          if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: personas }));
-        } catch {
-          if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-        }
-      }
-    })();
-
-    return () => { disposed = true; };
-  }, [formsApprovalWorkflow, props.context, resolveGroupNameForRow, groupMembers]);
-
-  // Precompute current user's membership in any groups referenced by the approval rows
-  // useEffect(() => {
-  //   // Get unique group names (case-insensitive)
-  //   const names = Array.from(new Set((formsApprovalWorkflow || [])
-  //     .map(r => resolveGroupNameForRow(r))
-  //     .filter((g): g is string => !!g)
-  //     .map(g => g.toLowerCase())));
-
-  //   if (!names.length) return;
-
-  //   const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-
-  //   let disposed = false;
-  //   (async () => {
-  //     try {
-  //       const entries = await Promise.all(names.map(async n => {
-  //         try {
-  //           const isMember = await ops._IsMemberOfSharePointGroup(n);
-  //           return [n, !!isMember] as const;
-  //         } catch {
-  //           return [n, false] as const;
-  //         }
-  //       }));
-  //       if (disposed) return;
-  //       setGroupMembership(prev => {
-  //         const next = { ...prev };
-  //         entries.forEach(([k, v]) => { next[k] = v; });
-  //         return next;
-  //       });
-  //     } catch {
-  //       // swallow membership calculation errors
-  //     }
-  //   })();
-
-  //   return () => { disposed = true; };
-  // }, [formsApprovalWorkflow, props.context]);
-
-
-  // Auto-select logged-in user as DepartmentManager if they are in the group's members and the row has no DepartmentManager yet
-  useEffect(() => {
-    if (!formsApprovalWorkflow || !formsApprovalWorkflow.length) return;
-    if (!loggedInUserEmail) return;
-    let changed = false;
-    const next = formsApprovalWorkflow.map(row => {
-      const grpName = resolveGroupNameForRow(row);
-      if (!grpName) return row;
-      const key = grpName.toLowerCase();
-      const members = groupMembers[key] || [];
-      // If DepartmentManager is already set to the group name (placeholder), allow override
-      const dm = row.DepartmentManagerApprover as IPersonaProps | undefined;
-      const isGroupPlaceholder = !!(dm && dm.text && grpName && dm.text.trim().toLowerCase() === grpName.trim().toLowerCase());
-      if (dm && !isGroupPlaceholder) return row; // don't override a real person
-
-      const me = members.find(m => (m.secondaryText || '').toLowerCase() === loggedInUserEmail);
-      if (me) {
-        changed = true;
-        const rid = String(row.Id ?? '');
-        if (rid) setLockedApprovalRowIds(prev => ({ ...prev, [rid]: true }));
-        return { ...row, DepartmentManager: me } as IFormsApprovalWorkflow;
-      }
-      return row;
-    });
-    if (changed) setFormsApprovalWorkflow(next);
-  }, [formsApprovalWorkflow, groupMembers, loggedInUserEmail, resolveGroupNameForRow]);
-
-  // Whether the form is in edit mode (has a valid formId)
-  const isEditMode = useMemo(() => {
-    const editFormId = props.formId ? Number(props.formId) : undefined;
-    return !!(editFormId && editFormId > 0);
-  }, [props.formId]);
-
-  // Only Requester or Submitter can edit the main form (approvals keep their existing permissions)
-  const canEditForm = useMemo(() => {
-    const firstStagePendingForm = formsApprovalWorkflow && formsApprovalWorkflow.length === 1
-      && formsApprovalWorkflow[0].Status?.title.toLowerCase() === 'pending';
-
-    const current = (loggedInUserEmail || '').toLowerCase();
-    const curName = (loggedInUser?.displayName || '').toLowerCase();
-
-    const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
-    const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
-    if (current && submitterEmail && current === submitterEmail && firstStagePendingForm) return true;
-    if (current && requesterEmail && current === requesterEmail && firstStagePendingForm) return true;
-
-    // Fallbacks: try id or display name when email isn't available
-    const subId = _submitter?.[0]?.id ? String(_submitter[0].id).toLowerCase() : '';
-    const curId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-    if (curId && subId && curId === subId) return true;
-
-    const subName = (_submitter?.[0]?.text || '').toLowerCase();
-
-    if (curName && subName && curName === subName) return true;
-
-    return false;
-  }, [loggedInUserEmail, emailFromPersona, _submitter, _requester, formsApprovalWorkflow, loggedInUser]);
-
-
-  useEffect(() => {
-    // Only check when in edit mode and the 3rd approval level is HSE Approval
-    const third = (formsApprovalWorkflow && formsApprovalWorkflow.length >= 3) ? formsApprovalWorkflow[2] : undefined;
-    const isThirdHSE = !!third && String(third.SignOffName || '').toLowerCase().includes('hse');
-
-    if (!isEditMode || !isThirdHSE) {
-      setIsHSEApproverMember(false);
-      return;
-    }
-
-    let cancelled = false;
-    const groupTitle: string = (third && third.DepartmentManagerApprover && third.DepartmentManagerApprover.text)
-      ? String(third.DepartmentManagerApprover.text)
-      : 'HSEApproverGroup';
-
-    try {
-      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
-      ops._IsMemberOfSharePointGroup(groupTitle)
-        .then(result => { if (!cancelled) setIsHSEApproverMember(!!result); })
-        .catch(() => { if (!cancelled) setIsHSEApproverMember(false); });
-    } catch {
-      setIsHSEApproverMember(false);
-    }
-
-    return () => { cancelled = true; };
-  }, [formsApprovalWorkflow, isEditMode, props.context]);
-  // Derived permission: can edit items grid
-  const canEditItems = React.useMemo(() => {
-    return !!canEditForm || !!isHSEApproverMember;
-  }, [canEditForm, isHSEApproverMember]);
-
-  const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
-    return {
-      formName,
-      status,
-      employeeId: _employeeId,
-      employeeName: _employee?.[0]?.text,
-      _jobTitle,
-      _department,
-      _division,
-      _company,
-      requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
-      replacementReason: _isReplacementChecked ? _replacementReason : '',
-      items: itemRows.map(r => {
-        const hasTypes = r.types && r.types.length > 0;
-        const sizeCsv = hasTypes ? r.types!.map(t => (r.selectedSizesByType?.[t] ?? '')).join(',') : (r.itemSizeSelected || '');
-        const typeCsv = hasTypes ? r.types!.join(',') : (r.selectedType || '');
-        return {
-          itemId: r.itemId,
-          item: r.item,
-          requiredRecord: !!r.requiredRecord,
-          brand: r.brandSelected,
-          qty: r.qty ? Number(r.qty) : undefined,
-          size: sizeCsv,
-          selectedDetails: r.selectedDetail,
-          selectedDetailId: r.selectedDetail ? Number(ppeItemDetails.find(d => d.Title === r.selectedDetail && d.PPEItem?.Id === r.itemId)?.Id) : undefined,
-          type: typeCsv,
-          othersText: r.item.toLowerCase() === 'others' ? r.otherPurpose : undefined
-        };
-      }),
-      approvals: formsApprovalWorkflow
-    };
-  }, [_employee, _employeeId, _jobTitle, _department, _division, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
-
-  const validateBeforeSubmit = useCallback((): string | undefined => {
-    // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
-    const missing: string[] = [];
-    if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
-    if (!_jobTitle?.title?.trim()) missing.push('Job Title');
-    if (!_department.title?.trim()) missing.push('Department');
-    if (!_company.title?.trim()) missing.push('Company');
-    if (!_division.title?.trim()) missing.push('Division');
-    if (_requester.length === 0) missing.push('Requester');
-
-    if (missing.length) {
-      return `Please fill in the required fields: ${missing.join(', ')}.`;
-    }
-
-    // Example: if Replacement, require a reason
-    if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
-
-    // Ensure at least one item is required or has any selection
-    const anyRequired = itemRows.some(r => r.requiredRecord);
-    if (!anyRequired) return 'Please select at least one item or mark one as Required.';
-
-    if (anyRequired) {
-      const othersMissingPurpose = itemRows.some(r => r.item.toLowerCase() === 'others' && r.requiredRecord && (r.otherPurpose === undefined || !r.otherPurpose.trim()));
-      if (othersMissingPurpose) return 'Please fill in the Purpose field for "Others" since it is marked Required.';
-
-      const othersMissingSize = itemRows.some(r => r.item.toLowerCase() === 'others' && r.requiredRecord && (!r.itemSizeSelected || !r.itemSizeSelected.trim()));
-      if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
-
-      // Validate each required item individually and stop on first failure
-      for (const r of itemRows.filter(r => r.requiredRecord)) {
-        if (!r.requiredRecord) continue;
-
-        // 1) Detail is required when the item is marked required
-        if (!r.selectedDetail && r.item.toLowerCase() !== 'others') {
-          if (r.item.toLowerCase() === 'winter jacket') continue;
-          return `Please select a Specific Detail for the required item "${r.item}".`;
-        }
-
-        if (r.item.toLowerCase() === 'others' && (r.otherPurpose === undefined || r.otherPurpose.toString().trim() === '')) {
-          return `Please fill in the Purpose field for the item "${r.item}".`;
-        }
-
-        if (r.qty === undefined || r.qty.toString().trim() === '') {
-          return `Please enter a quantity for the required item "${r.item}".`;
-        }
-
-        // Validate quantity for all items, but only if a value is provided
-        const qtyStr = (r.qty ?? '').toString().trim();
-
-        if (!qtyStr) continue; // only validate if set
-
-        const isWholeNumber = /^\d+$/.test(qtyStr);
-        const n = Number(qtyStr);
-
-        if (!isWholeNumber || !Number.isFinite(n) || n <= 0) {
-          return `Please enter a valid quantity (whole number > 0) for the item "${r.item}".`;
-        }
-
-        // 2) If sizes exist, validate size selection
-        const hasTypes = Array.isArray(r.types) && r.types.length > 0 && r.item.toLowerCase() !== 'others';
-        const hasAnySizes = (Array.isArray(r.itemSizes) && r.itemSizes.length > 0 && r.item.toLowerCase() !== 'others') || hasTypes;
-
-        if (hasAnySizes) {
-          if (hasTypes) {
-            // typed sizes: at least one type must have a selection
-            const anyTypeHasSelection = Object.values(r.selectedSizesByType || {}).some(v => !!v && String(v).trim().length > 0);
-            if (!anyTypeHasSelection) {
-              return `Please choose a size for the required item "${r.item}".`;
-            }
-
-            const isCoverallsDetail = /coveralls/i.test(r.selectedDetail || '');
-            if (isCoverallsDetail) {
-              const coverallsKey = (r.types || []).find(t => /coveralls/i.test(t));
-              const coverallsSel = coverallsKey ? r.selectedSizesByType?.[coverallsKey] : undefined;
-              if (coverallsKey && (!coverallsSel || !String(coverallsSel).trim())) {
-                return `Please choose a size for Coveralls for the required item "${r.item}".`;
-              }
-            } else {
-              // Require both Top and Pants when not Coveralls
-              const topKey = (r.types || []).find(t => /top/i.test(t));
-              const pantsKey = (r.types || []).find(t => /pants/i.test(t));
-              const topSel = topKey ? r.selectedSizesByType?.[topKey] : undefined;
-              const pantsSel = pantsKey ? r.selectedSizesByType?.[pantsKey] : undefined;
-
-              // If both types exist, both must be selected
-              if (topKey && pantsKey) {
-                if (!topSel || !String(topSel).trim() || !pantsSel || !String(pantsSel).trim()) {
-                  return `Please choose both Top and Pants sizes for the required item "${r.item}".`;
-                }
-              }
-            }
-
-          } else {
-            // non-typed sizes
-            if (!r.itemSizeSelected || !String(r.itemSizeSelected).trim()) {
-              return `Please choose a size for the required item "${r.item}".`;
-            }
-          }
-        }
-      }
-    }
-
-    const nonApprovedForm = formsApprovalWorkflow.filter(item => item.DepartmentManagerApprover?.id === loggedInUser?.id && item.Status === undefined);
-    if (nonApprovedForm && nonApprovedForm.length >= 1) { return 'Please update your approval status before submitting the form.'; }
-    const rejectedWorkflowStatusId = lKPWorkflowStatus.find(p => p.Title?.toLowerCase().includes("rejected"));
-    const rejectedForm = formsApprovalWorkflow.filter(item => item.DepartmentManagerApprover?.id === loggedInUser?.id && item.Status === rejectedWorkflowStatusId?.Id?.toString());
-    if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
-
-    return undefined;
-  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
-
-  const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
-
-    // if (row.Status?.label?.toLowerCase() !== "pending" ||
-    //   row.Status?.title?.toLowerCase() !== "pending") return false;
-
-    // If this row is locked to the current user, enforce self-only edits
-    const rid = String(row?.Id ?? '');
-    if (rid && lockedApprovalRowIds[rid]) {
-      const dm = row?.DepartmentManagerApprover as IPersonaProps | undefined;
-      const dmEmail = (dm?.secondaryText || '').toLowerCase();
-      if (!dmEmail || dmEmail !== loggedInUserEmail) return false;
-    }
-    // If this row already has a non-Pending Status set by a Department Manager, lock it for everyone except that same user
-    const statusTitle = (row?.Status?.title || '').trim().toLowerCase();
-    if (statusTitle && statusTitle !== 'pending') {
-      const dm = row?.DepartmentManagerApprover;
-      if (!dm) return false;
-
-      const dmEmail = (dm.secondaryText || '').toLowerCase();
-      const myEmail = (loggedInUserEmail || '').toLowerCase();
-      if (dmEmail && myEmail && dmEmail === myEmail) {
-        return true; // allow the same approver to modify (optional)
-      }
-      // Fallbacks for id/name matching
-      const dmId = dm.id ? String(dm.id).toLowerCase() : '';
-      const myId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-      if (dmId && myId && dmId === myId) return true;
-      const dmName = (dm.text || '').toLowerCase();
-      const myName = (loggedInUser?.displayName || '').toLowerCase();
-      if (dmName && myName && dmName === myName) return true;
-      return false; // someone else in the group already acted
-    }
-
-    // If user is a member of the SharePoint group associated with this row, allow edit
-    const grpName = resolveGroupNameForRow(row);
-    if (grpName) {
-      const key = grpName.toLowerCase();
-      if (groupMembers[key]) return true;
-    }
-
-    const dm = row?.DepartmentManagerApprover as IPersonaProps | undefined;
-    if (!dm) return false;
-
-    // Prefer email match (we stored email in secondaryText when we found a Graph match)
-    const dmEmail = (dm.secondaryText || '').toLowerCase();
-    if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
-      return true;
-    }
-
-    // Fallback to Graph id match
-    const dmId = dm.id ? String(dm.id).toLowerCase() : '';
-    const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-    if (dmId && currId && dmId === currId) {
-      return true;
-    }
-
-    // Last resort: display name match
-    const dmName = (dm.text || '').toLowerCase();
-    const currName = (loggedInUser?.displayName || '').toLowerCase();
-    if (dmName && currName && dmName === currName) {
-      return true;
-    }
-    return false;
-  }, [loggedInUserEmail, loggedInUser, groupMembers, resolveGroupNameForRow, lockedApprovalRowIds]);
-
-  // const canEditApprovalRow = useCallback((row: IFormsApprovalWorkflow): boolean => {
-  //   const dm = row?.DepartmentManager as IPersonaProps | undefined;
-  //   if (!dm) return false;
-
-  //   // Prefer email match (we stored email in secondaryText when we found a Graph match)
-  //   const dmEmail = (dm.secondaryText || '').toLowerCase();
-  //   if (dmEmail && loggedInUserEmail && dmEmail === loggedInUserEmail) {
-  //     return true;
-  //   }
-
-  //   // Fallback to Graph id match
-  //   const dmId = dm.id ? String(dm.id).toLowerCase() : '';
-  //   const currId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-  //   if (dmId && currId && dmId === currId) {
-  //     return true;
-  //   }
-
-  //   // Last resort: display name match
-  //   const dmName = (dm.text || '').toLowerCase();
-  //   const currName = (loggedInUser?.displayName || '').toLowerCase();
-  //   if (dmName && currName && dmName === currName) {
-  //     return true;
-  //   }
-  //   return false;
-  // }, [loggedInUserEmail, loggedInUser]);
+  const webUrl = props.context.pageContext.web.absoluteUrl;
+  // TODO: Replace these with your actual list GUIDs or titles
+  const sharePointLists = {
+    PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
+    PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
+    PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
+    LKPWorkflowStatus: { value: '80eabd4a-6467-40d4-ae8f-fafcc77d334e' }
+  };
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -826,7 +364,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     try {
 
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items_Details');
+      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('LKP_Item_Instructions_For_Use');
       if (!listGuid) throw new Error('PPE_Items_Details guid list not found');
 
       const query: string = `?$select=Id,FormName,RecordOrder,Description,Created,Author/EMail&$expand=Author&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
@@ -927,14 +465,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const deptApproverPersona: IPersonaProps | undefined = match
             ? { text: match.displayName || approverTitle || '', secondaryText: match.email || match.jobTitle || '', id: match.id }
             : (approverTitle ? { text: approverTitle, secondaryText: approverEmail || '', id: String(obj.Editor?.Id ?? approverTitle) } as IPersonaProps : undefined);
-
-          const approverGroupEmail = obj?.Approver?.EMail;
-          const approverGroupTitle = obj?.Approver?.Title;
-          const matchGroup = (approverGroupEmail && usersToUse.find(u => (u.email || '').toLowerCase() === String(approverGroupEmail).toLowerCase()));
-
-          const deptApproverGroupPersona: IPersonaProps | undefined = matchGroup
-            ? { text: matchGroup.displayName || approverGroupTitle || '', secondaryText: matchGroup.email || matchGroup.jobTitle || '', id: matchGroup.id }
-            : (approverGroupTitle ? { text: approverGroupTitle, secondaryText: approverGroupEmail || '', id: String(obj.Approver?.Id ?? approverGroupTitle) } as IPersonaProps : undefined);
+          const deptApproverGroupPersona: IPersonaProps | undefined = { id: String(obj?.Approver?.Id), text: obj?.Approver?.Title, secondaryText: '' };
 
           let approvalDate: Date | undefined = undefined;
           if (obj.Created) {
@@ -945,7 +476,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? { title: obj.FormName.Title, id: obj.FormName.Id } : undefined,
-            Order: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
+            Order: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
             SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
             EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
             DepartmentManagerApprover: deptApproverPersona,
@@ -974,9 +505,457 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context, spHelpers]);
 
+  // Resolve a SharePoint user by email or login and return its numeric user Id
+  const ensureUserId = useCallback(async (loginOrEmail?: string): Promise<number | undefined> => {
+    if (!loginOrEmail) return undefined;
+    const url = `${webUrl}/_api/web/ensureuser`;
+    const options: ISPHttpClientOptions = {
+      headers: {
+        Accept: 'application/json;odata=nometadata',
+        'Content-Type': 'application/json;odata=verbose',
+        'odata-version': '',
+      },
+      body: JSON.stringify({ 'logonName': 'i:0#.f|membership|' + loginOrEmail })
+      // body: JSON.stringify({ logonName: loginOrEmail })
+    };
+    const res = await props.context.spHttpClient.post(url, SPHttpClient.configurations.v1, options);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
+    }
+    const u = await res.json();
+    return u?.Id;
+  }, [props.context.spHttpClient, webUrl]);
+
+  // Try to get an email from a Persona; fallback: look up from loaded Graph users by display name
+  const emailFromPersona = useCallback((p?: IPersonaProps): string | undefined => {
+    if (!p) return undefined;
+    const sec = String(p.secondaryText || '').trim();
+    if (sec.includes('@')) return sec; // already an email
+    // fallback by displayName
+    const byName = users.find(u => (u.displayName || '').toLowerCase() === String(p.text || '').toLowerCase());
+    return byName?.email;
+  }, [users]);
+
+  const loggedInUserEmail = useMemo(() => (props.context.pageContext?.user?.email || '').toLowerCase(),
+    [props.context]
+  );
+  const loggedInUser = useMemo(() => users.find(u => u.email === loggedInUserEmail), [loggedInUserEmail, users]);
+
+  // Determine if current user is Requester or Submitter (identity match by email/id/name)
+  const isCurrentRequester = useMemo(() => {
+    const currentEmail = (loggedInUserEmail || '').toLowerCase();
+    const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
+    if (currentEmail && (currentEmail === requesterEmail)) return true;
+
+    return false;
+  }, [loggedInUserEmail, _requester, emailFromPersona]);
+
+  const isCurrentSubmitter = useMemo(() => {
+    const currentEmail = (loggedInUserEmail || '').toLowerCase();
+    const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
+
+    if (currentEmail && (currentEmail === submitterEmail)) return true;
+
+    return false;
+  }, [loggedInUserEmail, _submitter, emailFromPersona]);
+
+  // Any approval row already marked as Approved?
+  const anyApproved: boolean = useMemo(() => {
+    return !!formsApprovalWorkflow?.find(r =>
+      (r?.Status?.title?.trim().toLowerCase() === 'approved' && Number(r?.Order) >= 1)
+    );
+  }, [formsApprovalWorkflow]);
+
+  const hasTopPendingForm: boolean = useMemo(() => {
+    return !!formsApprovalWorkflow?.find(r => r?.Status?.title?.trim().toLowerCase() === 'pending' && r?.Order === 1);
+  }, [formsApprovalWorkflow]);
+
+  const isProcessedForm: boolean = useMemo(() => {
+    return !!formsApprovalWorkflow && formsApprovalWorkflow.length === 0;
+  }, [formsApprovalWorkflow]);
+
+  const isProcessingHSEDepartment: boolean = useMemo(() => {
+    if (!formsApprovalWorkflow || formsApprovalWorkflow.length < 3 || formsApprovalWorkflow.length > 3) return false;
+    const hseLevel = formsApprovalWorkflow.find(r => r?.Order === 3);
+    if (!hseLevel) return false;
+    return hseLevel?.Status?.title?.trim().toLowerCase() === 'pending';
+  }, [formsApprovalWorkflow]);
+
+
+  // Whether the form is in edit mode (has a valid formId)
+  const isEditMode = useMemo(() => {
+    const editFormId = props.formId ? Number(props.formId) : undefined;
+    return !!(editFormId && editFormId > 0);
+  }, [props.formId]);
+
+  // const getGroupNameFromWorflowRecord = useCallback((row: IFormsApprovalWorkflow): string | undefined => {
+  //   const fromGroupName = row?.ApproverGroup?.text;
+  //   if (!fromGroupName) return undefined;
+  //   const name = String(fromGroupName).trim();
+  //   return name.length ? name : undefined;
+  // }, []);
+
+  // New canEditForm: Requester/Submitter can edit header only if no approval is yet approved
+  const canEditFormHeader = useMemo(() => {
+    if (!isCurrentRequester && !isCurrentSubmitter) return false;
+    if ((isCurrentRequester || isCurrentSubmitter) && !isEditMode) return true; // new form
+    if ((isCurrentRequester || isCurrentSubmitter) && (hasTopPendingForm || isProcessedForm)) return true;
+  }, [isCurrentRequester, isCurrentSubmitter, hasTopPendingForm, isProcessedForm]);
+
+  // Derived permission: can edit items grid
+  const canEditItems = useMemo(() => {
+    if (IsHSEgroupMembership && isProcessingHSEDepartment) return true;
+    if (isCurrentRequester && isCurrentSubmitter && anyApproved) return false; // Rule 1
+    return !!canEditFormHeader;
+  }, [IsHSEgroupMembership, isCurrentRequester, isCurrentSubmitter, anyApproved, canEditFormHeader]);
+
+  // Determine which approval rows can be edited by current user
+  const canEditApprovalRow = useCallback((item: IFormsApprovalWorkflow): boolean => {
+
+    if (!item) {
+      setCanChangeApprovalRows(false);
+      return false;
+    }
+
+    // Always allow editing if already dirty (pending save)
+    if ((item as any).__dirty) {
+      setCanChangeApprovalRows(true);
+      return true;
+    }
+
+    // Otherwise rely on cached group membership check
+    return editableRows[Number(item.Id!)] === true;
+  }, [editableRows]);
+
+  const hasApprovalChanges = useMemo(() => {
+    return (formsApprovalWorkflow || []).some(r => (r as any)?.__dirty === true);
+  }, [formsApprovalWorkflow]);
+
+  const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
+    return {
+      formName,
+      status,
+      employeeId: _employeeId,
+      employeeName: _employee?.[0]?.text,
+      _jobTitle,
+      _department,
+      _division,
+      _company,
+      requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
+      replacementReason: _isReplacementChecked ? _replacementReason : '',
+      items: itemRows.map(r => {
+        const hasTypes = r.types && r.types.length > 0;
+        const sizeCsv = hasTypes ? r.types!.map(t => (r.selectedSizesByType?.[t] ?? '')).join(',') : (r.itemSizeSelected || '');
+        const typeCsv = hasTypes ? r.types!.join(',') : (r.selectedType || '');
+        return {
+          itemId: r.itemId,
+          item: r.item,
+          requiredRecord: !!r.requiredRecord,
+          brand: r.brandSelected,
+          qty: r.qty ? Number(r.qty) : undefined,
+          size: sizeCsv,
+          selectedDetails: r.selectedDetail,
+          selectedDetailId: r.selectedDetail ? Number(ppeItemDetails.find(d => d.Title === r.selectedDetail && d.PPEItem?.Id === r.itemId)?.Id) : undefined,
+          type: typeCsv,
+          othersText: r.item.toLowerCase() === 'others' ? r.otherPurpose : undefined
+        };
+      }),
+      approvals: formsApprovalWorkflow
+    };
+  }, [_employee, _employeeId, _jobTitle, _department, _division, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
+
+  const validateBeforeSubmit = useCallback((): string | undefined => {
+    // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
+    const missing: string[] = [];
+    if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
+    if (!_jobTitle?.title?.trim()) missing.push('Job Title');
+    if (!_department.title?.trim()) missing.push('Department');
+    if (!_company.title?.trim()) missing.push('Company');
+    if (!_division.title?.trim()) missing.push('Division');
+    if (_requester.length === 0) missing.push('Requester');
+
+    if (missing.length) {
+      return `Please fill in the required fields: ${missing.join(', ')}.`;
+    }
+
+    // Example: if Replacement, require a reason
+    if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
+
+    // Ensure at least one item is required or has any selection
+    const anyRequired = itemRows.some(r => r.requiredRecord);
+    if (!anyRequired) return 'Please select at least one item or mark one as Required.';
+
+    if (anyRequired) {
+      const othersMissingPurpose = itemRows.some(r => r.item.toLowerCase() === 'others' && r.requiredRecord && (r.otherPurpose === undefined || !r.otherPurpose.trim()));
+      if (othersMissingPurpose) return 'Please fill in the Purpose field for "Others" since it is marked Required.';
+
+      const othersMissingSize = itemRows.some(r => r.item.toLowerCase() === 'others' && r.requiredRecord && (!r.itemSizeSelected || !r.itemSizeSelected.trim()));
+      if (othersMissingSize) return 'Please choose a size for "Others" since it is marked Required.';
+
+      // Validate each required item individually and stop on first failure
+      for (const r of itemRows.filter(r => r.requiredRecord)) {
+        if (!r.requiredRecord) continue;
+
+        // 1) Detail is required when the item is marked required
+        if (!r.selectedDetail && r.item.toLowerCase() !== 'others') {
+          if (r.item.toLowerCase() === 'winter jacket') continue;
+          return `Please select a Specific Detail for the required item "${r.item}".`;
+        }
+
+        if (r.item.toLowerCase() === 'others' && (r.otherPurpose === undefined || r.otherPurpose.toString().trim() === '')) {
+          return `Please fill in the Purpose field for the item "${r.item}".`;
+        }
+
+        if (r.qty === undefined || r.qty.toString().trim() === '') {
+          return `Please enter a quantity for the required item "${r.item}".`;
+        }
+
+        // Validate quantity for all items, but only if a value is provided
+        const qtyStr = (r.qty ?? '').toString().trim();
+
+        if (!qtyStr) continue; // only validate if set
+
+        const isWholeNumber = /^\d+$/.test(qtyStr);
+        const n = Number(qtyStr);
+
+        if (!isWholeNumber || !Number.isFinite(n) || n <= 0) {
+          return `Please enter a valid quantity (whole number > 0) for the item "${r.item}".`;
+        }
+
+        // 2) If sizes exist, validate size selection
+        const hasTypes = Array.isArray(r.types) && r.types.length > 0 && r.item.toLowerCase() !== 'others';
+        const hasAnySizes = (Array.isArray(r.itemSizes) && r.itemSizes.length > 0 && r.item.toLowerCase() !== 'others') || hasTypes;
+
+        if (hasAnySizes) {
+          if (hasTypes) {
+            // typed sizes: at least one type must have a selection
+            const anyTypeHasSelection = Object.values(r.selectedSizesByType || {}).some(v => !!v && String(v).trim().length > 0);
+            if (!anyTypeHasSelection) {
+              return `Please choose a size for the required item "${r.item}".`;
+            }
+
+            const isCoverallsDetail = /coveralls/i.test(r.selectedDetail || '');
+            if (isCoverallsDetail) {
+              const coverallsKey = (r.types || []).find(t => /coveralls/i.test(t));
+              const coverallsSel = coverallsKey ? r.selectedSizesByType?.[coverallsKey] : undefined;
+              if (coverallsKey && (!coverallsSel || !String(coverallsSel).trim())) {
+                return `Please choose a size for Coveralls for the required item "${r.item}".`;
+              }
+            } else {
+              // Require both Top and Pants when not Coveralls
+              const topKey = (r.types || []).find(t => /top/i.test(t));
+              const pantsKey = (r.types || []).find(t => /pants/i.test(t));
+              const topSel = topKey ? r.selectedSizesByType?.[topKey] : undefined;
+              const pantsSel = pantsKey ? r.selectedSizesByType?.[pantsKey] : undefined;
+
+              // If both types exist, both must be selected
+              if (topKey && pantsKey) {
+                if (!topSel || !String(topSel).trim() || !pantsSel || !String(pantsSel).trim()) {
+                  return `Please choose both Top and Pants sizes for the required item "${r.item}".`;
+                }
+              }
+            }
+
+          } else {
+            // non-typed sizes
+            if (!r.itemSizeSelected || !String(r.itemSizeSelected).trim()) {
+              return `Please choose a size for the required item "${r.item}".`;
+            }
+          }
+        }
+      }
+    }
+
+    const nonApprovedForm = formsApprovalWorkflow.filter(item => item.DepartmentManagerApprover?.id === loggedInUser?.id && item.Status === undefined);
+    if (nonApprovedForm && nonApprovedForm.length >= 1) { return 'Please update your approval status before submitting the form.'; }
+    const rejectedWorkflowStatusId = lKPWorkflowStatus.find(p => p.Title?.toLowerCase().includes("rejected"));
+    const rejectedForm = formsApprovalWorkflow.filter(item => item.DepartmentManagerApprover?.id === loggedInUser?.id && item.Status === rejectedWorkflowStatusId?.Id?.toString());
+    if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
+
+    return undefined;
+  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
+
   // ---------------------------
   // useEffect: load data on mount
   // ---------------------------
+  // Fetch and cache members for each referenced SharePoint group name
+  // useEffect(() => {
+  //   const names = Array.from(new Set((formsApprovalWorkflow || [])
+  //     .map(r => getGroupNameFromWorflowRecord(r))
+  //     .filter((g): g is string => !!g)
+  //     .map(g => g.trim())
+  //     .filter(Boolean)));
+
+  //   if (!names.length) return;
+
+  //   const webUrl = props.context.pageContext.web.absoluteUrl;
+  //   const esc = (s: string) => s.replace(/'/g, "''");
+
+  //   let disposed = false;
+  //   (async () => {
+  //     for (const name of names) {
+  //       const key = name.toLowerCase();
+  //       if (groupMembers[key]) continue; // already cached
+  //       try {
+  //         const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
+  //         const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
+  //         if (!resp || resp.status !== 200) {
+  //           // cache empty to avoid re-fetch loop
+  //           if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
+  //           continue;
+  //         }
+  //         const json = await resp.json();
+  //         const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
+  //           text: u?.Title || u?.Email || u?.LoginName || '',
+  //           secondaryText: u?.Email || '',
+  //           id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
+  //         } as IPersonaProps)) : [];
+  //         if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: personas }));
+  //       } catch {
+  //         if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
+  //       }
+  //     }
+  //   })();
+
+  //   return () => { disposed = true; };
+  // }, [formsApprovalWorkflow, props.context, getGroupNameFromWorflowRecord, groupMembers]);
+
+  useEffect(() => {
+    if (prefilledFormId) {
+      _getPPEFormApprovalWorkflows(users, prefilledFormId);
+    }
+  }, [prefilledFormId, users, _getPPEFormApprovalWorkflows]);
+
+  // Check when in edit mode and the 3rd approval level is HSE Approval and set isHSEApprovalLevel
+  useEffect(() => {
+
+    const hseLEvel = (formsApprovalWorkflow && formsApprovalWorkflow.length === 3) ? formsApprovalWorkflow.
+      find(hseLevel => hseLevel.Order === 3 && hseLevel.SignOffName?.toLowerCase().includes('hse')) : undefined
+
+    if (!isEditMode || !hseLEvel) {
+      setIsHSEApprovalLevel(false);
+      return;
+    }
+
+    const groupTitle: string = (hseLEvel && hseLEvel.ApproverGroup && hseLEvel.ApproverGroup.text)
+      ? String(hseLEvel.ApproverGroup.text) : 'HSEApproverGroup';
+
+    let cancelled = false;
+    const checkMembership = async () => {
+      try {
+        const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+        const isMember: boolean | undefined = await spCrud._IsSPGroup(groupTitle);
+        if (!cancelled) setIsHSEApprovalLevel(isMember === true);
+      } catch {
+        if (!cancelled) setIsHSEApprovalLevel(false);
+      }
+    };
+
+    checkMembership();
+
+    return () => { cancelled = true; };
+  }, [props.context, formsApprovalWorkflow]);
+
+  // Check if current user is in HSEApproverGroup when the form has HSE Approval level
+  useEffect(() => {
+    const hseLEvel = (formsApprovalWorkflow && formsApprovalWorkflow.length === 3) ? formsApprovalWorkflow.
+      find(hseLevel => hseLevel.Order === 3 && hseLevel.SignOffName?.toLowerCase().includes('hse')) : undefined
+
+    if (!hseLEvel) {
+      return;
+    }
+
+    const groupTitle: string = (hseLEvel && hseLEvel.ApproverGroup && hseLEvel.ApproverGroup.text)
+      ? String(hseLEvel.ApproverGroup.text) : 'HSEApproverGroup';
+
+    let cancelled = false;
+    const checkInGroupMembership = async () => {
+      try {
+        const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+        const loggesUserEmail = loggedInUser?.email ?? '';
+        const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(groupTitle, loggesUserEmail);
+        if (!cancelled) setHSEGroupMembership(isMember === true);
+      } catch {
+        if (!cancelled) setHSEGroupMembership(false);
+      }
+    };
+
+    checkInGroupMembership();
+
+    return () => { cancelled = true; };
+  }, [props.context, formsApprovalWorkflow, loggedInUser]);
+
+  // Check if current user is a member of the approval level
+  // useEffect(() => {
+  //   const anyLevel = (formsApprovalWorkflow && formsApprovalWorkflow.length > 1) ? formsApprovalWorkflow.
+  //     find(level => level.Order === 2 && level.SignOffName?.toLowerCase().includes('hse')) : undefined;
+
+  //   if (!anyLevel) {
+  //     return;
+  //   }
+
+  //   const groupTitle: string = (hseLEvel && hseLEvel.ApproverGroup && hseLEvel.ApproverGroup.text)
+  //     ? String(hseLEvel.ApproverGroup.text) : 'HSEApproverGroup';
+
+  //   let cancelled = false;
+  //   const checkInGroupMembership = async () => {
+  //     try {
+  //       const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+  //       const loggesUserEmail = loggedInUser?.email ?? '';
+  //       const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(groupTitle, loggesUserEmail);
+  //       if (!cancelled) setHSEGroupMembership(isMember === true);
+  //     } catch {
+  //       if (!cancelled) setHSEGroupMembership(false);
+  //     }
+  //   };
+
+  //   checkInGroupMembership();
+
+  //   return () => { cancelled = true; };
+  // }, [props.context, formsApprovalWorkflow, loggedInUser]);
+
+  // Check for each approval level if current user can edit it
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkMembership = async () => {
+      if (!formsApprovalWorkflow || formsApprovalWorkflow.length === 0) {
+        setEditableRows({});
+        return;
+      };
+
+      const results: Record<number, boolean> = {};
+      // let anyEditable = false;
+
+      for (const item of formsApprovalWorkflow) {
+        if (!item?.ApproverGroup?.text) {
+          results[Number(item.Id!)] = false;
+          continue;
+        }
+
+        try {
+          const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
+          const userEmail = loggedInUser?.email ?? '';
+          const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(item.ApproverGroup.text, userEmail);
+          results[Number(item.Id!)] = isMember === true && item.Status?.title?.toLowerCase() === 'pending';
+        } catch {
+          results[Number(item.Id!)] = false;
+        }
+      }
+
+      if (!cancelled) {
+        setEditableRows(results);
+      }
+    };
+
+    checkMembership();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formsApprovalWorkflow, props.context, loggedInUser]);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -1299,8 +1278,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // HSE approver group membership (for item edit permission)
   // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
   // ---------------------------
-
-
   //   const empKey = String(c.employeeID);
   //   if (criteriaAppliedForEmployeeId && criteriaAppliedForEmployeeId === empKey) return;
 
@@ -1362,7 +1339,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   //       const match = findDetail(c.safetyShoes);
   //       return match ? setReq(match) : r;
   //     }
-
   //     return r;
   //   });
 
@@ -1698,59 +1674,41 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const i = prev.findIndex(r => String(r.Id ?? '') === String(id));
       if (i < 0) return prev;
 
-      // Block edits unless the logged-in user is the Department Manager for this row
-      if (!canEditApprovalRow(prev[i])) return prev;
+      // Only allow if this row is editable for the current user
+      const rowIdNum = Number(prev[i].Id!);
+      if (!editableRows[rowIdNum]) return prev;
 
       const next = [...prev];
       const row: any = { ...next[i] };
 
       switch (field) {
-        case 'Status':
-          row.Status = value ? { id: String(value.key), title: String(value.text ?? '') } : undefined;
-          // If the logged-in user belongs to the Department Manager group options for this row,
-          // auto-set DepartmentManagerApprover to the logged-in user persona
-          if (value) {
-            const grpName = resolveGroupNameForRow(row as IFormsApprovalWorkflow);
-            const key = (grpName || '').toLowerCase();
-            const members = key ? (groupMembers[key] || []) : [];
-            if (members.length) {
-              const me = members.find(m => {
-                const email = (m.secondaryText || '').toLowerCase();
-                const mid = m.id ? String(m.id).toLowerCase() : '';
-                const myId = loggedInUser?.id ? String(loggedInUser.id).toLowerCase() : '';
-                const name = (m.text || '').toLowerCase();
-                const myName = (loggedInUser?.displayName || '').toLowerCase();
-                return (email && loggedInUserEmail && email === loggedInUserEmail)
-                  || (mid && myId && mid === myId)
-                  || (name && myName && name === myName);
-              });
-              if (me) {
-                row.DepartmentManagerApprover = me;
-              }
-            }
-          }
+        case 'Status': {
+          const opt = value as { key?: string | number; text?: string } | undefined;
+          row.Status = opt ? { id: String(opt.key ?? ''), title: String(opt.text ?? '') } : undefined;
           break;
-        case 'DepartmentManager':
-          row.DepartmentManagerApprover = value as IPersonaProps | undefined;
+        }
+        case 'DepartmentManager': {
+          // 'value' should be the selected persona
+          row.DepartmentManagerApprover = value || undefined;
           break;
-        case 'Reason':
-          row.Reason = value ?? '';
+        }
+        case 'Reason': {
+          row.Reason = typeof value === 'string' ? value : (value ?? '');
           break;
+        }
         case 'Date':
           row.Date = value ? new Date(value) : undefined;
           break;
-        default:
+        default: {
           row[field] = value;
+        }
       }
       row.__index = i;
       row.__dirty = true; // mark as changed so we only persist modified rows
       next[i] = row;
-
       return next;
     });
-  },
-    [canEditApprovalRow, resolveGroupNameForRow, groupMembers, loggedInUserEmail, loggedInUser]
-  );
+  }, [editableRows]);
 
   const showBanner = useCallback((text: string) => {
     setBannerText(text);
@@ -1777,28 +1735,26 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     try {
       const editFormId = props.formId ? Number(props.formId) : undefined;
 
-      // If the user cannot edit the header but can approve, allow approvals-only update
-      if (!canEditForm && editFormId && editFormId > 0) {
-        const editableDirty = (formsApprovalWorkflow || []).filter(r => canEditApprovalRow(r) && (r as any).__dirty);
-        // Validation: cannot reject without a reason
-        const missingReasonOnReject = editableDirty.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
-        if (missingReasonOnReject.length) {
-          const names = missingReasonOnReject.map(r => r.SignOffName || r.Id).join(', ');
-          showBanner(`Reason is required when rejecting for: ${names}`);
-          return;
-        }
-        if (!editableDirty.length) {
-          showBanner('No approval changes to save or you do not have permission to update.');
-          return;
-        }
+      // If the user cannot edit the header: allow approvals-only and/or HSE items-only update
+      if (!canEditFormHeader && editFormId && editFormId > 0) {
+
         setIsSubmitting(true);
         try {
-          const saved = await _saveApprovalWorkflowChanges(editFormId);
-          if (saved > 0) {
-            try { window.alert('Your approval has been saved.'); } catch { /* ignore */ }
+          let savedSomething = false;
+          if (hasApprovalChanges) {
+            const saved = await _saveApprovalWorkflowChanges(editFormId);
+            savedSomething = savedSomething || saved > 0;
+          }
+          if (isHSEApprovalLevel) {
+            const payload = formPayload('Submitted');
+            await _replacePPEItemDetailsRows(editFormId, payload);
+            savedSomething = true;
+          }
+          if (savedSomething) {
+            try { window.alert('Changes saved.'); } catch { /* ignore */ }
             if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
           } else {
-            showBanner('No approval changes to save.');
+            showBanner('Nothing to save.');
           }
         } finally {
           setIsSubmitting(false);
@@ -1816,15 +1772,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const payload = formPayload('Submitted');
       if (editFormId && editFormId > 0) {
         // Update existing parent + replace child rows
-        // Validation: cannot reject without a reason (for any dirty approval rows)
-        const dirtyRows = (formsApprovalWorkflow || []).filter(r => (r as any).__dirty);
-        const missingReasonOnReject = dirtyRows.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
-        if (missingReasonOnReject.length) {
-          const names = missingReasonOnReject.map(r => r.SignOffName || r.Id).join(', ');
-          showBanner(`Reason is required when rejecting for: ${names}`);
-          setIsSubmitting(false);
-          return;
-        }
+
+        // // Validation: cannot reject without a reason (for any dirty approval rows)
+        // const dirtyRows = (formsApprovalWorkflow || []).filter(r => (r as any).__dirty);
+        // const missingReasonOnReject = dirtyRows.filter(r => ((r.Status?.title || '').toLowerCase().includes('reject')) && !(r.Reason && String(r.Reason).trim().length));
+        // if (missingReasonOnReject.length) {
+        //   const names = missingReasonOnReject.map(r => r.SignOffName || r.Id).join(', ');
+        //   showBanner(`Reason is required when rejecting for: ${names}`);
+        //   setIsSubmitting(false);
+        //   return;
+        // }
         await _updatePPEForm(editFormId, payload);
         await _replacePPEItemDetailsRows(editFormId, payload);
         // Persist approval changes if any
@@ -1846,13 +1803,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditForm, formsApprovalWorkflow, canEditApprovalRow]);
+  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditFormHeader, formsApprovalWorkflow]);
 
   // Persist approval changes for only rows the user is allowed to edit and that were modified
   const _saveApprovalWorkflowChanges = useCallback(async (formId: number): Promise<number> => {
     const listGuid = sharePointLists.PPEFormApprovalWorkflow?.value;
     if (!listGuid) return 0;
-    const rows = (formsApprovalWorkflow || []).filter(r => canEditApprovalRow(r) && (r as any).__dirty);
+
+    // Only persist rows that were actually changed
+    const rows = (formsApprovalWorkflow || []).filter(r => (r as any)?.__dirty === true);
     if (!rows.length) return 0;
 
     // Guard: cannot reject without a reason
@@ -1861,30 +1820,22 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const names = invalid.map(r => r.SignOffName || r.Id).join(', ');
       throw new Error(`Reason is required when rejecting for: ${names}`);
     }
-
-    // const sortedRows = rows.sort((a, b) => {
-    //   // Ensure numeric comparison if order is string
-    //   return Number(b.Order) - Number(a.Order);
-    // });
-
-    // const highestOrderItem = sortedRows[0];
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
 
     const updates = rows.map(async (row) => {
-
       const body: any = {
         StatusRecordId: row.Status?.id ? Number(row.Status.id) : null,
         Reason: row.Reason ?? null,
         // IsFinalApprover: highestOrderItem?.Order === highestOrderItem?.FinalLevel,
       };
-      const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
       return ops._updateItem(String(row.Id), body);
     });
 
     const res = await Promise.all(updates);
     return res.length;
-  }, [formsApprovalWorkflow, canEditApprovalRow, props.context, sharePointLists.PPEFormApprovalWorkflow]);
+  }, [formsApprovalWorkflow, props.context, sharePointLists.PPEFormApprovalWorkflow]);
 
-  //   // Create parent PPEForm item and return its Id
+  // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
     const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
     const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
@@ -1916,18 +1867,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Update existing PPEForm item
   const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>): Promise<void> => {
-    // const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
-    // const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
-    // const requesterId = await ensureUserId(requesterEmail);
-    // const submitterId = await ensureUserId(submitterEmail);
+    const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
+    const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
+    const requesterId = await ensureUserId(requesterEmail);
+    const submitterId = await ensureUserId(submitterEmail);
 
     const _employeeSPId = _employee ? Number(_employee[0]?.id) : undefined;
     if (_employeeSPId == null) throw new Error('Employee is required');
 
     const body = {
       EmployeeRecordId: _employeeSPId,
-      // SubmitterNameId: submitterId ?? null,
-      // RequesterNameId: requesterId ?? null,
+      SubmitterNameId: submitterId ?? null,
+      RequesterNameId: requesterId ?? null,
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DivisionRecordId: _division?.id ? Number(_division.id) : null,
@@ -2072,7 +2023,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
                 onInputChange={onInputChange}
                 resolveDelay={50}
-                disabled={!canEditForm}
+                disabled={!canEditFormHeader}
                 selectedItems={_employee}
                 onChange={(items) => {
                   const selectedText = items?.[0]?.text || '';
@@ -2113,7 +2064,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
                 onInputChange={onInputChange}
                 resolveDelay={150}
-                disabled={!canEditForm}
+                disabled={!canEditFormHeader}
                 onChange={handleRequesterChange}
                 selectedItems={_requester}
               />
@@ -2128,11 +2079,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             <div className="form-group col-md-12 d-flex justify-content-between" >
               <Label htmlFor={""}>Reason for Request</Label>
 
-              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditForm} />
+              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditFormHeader} />
 
-              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditForm} />
+              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditFormHeader} />
 
-              <TextField placeholder="Reason" disabled={!_isReplacementChecked || !canEditForm} value={_replacementReason}
+              <TextField placeholder="Reason" disabled={!_isReplacementChecked || !canEditFormHeader} value={_replacementReason}
                 onChange={(_e, v) => setReplacementReason(v || '')} />
             </div>
           </div>
@@ -2416,63 +2367,59 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   columns={[
                     {
                       key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 140, isResizable: true,
-                      onRender: (item: any) => (
-                        <div>
-                          <span>{item.SignOffName}</span>
-                        </div>
-                      )
+                      onRender: (item: any) => (<div> <span>{item.SignOffName}</span></div>)
                     },
-                    {
-                      key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 240, isResizable: true,
-                      onRender: (item: any, idx?: number) => {
-                        const grpName = resolveGroupNameForRow(item as IFormsApprovalWorkflow);
-                        const key = (grpName || '').toLowerCase();
+                    // {
+                    //   key: 'colDepartmentManager', name: 'Department Manager', fieldName: 'DepartmentManager', minWidth: 240, isResizable: true,
+                    //   onRender: (item: any, idx?: number) => {
+                    //     const grpName = resolveGroupNameForRow(item as IFormsApprovalWorkflow);
+                    //     const key = (grpName || '').toLowerCase();
 
-                        const members = key ? (groupMembers[key] || []) : [];
-                        const originalSelectedKey = item.DepartmentManagerApprover?.secondaryText ? item.DepartmentManagerApprover.secondaryText : undefined;
-                        // const canEditThis = canEditApprovalRow(item as IFormsApprovalWorkflow);
+                    //     const members = key ? (groupMembers[key] || []) : [];
+                    //     const originalSelectedKey = item.DepartmentManagerApprover?.secondaryText ? item.DepartmentManagerApprover.secondaryText : undefined;
+                    //     // const canEditThis = canEditApprovalRow(item as IFormsApprovalWorkflow);
 
-                        const isPending = String((item?.Status?.title || item?.Status?.Title || '') as string).toLowerCase() === 'pending';
-                        const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === (loggedInUserEmail || '').toLowerCase());
+                    //     const isPending = String((item?.Status?.title || item?.Status?.Title || '') as string).toLowerCase() === 'pending';
+                    //     const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === (loggedInUserEmail || '').toLowerCase());
 
-                        // Decide selectedKey based on rules: prefer logged-in user where requested
-                        const computedSelectedKey = (isMember ? (loggedInUserEmail || originalSelectedKey) : originalSelectedKey) as string | undefined;
+                    //     // Decide selectedKey based on rules: prefer logged-in user where requested
+                    //     const computedSelectedKey = (isMember ? (loggedInUserEmail || originalSelectedKey) : originalSelectedKey) as string | undefined;
 
-                        return (
-                          <>
-                            {
-                              // If status is NOT pending and user is NOT in the group → show disabled text field with approver name
-                              !isPending && !isMember ? (
-                                <TextField
-                                  value={item?.DepartmentManagerApprover?.text || ''}
-                                  disabled
-                                />
-                              ) : (
-                                // Otherwise show a ComboBox, possibly disabled when pending and not a member
-                                <ComboBox
-                                  placeholder={members.length ? 'Select approver' : ''}
-                                  selectedKey={computedSelectedKey}
-                                  options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
-                                  useComboBoxAsMenuWidth
-                                  disabled={prefilledFormId ? true : false}
-                                  // disabled={isPending ? !isMember : !canEditThis}
-                                  onChange={(_, opt) => {
-                                    // Resolve persona from option data or reconstruct from option fields
-                                    const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
-                                    handleApprovalChange(item.Id!, 'DepartmentManager', persona);
-                                    const rid = String(item.Id ?? '');
-                                    if (rid) {
-                                      const selEmail = (persona?.secondaryText || '').toLowerCase();
-                                      setLockedApprovalRowIds(prev => ({ ...prev, [rid]: selEmail === loggedInUserEmail }));
-                                    }
-                                  }}
-                                />
-                              )
-                            }
-                          </>
-                        );
-                      }
-                    },
+                    //     return (
+                    //       <>
+                    //         {
+                    //           // If status is NOT pending and user is NOT in the group → show disabled text field with approver name
+                    //           !isPending && !isMember ? (
+                    //             <TextField
+                    //               value={item?.DepartmentManagerApprover?.text || ''}
+                    //               disabled
+                    //             />
+                    //           ) : (
+                    //             // Otherwise show a ComboBox, possibly disabled when pending and not a member
+                    //             <ComboBox
+                    //               placeholder={members.length ? 'Select approver' : ''}
+                    //               selectedKey={computedSelectedKey}
+                    //               options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
+                    //               useComboBoxAsMenuWidth
+                    //               disabled={prefilledFormId ? true : false}
+                    //               // disabled={isPending ? !isMember : !canEditThis}
+                    //               onChange={(_, opt) => {
+                    //                 // Resolve persona from option data or reconstruct from option fields
+                    //                 const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
+                    //                 // handleApprovalChange(item.Id!, 'DepartmentManager', persona);
+                    //                 const rid = String(item.Id ?? '');
+                    //                 if (rid) {
+                    //                   const selEmail = (persona?.secondaryText || '').toLowerCase();
+                    //                   setLockedApprovalRowIds(prev => ({ ...prev, [rid]: selEmail === loggedInUserEmail }));
+                    //                 }
+                    //               }}
+                    //             />
+                    //           )
+                    //         }
+                    //       </>
+                    //     );
+                    //   }
+                    // },
                     {
                       key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
                       onRender: (item: any, idx?: number) => {
@@ -2511,7 +2458,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <TextField value={item.Reason || ''}
-                          placeholder="Enter reason"
+                          placeholder={!canEditApprovalRow(item) ? '' : 'Enter Reason'}
                           disabled={!canEditApprovalRow(item)}
                           onChange={(ev, newValue) => handleApprovalChange(item.Id!, 'Reason', newValue || '')}
                         />)
@@ -2520,9 +2467,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <DatePicker value={item.Date ? new Date(item.Date) : undefined}
-                          // disabled={!canEditApprovalRow(item)}
                           disabled={prefilledFormId ? true : false}
-                          onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
+                          // onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
                         />)
 
@@ -2558,7 +2504,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <PrimaryButton
             text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
             onClick={handleSubmit}
-            disabled={isSubmitting || !canEditForm}
+            disabled={isSubmitting || (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
           />
         </div>
       </form>

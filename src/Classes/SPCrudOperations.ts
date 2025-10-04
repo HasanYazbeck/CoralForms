@@ -463,14 +463,11 @@ export class SPCrudOperations {
     }
   }
 
-  public async _IsMemberOfSharePointGroup(groupName: string): Promise<boolean | undefined> {
+  public async _IsSPGroup(groupName: string): Promise<boolean | undefined> {
 
     try {
       const endpoint: string = `${this.siteUrl}/_api/web/currentuser/groups`;
-      const response: SPHttpClientResponse = await this.spHttpClient.get(
-        endpoint,
-        SPHttpClient.configurations.v1
-      );
+      const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint,SPHttpClient.configurations.v1);
 
       if (response.ok) {
         const data = await response.json();
@@ -483,6 +480,23 @@ export class SPCrudOperations {
     }
   }
 
-   
+  public async _IsUserInSPGroup(groupName: string, userEmail: string): Promise<boolean> {
+  try {
+    // Get group by name → get its users
+    const endpoint : string = `${this.siteUrl}/_api/web/sitegroups/getbyname('${groupName}')/users?$select=Email`;
+    const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint,SPHttpClient.configurations.v1);
+
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    const emails: string[] = (data.value || []).map((u: any) => (u.Email || '').toLowerCase());
+
+    return emails.includes(userEmail.toLowerCase());
+  } catch (e) {
+    console.error("Error checking if user is in group", e);
+    return false;
+  }
+}
+
 
 }
