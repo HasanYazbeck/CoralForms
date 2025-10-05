@@ -87,6 +87,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
   const [, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
+  const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
     item: string;
@@ -215,7 +216,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
         `Employee/ID,Employee/FullName,RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
-        `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail` +
+        `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail,AdditionalPPEItems` +
         `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
         `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
@@ -236,6 +237,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           uniformTop: obj.UniformTop !== undefined && obj.UniformTop !== null ? obj.UniformTop.DisplayText : undefined,
           uniformPants: obj.UniformPants !== undefined && obj.UniformPants !== null ? obj.UniformPants.DisplayText : undefined,
           winterJacket: obj.WinterJacket !== undefined && obj.WinterJacket !== null ? obj.WinterJacket.DisplayText : undefined,
+          additionalPPEItems: obj.AdditionalPPEItems !== undefined && obj.AdditionalPPEItems !== null ? obj.AdditionalPPEItems : undefined,
           Created: undefined, CreatedBy: undefined,
         };
         setEmployeePPEItemsCriteria(result);
@@ -595,13 +597,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const editFormId = props.formId ? Number(props.formId) : undefined;
     return !!(editFormId && editFormId > 0);
   }, [props.formId]);
-
-  // const getGroupNameFromWorflowRecord = useCallback((row: IFormsApprovalWorkflow): string | undefined => {
-  //   const fromGroupName = row?.ApproverGroup?.text;
-  //   if (!fromGroupName) return undefined;
-  //   const name = String(fromGroupName).trim();
-  //   return name.length ? name : undefined;
-  // }, []);
 
   // New canEditForm: Requester/Submitter can edit header only if no approval is yet approved
   const canEditFormHeader = useMemo(() => {
@@ -1331,87 +1326,147 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [ppeItemMap, spHelpers]);
 
   // Apply employee PPE criteria to pre-select details (assumption: label matches detail title)
-  // useEffect(() => {
-  //   const c = employeePPEItemsCriteria;
-  //   // Only apply when we are creating a new form (not editing) and we have an employee criteria loaded
-  //   if (isEditMode) return;
-  //   if (!c || !c.employeeID) return;
-  //   if (!itemRows || itemRows.length === 0) return;
-  //   // Prevent re-applying for the same employee
+  useEffect(() => {
+    const c = employeePPEItemsCriteria;
+    // Only apply when we are creating a new form (not editing) and we have an employee criteria loaded
+    if (isEditMode) return;
+    if (!c || !c.employeeID) return;
+    if (!itemRows || itemRows.length === 0) return;
+    // Prevent re-applying for the same employee
 
-  // ---------------------------
-  // HSE approver group membership (for item edit permission)
-  // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
-  // ---------------------------
-  //   const empKey = String(c.employeeID);
-  //   if (criteriaAppliedForEmployeeId && criteriaAppliedForEmployeeId === empKey) return;
+    // ---------------------------
+    // HSE approver group membership (for item edit permission)
+    // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
+    // ---------------------------
+    const empKey = String(c.employeeID);
+    if (criteriaAppliedForEmployeeId && criteriaAppliedForEmployeeId === empKey) return;
 
-  //   const normalize = (v?: string) => (v || '').trim().toLowerCase();
-  //   const contains = (text: string, needle: string) => normalize(text).includes(normalize(needle));
+    const normalize = (v?: string) => (v || '').trim().toLowerCase();
+    const contains = (text: string, needle: string) => normalize(text).includes(normalize(needle));
 
-  //   const nextRows = itemRows.map(r => {
-  //     // Don't override if the row was already interacted with
-  //     if (typeof r.requiredRecord !== 'undefined' || r.selectedDetail) return r;
+    const nextRows = itemRows.map(r => {
+      // Don't override if the row was already interacted with
+      if (typeof r.requiredRecord !== 'undefined' || r.selectedDetail) return r;
 
-  //     const name = normalize(r.item || '');
-  //     const details = (r.details || []);
-  //     const detailsLower = details.map(d => normalize(d));
-  //     const hasCoverallsDetail = detailsLower.some(d => /coveralls/.test(d));
+      const name = normalize(r.item || '');
+      const details = (r.details || []);
+      const detailsLower = details.map(d => normalize(d));
+      const hasCoverallsDetail = detailsLower.some(d => /coveralls/.test(d));
 
-  //     const findDetail = (label?: string): string | undefined => {
-  //       if (!label) return undefined;
-  //       const l = normalize(label);
-  //       const exact = details.find(d => normalize(d) === l);
-  //       if (exact) return exact;
-  //       const partial = details.find(d => contains(d, l) || contains(l, d));
-  //       return partial;
-  //     };
+      const findDetail = (label?: string): string | undefined => {
+        if (!label) return undefined;
+        const l = normalize(label);
+        const exact = details.find(d => normalize(d) === l);
+        if (exact) return exact;
+        const partial = details.find(d => contains(d, l) || contains(l, d));
+        return partial;
+      };
 
-  //     const setReq = (selectedDetail?: string) => ({ ...r, requiredRecord: true, selectedDetail });
+      const setReq = (selectedDetail?: string) => ({ ...r, requiredRecord: true, selectedDetail });
+      const setReqSizedDetail = (selectedDetail?: string, size?: string) =>
+        ({ ...r, requiredRecord: true, selectedDetail, itemSizeSelected: size });
+      const setAdditionalItemDetail = (selectedDetail?: string, othersText?: string) =>
+        ({ ...r, requiredRecord: true, selectedDetail, otherPurpose: othersText , itemSizeSelected: 'N/A'});
+      const setReqSizedDetailByTypes = (
+        selectedDetail?: string,
+        sizes?: { coveralls?: string; top?: string; pants?: string }
+      ) => {
+        // Use existing type keys; find best matches
+        const typeKeys = r.types || [];
+        const topKey =
+          typeKeys.find(t => /coverall\/?top|top/i.test(String(t))) ||
+          typeKeys.find(t => /coverall/i.test(String(t))); // fallback if only "Coveralls" exists
+        const pantsKey = typeKeys.find(t => /pants/i.test(String(t)));
 
-  //     // Rain Suit
-  //     if (name === 'rain suit') {
-  //       const match = findDetail(c.rainSuit);
-  //       return setReq(match);
-  //     }
-  //     // Winter Jacket: special UI, just mark required
-  //     if (name === 'winter jacket') {
-  //       return setReq(undefined);
-  //     }
-  //     // Uniform / body cover: choose Coveralls vs non-Coveralls
-  //     if (name.includes('uniform') || hasCoverallsDetail || name.includes('coveralls') || name.includes('body')) {
-  //       if (c.uniformCoveralls) {
-  //         const cv = details.find(d => /coveralls/i.test(d));
-  //         return setReq(cv);
-  //       }
-  //       if (c.uniformTop || c.uniformPants) {
-  //         const nonCv = details.find(d => !/coveralls/i.test(d)) || details[0];
-  //         return setReq(nonCv);
-  //       }
-  //     }
-  //     // Reflective Vest
-  //     if (name === 'reflective vest') {
-  //       const match = findDetail(c.reflectiveVest);
-  //       return match ? setReq(match) : r;
-  //     }
-  //     // Safety Helmet
-  //     if (name === 'safety helmet') {
-  //       const match = findDetail(c.safetyHelmet);
-  //       return match ? setReq(match) : r;
-  //     }
-  //     // Safety Shoes
-  //     if (name === 'safety shoes') {
-  //       const match = findDetail(c.safetyShoes);
-  //       return match ? setReq(match) : r;
-  //     }
-  //     return r;
-  //   });
+        const nextMap: Record<string, string | undefined> = { ...(r.selectedSizesByType || {}) };
 
-  //   // Only update if something actually changed
-  //   const changed = nextRows.some((nr, i) => nr !== itemRows[i]);
-  //   if (changed) setItemRows(nextRows);
-  //   setCriteriaAppliedForEmployeeId(empKey);
-  // }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId]);
+        // If coveralls size is given, set it to Top-equivalent key and clear Pants (business rule)
+        if (sizes?.coveralls && !/^\s*n\/a\s*$/i.test(sizes.coveralls)) {
+          if (topKey) nextMap[topKey] = sizes.coveralls;
+          if (pantsKey) nextMap[pantsKey] = undefined;
+        } else {
+          // Otherwise set the specific Top and/or Pants sizes if provided and not N/A
+          if (sizes?.top && !/^\s*n\/a\s*$/i.test(sizes.top) && topKey) nextMap[topKey] = sizes.top;
+          if (sizes?.pants && !/^\s*n\/a\s*$/i.test(sizes.pants) && pantsKey) nextMap[pantsKey] = sizes.pants;
+        }
+
+        return {
+          ...r,
+          requiredRecord: true,
+          selectedDetail,
+          selectedSizesByType: nextMap,
+        };
+      };
+
+      // Rain Suit
+      if (name === 'rain suit') {
+        const match = findDetail(c.rainSuit);
+        return setReq(match);
+      }
+      // Winter Jacket: special UI, just mark required
+      if (name === 'winter jacket') {
+        // return setReq(undefined);
+        return setReqSizedDetail(undefined, c.winterJacket);
+      }
+      // Uniform / body cover: choose Coveralls vs non-Coveralls
+      if (name.includes('uniform') || hasCoverallsDetail || name.includes('coveralls') || name.includes('body')) {
+        // if (c.uniformCoveralls && !c.uniformCoveralls?.trim().toLowerCase().includes('n/a')) {
+        //   const cv = details.find(d => /coveralls/i.test(d));
+        //   return setReqSizedDetail(cv, c.uniformCoveralls);
+        // }
+
+        // if (c.uniformTop && (!c.uniformTop?.trim().toLowerCase().includes('n/a') || !c.uniformPants?.trim().toLowerCase().includes('n/a'))) {
+        //   const hasSweatshirtOrPants = details.find(d => /sweatshirt/i.test(d) || /pants/i.test(d));
+        //   const size = `${c.uniformTop + ',' + c.uniformPants}`;
+        //   return setReqSizedDetail(hasSweatshirtOrPants, size);
+        //   // return setReq(nonCv);
+        // }
+        if (c.uniformCoveralls && !/^\s*n\/a\s*$/i.test(c.uniformCoveralls)) {
+          const cv = details.find(d => /coveralls/i.test(d));
+          return setReqSizedDetailByTypes(cv, { coveralls: c.uniformCoveralls });
+        }
+        const topSize = c.uniformTop && !/^\s*n\/a\s*$/i.test(c.uniformTop) ? c.uniformTop : undefined;
+        const pantsSize = c.uniformPants && !/^\s*n\/a\s*$/i.test(c.uniformPants) ? c.uniformPants : undefined;
+
+        if (topSize || pantsSize) {
+          // Pick a reasonable non-coveralls detail so the row is "selected"
+          const nonCoverallsDetail = details.find(d => /sweatshirt|pants/i.test(d)) || r.selectedDetail;
+          return setReqSizedDetailByTypes(nonCoverallsDetail, { top: topSize, pants: pantsSize });
+        }
+
+      }
+      // Reflective Vest
+      if (name === 'reflective vest') {
+        const match = findDetail(c.reflectiveVest);
+        return match ? setReq(match) : r;
+      }
+      // Safety Helmet
+      if (name === 'safety helmet') {
+        const match = findDetail(c.safetyHelmet);
+        return match ? setReq(match) : r;
+      }
+      // Safety Shoes
+      if (name === 'safety shoes') {
+        const size = c.safetyShoes;
+        if (!size) return r;
+        return setReqSizedDetail(undefined, size);
+      }
+
+      // Safety Shoes
+      if (name === 'others') {
+        const additionaItems = c.additionalPPEItems;
+        if (!additionaItems) return r;
+        return setAdditionalItemDetail(undefined, additionaItems || undefined);
+      }
+
+      return r;
+    });
+
+    // Only update if something actually changed
+    const changed = nextRows.some((nr, i) => nr !== itemRows[i]);
+    if (changed) setItemRows(nextRows);
+    setCriteriaAppliedForEmployeeId(empKey);
+  }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId]);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => {
@@ -1924,7 +1979,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         // No approvals to save typically on create, but call saver in case
         await _saveApprovalWorkflowChanges(newId);
         // Popup success and go back to host
-        try { window.alert('PPE Form submitted successfully.'); } catch { /* ignore */ }
+        try { window.alert('Your PPE Form is submitted successfully and it is now under processing. Be Patient will be there in a while.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
       }
     } catch (err: any) {
@@ -1956,17 +2011,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         StatusRecordId: row.Status?.id ? Number(row.Status.id) : null,
         Reason: row.Reason ?? null,
       };
-    
-      if(row.Status?.title && row.Status.title.toLowerCase().includes('rejected')) {
+
+      if (row.Status?.title && row.Status.title.toLowerCase().includes('rejected')) {
         const RejectionReason = row.Reason || undefined;
         const WorkflowStatus = `${row.Status?.title} by ` + (loggedInUser?.displayName || 'Approver');
         _updatePPEFormStatus(formId, RejectionReason, WorkflowStatus);
       }
-      else{
-        const WorkflowStatus = `${row.Status?.title} by ` + (loggedInUser?.displayName  || 'Approver');
-         _updatePPEFormStatus(formId, '', WorkflowStatus);
+      else {
+        const WorkflowStatus = `${row.Status?.title} by ` + (loggedInUser?.displayName || 'Approver');
+        _updatePPEFormStatus(formId, '', WorkflowStatus);
       }
-      
+
       return ops._updateItem(String(row.Id), body);
     });
 
@@ -2005,7 +2060,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
 
   // Update existing PPEForm item
-  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload> , RejectionReason? : string , WorkflowStatus? : string  ): Promise<void> => {
+  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>, RejectionReason?: string, WorkflowStatus?: string): Promise<void> => {
     const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
     const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
     const requesterId = await ensureUserId(requesterEmail);
@@ -2035,7 +2090,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
 
   // Update existing PPEForm item workflow status only
-  const _updatePPEFormStatus = useCallback(async (formId: number , RejectionReason? : string , WorkflowStatus? : string  ): Promise<void> => {
+  const _updatePPEFormStatus = useCallback(async (formId: number, RejectionReason?: string, WorkflowStatus?: string): Promise<void> => {
     const body = {
       RejectionReason: RejectionReason ?? null,
       WorkflowStatus: WorkflowStatus ?? null,
@@ -2531,12 +2586,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       onRender: (item: any) => {
                         const grpName = resolveGroupUserForItemRow(item as IFormsApprovalWorkflow);
                         const key = (grpName || '').toLowerCase();
-
                         const members = key ? (groupMembers[key] || []) : [];
-                        // const isPending = String((item?.Status?.title || item?.Status?.Title || '') as string).toLowerCase() === 'pending';
                         const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === (loggedInUserEmail || '').toLowerCase());
-
-                        //const originalSelectedKey = item?.DepartmentManagerApprover?.secondaryText || undefined;
                         const selectedKey = (isMember) ? (loggedInUserEmail || undefined) : '';
                         if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
                           return (
@@ -2556,7 +2607,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                   // Only allow selecting yourself; ignore picking others
                                   const selEmail = (persona.secondaryText || '').toLowerCase();
                                   if (selEmail !== loggedInUserEmail) return;
-
                                   handleApprovalApproverChange(item.Id!, persona);
                                   const rid = String(item.Id ?? '');
                                   if (rid) setLockedApprovalRowIds(prev => ({ ...prev, [rid]: true }));
@@ -2576,10 +2626,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             const bo = b?.Order ?? Number.POSITIVE_INFINITY;
                             return Number(ao) - Number(bo);
                           });
-
                         const isFinalApprover = !!item.IsFinalFormApprover && (item.FinalLevel == item.Order);
                         const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
-
                         const options = sorted.map(s => {
                           const id = String(s.Id);
                           const title = String(s.Title ?? '').trim();
@@ -2588,7 +2636,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         });
                         // item.Status is ICommon { id, title }
                         const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
-
                         return (
                           <ComboBox
                             placeholder={options.length ? 'Select status' : 'No status'}
@@ -2607,7 +2654,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         <TextField value={item.Reason || ''}
                           placeholder={!canEditApprovalRow(item) ? '' : 'Enter Reason'}
                           disabled={!canEditApprovalRow(item)}
-                          // disabled={!(canEditApprovalRow(item) || (item as any).__dirty === true)}
                           onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
                         />)
                     },
@@ -2619,7 +2665,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           // onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
                         />)
-
                     }
                   ]}
                   selectionMode={SelectionMode.none}
@@ -2646,7 +2691,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <Separator />
 
         <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />
-
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
           <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
           <PrimaryButton

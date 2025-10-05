@@ -23,4 +23,5 @@ export interface IEmployeesPPEItemsCriteria extends ISPListItem {
   uniformTop?: string | undefined;
   uniformPants?: string | undefined;
   winterJacket?: string | undefined;
+  additionalPPEItems?: string | undefined;
 }

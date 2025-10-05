@@ -104,7 +104,16 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, guid, select);
       const data: any[] = await crud._getItemsWithQuery();
-      const filteredItems = data.filter( item => !item.WorkflowStatus?.toLowerCase().includes('closed'));
+      const filteredItems = data.filter(item => {
+        const created = new Date(item.Created); // SharePoint returns ISO date string
+        const now = new Date();
+        // Calculate time difference in milliseconds
+        const diffMs = now.getTime() - created.getTime();
+        // Convert to minutes
+        const diffMinutes = diffMs / 60000;
+        return(!item.WorkflowStatus?.toLowerCase().includes('closed') && diffMinutes >= 0.3);
+      });
+
       const mapped: Row[] = (filteredItems || []).map((obj: any): Row => {
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
@@ -127,7 +136,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         };
       });
 
-    setItems(mapped);
+      setItems(mapped);
     } catch (e: any) {
       setError(`Failed to load forms: ${e?.message || e}`);
     } finally {
