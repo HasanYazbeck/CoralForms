@@ -1955,8 +1955,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const body: any = {
         StatusRecordId: row.Status?.id ? Number(row.Status.id) : null,
         Reason: row.Reason ?? null,
-        // IsFinalApprover: highestOrderItem?.Order === highestOrderItem?.FinalLevel,
       };
+    
+      if(row.Status?.title && row.Status.title.toLowerCase().includes('rejected')) {
+        const RejectionReason = row.Reason || undefined;
+        const WorkflowStatus = `${row.Status?.title} by ` + (loggedInUser?.displayName || 'Approver');
+        _updatePPEFormStatus(formId, RejectionReason, WorkflowStatus);
+      }
+      else{
+        const WorkflowStatus = `${row.Status?.title} by ` + (loggedInUser?.displayName  || 'Approver');
+         _updatePPEFormStatus(formId, '', WorkflowStatus);
+      }
+      
       return ops._updateItem(String(row.Id), body);
     });
 
@@ -1995,7 +2005,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
 
   // Update existing PPEForm item
-  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>): Promise<void> => {
+  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload> , RejectionReason? : string , WorkflowStatus? : string  ): Promise<void> => {
     const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
     const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
     const requesterId = await ensureUserId(requesterEmail);
@@ -2015,6 +2025,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       ReasonForRequest: payload.requestType ?? null,
       ReplacementReason: payload.replacementReason ?? null,
       EmployeeID: payload.employeeId ?? null,
+      RejectionReason: RejectionReason ?? null,
+      WorkflowStatus: WorkflowStatus ?? null,
+    };
+    const listGuid = sharePointLists.PPEForm?.value;
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
+      listGuid, '');
+    await spCrudRef.current._updateItem(String(formId), body);
+  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+
+  // Update existing PPEForm item workflow status only
+  const _updatePPEFormStatus = useCallback(async (formId: number , RejectionReason? : string , WorkflowStatus? : string  ): Promise<void> => {
+    const body = {
+      RejectionReason: RejectionReason ?? null,
+      WorkflowStatus: WorkflowStatus ?? null,
     };
     const listGuid = sharePointLists.PPEForm?.value;
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
