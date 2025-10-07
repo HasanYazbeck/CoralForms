@@ -90,9 +90,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     try {
       const guid = listGuid;
       if (!guid) {
-        setItems([]);
-        setError('PPEForm list GUID not provided.');
         setLoading(false);
+        setItems([]);
         return;
       }
 
@@ -102,8 +101,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
         `&$orderby=Created desc`;
 
-      const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, guid, select);
-      const data: any[] = await crud._getItemsWithQuery();
+      const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
+      const data: any[] = await crud._getItemsByListNameOrGuid();
       const filteredItems = data.filter(item => {
         const created = new Date(item.Created); // SharePoint returns ISO date string
         const now = new Date();
@@ -111,7 +110,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         const diffMs = now.getTime() - created.getTime();
         // Convert to minutes
         const diffMinutes = diffMs / 60000;
-        return(!item.WorkflowStatus?.toLowerCase().includes('closed') && diffMinutes >= 0.3);
+        return (!item.WorkflowStatus?.toLowerCase().includes('closed') && diffMinutes >= 0.3);
       });
 
       const mapped: Row[] = (filteredItems || []).map((obj: any): Row => {
