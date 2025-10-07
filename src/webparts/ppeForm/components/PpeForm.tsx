@@ -55,7 +55,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [_jobTitle, setJobTitleId] = useState<ICommon>({ id: '', title: '' });
   const [_department, setDepartmentId] = useState<ICommon>({ id: '', title: '' });
-  const [_division, setDivisionId] = useState<ICommon>({ id: '', title: '' });
+  // const [_division, setDivisionId] = useState<ICommon>({ id: '', title: '' });
   const [_company, setCompanyId] = useState<ICommon>({ id: '', title: '' });
   const [_employee, setEmployee] = useState<IPersonaProps[]>([]);
   const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
@@ -154,9 +154,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
-      const query: string = `?$select=Id,EmployeeID,FullName,EmailAddress,Division/Id,Division/Title,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
+      const query: string = `?$select=Id,EmployeeID,FullName,EmailAddress,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
         `Department/Id,Department/Title,Manager/Id,Manager/FullName,Created,Author/EMail` +
-        `&$expand=Author,Division,Company,JobTitle,Department,Manager,Author` +
+        `&$expand=Author,Company,JobTitle,Department,Manager,Author` +
         `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee', query);
       const data = await spCrudRef.current._getItemsWithQuery();
@@ -176,7 +176,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             department: obj.Department !== undefined && obj.Department !== null ? { id: obj.Department.Id, title: obj.Department.Title } : undefined,
             manager: obj.Manager !== undefined && obj.Manager !== null ? { Id: obj.Manager.Id, fullName: obj.Manager.FullName } as IEmployeeProps : undefined,
             employmentStatus: obj.EmploymentStatus !== undefined && obj.EmploymentStatus !== null ? obj.EmploymentStatus : undefined,
-            division: obj.Division !== undefined && obj.Division !== null ? { id: obj.Division.Id, title: obj.Division.Title } : undefined,
+            // division: obj.Division !== undefined && obj.Division !== null ? { id: obj.Division.Id, title: obj.Division.Title } : undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
             EMailAddress: obj.EmailAddress !== undefined && obj.EmailAddress !== null ? obj.EmailAddress : undefined,
@@ -197,7 +197,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const _getEmployeesPPEItemsCriteria = useCallback(async (usersArg?: IUser[], employeeID?: string) => {
     try {
       const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
-        `Employee/ID,Employee/FullName,RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
+        `RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
         `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail,AdditionalPPEItems` +
         `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
         `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
@@ -606,7 +606,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       employeeName: _employee?.[0]?.text,
       _jobTitle,
       _department,
-      _division,
+      // _division,
       _company,
       requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
       replacementReason: _isReplacementChecked ? _replacementReason : '',
@@ -629,7 +629,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }),
       approvals: formsApprovalWorkflow
     };
-  }, [_employee, _employeeId, _jobTitle, _department, _division, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
+  }, [_employee, _employeeId, _jobTitle, _department, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
@@ -638,7 +638,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (!_jobTitle?.title?.trim()) missing.push('Job Title');
     if (!_department.title?.trim()) missing.push('Department');
     if (!_company.title?.trim()) missing.push('Company');
-    if (!_division.title?.trim()) missing.push('Division');
+    // if (!_division.title?.trim()) missing.push('Division');
     if (_requester.length === 0) missing.push('Requester');
 
     if (missing.length) {
@@ -740,7 +740,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
 
     return undefined;
-  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
+  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
   useEffect(() => {
     if (prefilledFormId) {
@@ -990,11 +990,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           `EmployeeRecord/Id,EmployeeRecord/FullName,` +
           `JobTitleRecord/Id,JobTitleRecord/Title,` +
           `DepartmentRecord/Id,DepartmentRecord/Title,` +
-          `DivisionRecord/Id,DivisionRecord/Title,` +
+          // `DivisionRecord/Id,DivisionRecord/Title,` +
           `CompanyRecord/Id,CompanyRecord/Title,` +
           `RequesterName/Id,RequesterName/Title,RequesterName/EMail,` +
           `SubmitterName/Id,SubmitterName/Title,SubmitterName/EMail` +
-          `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+          `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
           `&$filter=Id eq ${formId}`;
 
         const formCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', headerQuery);
@@ -1009,11 +1009,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           const jt = header?.JobTitleRecord ? { id: header.JobTitleRecord.Id ? String(header.JobTitleRecord.Id) : undefined, title: header.JobTitleRecord.Title || '' } : { id: undefined, title: '' };
           const dept = header?.DepartmentRecord ? { id: header.DepartmentRecord.Id ? String(header.DepartmentRecord.Id) : undefined, title: header.DepartmentRecord.Title || '' } : { id: undefined, title: '' };
-          const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
+          // const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
           const comp = header?.CompanyRecord ? { id: header.CompanyRecord.Id ? String(header.CompanyRecord.Id) : undefined, title: header.CompanyRecord.Title || '' } : { id: undefined, title: '' };
           setJobTitleId(jt);
           setDepartmentId(dept);
-          setDivisionId(div);
+          // setDivisionId(div);
           setCompanyId(comp);
 
           const requesterPersona = toPersona({ Id: header?.RequesterName?.Id, Title: header?.RequesterName?.Title, EMail: header?.RequesterName?.EMail });
@@ -1586,9 +1586,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         ? { id: emp.department.id ? String(emp.department.id) : undefined, title: emp.department.title || '' }
         : { id: undefined, title: user?.department || '' };
 
-      const division: ICommon | undefined = emp?.division
-        ? { id: emp.division.id ? String(emp.division.id) : undefined, title: emp.division.title || '' }
-        : { id: undefined, title: '' };
+      // const division: ICommon | undefined = emp?.division
+      //   ? { id: emp.division.id ? String(emp.division.id) : undefined, title: emp.division.title || '' }
+      //   : { id: undefined, title: '' };
 
       const company: ICommon = emp?.company
         ? { id: emp.company.id ? String(emp.company.id) : undefined, title: emp.company.title || '' }
@@ -1598,7 +1598,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setEmployeeId(emp?.employeeID);
       setJobTitleId(jobTitle);
       setDepartmentId(department);
-      setDivisionId(division);
+      // setDivisionId(division);
       setCompanyId(company);
       // Auto-set requester ONLY if Employee list record has a manager; otherwise leave empty
       if (emp?.manager?.fullName) {
@@ -1635,7 +1635,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setEmployeeId(undefined);
       setJobTitleId({ id: '', title: '' });
       setDepartmentId({ id: '', title: '' });
-      setDivisionId({ id: '', title: '' });
+      // setDivisionId({ id: '', title: '' });
       setCompanyId({ id: '', title: '' });
       setRequester([]);
       setEmployeePPEItemsCriteria({ Id: '' });
@@ -1939,7 +1939,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       RequesterNameId: requesterId ?? null, // SharePoint person field
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
-      DivisionRecordId: _division?.id ? Number(_division.id) : null,
+      // DivisionRecordId: _division?.id ? Number(_division.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
       ReplacementReason: payload.replacementReason ?? null,
@@ -1967,7 +1967,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       RequesterNameId: requesterId ?? null,
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
-      DivisionRecordId: _division?.id ? Number(_division.id) : null,
+      // DivisionRecordId: _division?.id ? Number(_division.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
       ReplacementReason: payload.replacementReason ?? null,
@@ -1977,7 +1977,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     };
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
-  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
 
   // Update existing PPEForm item workflow status only
   const _updatePPEFormStatus = useCallback(async (formId: number, RejectionReason?: string, WorkflowStatus?: string): Promise<void> => {
@@ -1988,7 +1988,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
-  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
 
   // // Create detail rows for each required item
   const _createPPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
@@ -2072,7 +2072,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   return (
     <div className={styles.ppeFormBackground} ref={containerRef} style={{ position: 'relative' }}>
-
+      <div ref={bannerTopRef} />
       {isSubmitting && (
         <div
           ref={overlayRef}
@@ -2089,23 +2089,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             alignItems: 'center',
             justifyContent: 'center',
             pointerEvents: 'all'
-          }}
-        >
+          }}>
           <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
         </div>
       )}
-      {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
       <form>
-        <div ref={bannerTopRef} />
         <div className={styles.formHeader}>
           <img src={logoUrl} alt="Logo" className={styles.formLogo} />
           <span className={styles.formTitle}>PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM</span>
         </div>
-
+        {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
         <Stack horizontal styles={stackStyles}>
-          <div className="row">
-            <div className="form-group col-md-6"><TextField label="Employee ID" value={_employeeId?.toString()} disabled={true} /></div>
-          </div>
+          {/* <div className="row">
+          </div> */}
 
           <div className="row">
             <div className="form-group col-md-6">
@@ -2129,10 +2125,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 }}
               />
             </div>
-
-            <div className="form-group col-md-6">
-              <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings} />
-            </div>
+            <div className="form-group col-md-6"><TextField label="Employee ID" value={_employeeId?.toString()} disabled={true} /></div>
           </div>
 
           <div className="row">
@@ -2145,8 +2138,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           </div>
 
           <div className="row">
-            <div className="form-group col-md-6"><TextField label="Division" value={_division?.title} disabled={true} /></div>
             <div className="form-group col-md-6"><TextField label="Company" value={_company?.title} disabled={true} /></div>
+            <div className="form-group col-md-6">
+              <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings} />
+            </div>
           </div>
 
           <div className="row">
@@ -2224,33 +2219,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     )
                   },
                   {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
-                    onRender: (r: ItemRowState) => {
-                      return (
-                        <>
-                          {r.brands.length === 0 && <span>N/A</span>}
-                          {
-                            r.brands.map(brand => {
-                              const brandChecked = r.brandSelected === brand;
-                              return (
-                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                                  <Checkbox label={brand} checked={brandChecked}
-                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
-                                    disabled={!canEditItems || !r.requiredRecord}
-                                    styles={{
-                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
-                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })
-                          }
-                        </>
-                      );
-                    }
-                  },
-                  {
                     key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 300, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
                         {r.details.map(detail => {
@@ -2296,6 +2264,35 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       </div>
                     )
                   },
+
+                  {
+                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
+                    onRender: (r: ItemRowState) => {
+                      return (
+                        <>
+                          {r.brands.length === 0 && <span>N/A</span>}
+                          {
+                            r.brands.map(brand => {
+                              const brandChecked = r.brandSelected === brand;
+                              return (
+                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                  <Checkbox label={brand} checked={brandChecked}
+                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
+                                    disabled={!canEditItems || !r.requiredRecord}
+                                    styles={{
+                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          }
+                        </>
+                      );
+                    }
+                  },
+
                   {
                     key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 50, maxWidth: 50, onRender: (r: ItemRowState) => (
                       <TextField

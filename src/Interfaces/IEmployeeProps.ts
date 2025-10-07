@@ -5,7 +5,7 @@ export interface IEmployeeProps extends ISPListItem{
   fullName?: string;
   jobTitle?: ICommon | undefined;
   company?: ICommon | undefined;
-  division?: ICommon | undefined;
+  // division: ICommon | undefined;
   department?: ICommon | undefined;
   employmentStatus?: string | undefined;
   manager?: IEmployeeProps | undefined;
