@@ -74,7 +74,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       { key: 'colCompany', name: 'Company', fieldName: 'company', minWidth: 120 },
       { key: 'colRequester', name: 'Requester', fieldName: 'requester', minWidth: 140 },
       { key: 'colSubmitter', name: 'Submitter', fieldName: 'submitter', minWidth: 140 },
-      // { key: 'colworkflowStatus', name: 'Workflow Status', fieldName: 'workflowStatus', minWidth: 200, isResizable: true },
+      { key: 'colworkflowStatus', name: 'Status', fieldName: 'workflowStatus', minWidth: 200, isResizable: true },
       { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 200, isResizable: true },
       {
         key: 'colCreated', name: 'Date Submitted', fieldName: 'created', minWidth: 140,
@@ -99,6 +99,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+        // `&$filter=not substringof('Closed', WorkflowStatus)` +
         `&$orderby=Created desc`;
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);

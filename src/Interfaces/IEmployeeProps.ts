@@ -8,8 +8,9 @@ export interface IEmployeeProps extends ISPListItem{
   // division: ICommon | undefined;
   department?: ICommon | undefined;
   employmentStatus?: string | undefined;
-  manager?: IEmployeeProps | undefined;
+  manager: IEmployeeProps | undefined;
   EMailAddress: string | undefined;
+  directManager?: IEmployeeProps | undefined;
 }
 
 export interface IEmployeesPPEItemsCriteria extends ISPListItem {
