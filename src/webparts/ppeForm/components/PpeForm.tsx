@@ -1746,6 +1746,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       // Allow if the row is currently editable OR already dirty (mid-edit)
       if (!editableRows[rowIdNum] && !(prev[idx] as any)?.__dirty) return prev;
 
+      // Only allow editing Reason when status is Rejected
+      const isRejected = /reject/i.test(String(prev[idx]?.Status?.title || ''));
+      if (!isRejected) return prev;
+
       const next = [...prev];
       const row: any = { ...next[idx] };
 
@@ -1777,6 +1781,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const row: any = { ...next[idx] };
 
         row.Status = { id: String(option.key ?? ''), title: String(option.text ?? '') };
+
+        const nowRejected = /reject/i.test(String(option.text || ''));
+        // Clear reason if no longer rejected (prevents stale reasons sticking around)
+        if (!nowRejected) {
+          row.Reason = undefined;
+        }
+
         row.__index = idx;
         row.__dirty = true;
 
@@ -2170,11 +2181,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         <Separator />
 
-        <div className="mb-2 text-center">
+        <div className="text-center">
           <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.0rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
         </div>
 
-        <Separator />
+        {/* <Separator /> */}
         {/* Aggregated PPE Items Grid with detail checkboxes */}
         <Stack horizontal styles={stackStyles}>
           <div className="row">
@@ -2232,7 +2243,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                             const checked = r.selectedDetail === detail;
                             return (
-                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                                 <Checkbox
                                   label={detail}
                                   checked={checked}
@@ -2262,7 +2273,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             r.brands.map(brand => {
                               const brandChecked = r.brandSelected === brand;
                               return (
-                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                                   <Checkbox label={brand} checked={brandChecked}
                                     onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
                                     disabled={!canEditItems || !r.requiredRecord}
@@ -2310,7 +2321,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
                         return (
-                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                             <ComboBox
                               placeholder={sizes.length ? 'Size' : 'No sizes'}
                               selectedKey={r.itemSizeSelected || undefined}
@@ -2341,12 +2352,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                               return (
                                 <div key={type}
-                                  style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
+                                  style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
                                   <Label styles={{ root: { marginBottom: 4, fontWeight: 600 } }}>{type}</Label>
 
                                   {sizes.length === 0 ? (<span>N/A</span>) :
                                     (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                         {sizes.map(size => {
                                           const sizeChecked = r.selectedSizesByType?.[type] === size;
                                           const id = `${r.itemId}-${type}-${size}`;
@@ -2387,7 +2398,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                       const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
                       return (
-                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 4 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 2 }}>
                           {sizes.map(size => {
                             const sizeChecked = r.itemSizeSelected === size;
                             return (
@@ -2514,26 +2525,29 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             options={options}
                             useComboBoxAsMenuWidth={true}
                             disabled={!canEditApprovalRow(item)}
-                            onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)}
-                          />
+                            onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)} />
                         );
                       }
                     },
                     {
                       key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
-                      onRender: (item: any, idx?: number) => (
-                        <TextField value={item.Reason || ''}
-                          placeholder={!canEditApprovalRow(item) ? '' : 'Enter Reason'}
-                          disabled={!canEditApprovalRow(item)}
-                          onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
-                        />)
+                      onRender: (item: any, idx?: number) => {
+                        const canEdit = canEditApprovalRow(item);
+                        const isRejected = /reject/i.test(String(item?.Status?.title || ''));
+                        const canEditReason = canEdit && isRejected;
+                        return (
+                          <TextField value={item.Reason || ''}
+                            placeholder={canEditReason ? 'Enter rejection reason': ''}
+                            disabled={!canEditReason}
+                            onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
+                          />);
+                      }
                     },
                     {
                       key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <DatePicker value={item.Date ? new Date(item.Date) : undefined}
                           disabled={prefilledFormId ? true : false}
-                          // onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
                         />)
                     }

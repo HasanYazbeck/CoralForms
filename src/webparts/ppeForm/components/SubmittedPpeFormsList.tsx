@@ -104,13 +104,13 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
       const data: any[] = await crud._getItemsByListNameOrGuid();
       const filteredItems = data.filter(item => {
-        const created = new Date(item.Created); // SharePoint returns ISO date string
-        const now = new Date();
-        // Calculate time difference in milliseconds
-        const diffMs = now.getTime() - created.getTime();
-        // Convert to minutes
-        const diffMinutes = diffMs / 60000;
-        return (!item.WorkflowStatus?.toLowerCase().includes('closed') && diffMinutes >= 0.3);
+        // const created = new Date(item.Created); // SharePoint returns ISO date string
+        // const now = new Date();
+        // // Calculate time difference in milliseconds
+        // const diffMs = now.getTime() - created.getTime();
+        // // Convert to minutes
+        // const diffMinutes = diffMs / 60000;
+        return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
       });
 
       const mapped: Row[] = (filteredItems || []).map((obj: any): Row => {
