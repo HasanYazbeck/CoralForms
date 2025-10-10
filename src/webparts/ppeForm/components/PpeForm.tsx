@@ -17,10 +17,7 @@ import { Label } from '@fluentui/react/lib/Label';
 import { Checkbox } from '@fluentui/react';
 import { Separator } from '@fluentui/react/lib/Separator';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
-import {
-  PrimaryButton,
-  DefaultButton
-} from '@fluentui/react';
+import { PrimaryButton, DefaultButton } from '@fluentui/react';
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -36,6 +33,7 @@ import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/
 import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
+// import { IPPEForm } from "../../../Interfaces/IPPEForm";
 const stackStyles: IStackStyles = {
   root: {
     background: DefaultPalette.themeTertiary,
@@ -58,10 +56,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [_jobTitle, setJobTitleId] = useState<ICommon>({ id: '', title: '' });
   const [_department, setDepartmentId] = useState<ICommon>({ id: '', title: '' });
-  const [_division, setDivisionId] = useState<ICommon>({ id: '', title: '' });
   const [_company, setCompanyId] = useState<ICommon>({ id: '', title: '' });
   const [_employee, setEmployee] = useState<IPersonaProps[]>([]);
-  const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
+  // const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
+  const [_SPEmployeeId, setSPEmployeeId] = useState<number>();
+  const [_coralEmployeeId, setCoralEmployeeId] = useState<number | undefined>(undefined);
   const [_submitter, setSubmitter] = useState<IPersonaProps[]>([]);
   const [_requester, setRequester] = useState<IPersonaProps[]>([]);
   const [_isReplacementChecked, setIsReplacementChecked] = useState(false);
@@ -74,7 +73,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [itemInstructionsForUse, setItemInstructionsForUse] = useState<ILKPItemInstructionsForUse[]>([]);
   const [lKPWorkflowStatus, setLKPWorkflowStatus] = useState<ISPListItem[]>([]);
   const [formsApprovalWorkflow, setFormsApprovalWorkflow] = useState<IFormsApprovalWorkflow[]>([]);
-  const [, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
+  const [_coralFormsList, setCoralFormsList] = useState<ICoralFormsList>({ Id: "" });
   const [loading, setLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Submit button state
   const [bannerText, setBannerText] = useState<string>();
@@ -82,12 +81,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
   const [isHSEApprovalLevel, setIsHSEApprovalLevel] = React.useState<boolean>(false);
   const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
+  // const [IsEligibileForFormTimeInterval, setIsEligibileForFormTimeInterval] = useState<boolean>(false);
   const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
   const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
   const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
   const [, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
+  
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
     item: string;
@@ -107,13 +108,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
   }
   const webUrl = props.context.pageContext.web.absoluteUrl;
-  // TODO: Replace these with your actual list GUIDs or titles
-  const sharePointLists = {
-    PPEForm: { value: '7afa2286-c552-4ff6-952e-1c09f32734cd' },
-    PPEFormItems: { value: '43a83414-6b55-4856-aaea-b7447a37a024' },
-    PPEFormApprovalWorkflow: { value: 'd0f9db49-8f4d-4685-9176-d639baec4b88' },
-    LKPWorkflowStatus: { value: '80eabd4a-6467-40d4-ae8f-fafcc77d334e' }
-  };
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -164,15 +158,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Employee');
-      if (!listGuid) throw new Error('Employees list Guid not found');
-
-      const query: string = `?$select=Id,EmployeeID,FullName,Division/Id,Division/Title,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
-        `Department/Id,Department/Title,Manager/Id,Manager/FullName,Created,Author/EMail` +
-        `&$expand=Author,Division,Company,JobTitle,Department,Manager,Author` +
+      const query: string = `?$select=Id,EmployeeID,FullName,EmailAddress,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
+        `Department/Id,Department/Title,Created,Author/EMail,DirectManager/Id,DirectManager/Title,DirectManager/EMail` +
+        `&$expand=Author,Company,JobTitle,Department,Author,DirectManager` +
         `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeeProps[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -181,18 +171,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
           let created: Date | undefined;
           if (obj.Created !== undefined) created = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+          const DirectManager: IEmployeeProps | undefined = obj.DirectManager !== undefined && obj.DirectManager !== null ?
+            { Id: obj.DirectManager.Id, fullName: obj.DirectManager.Title } as IEmployeeProps : undefined;
+
           const temp: IEmployeeProps = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-            employeeID: obj.EmployeeID !== undefined && obj.EmployeeID !== null ? obj.EmployeeID : 0,
+            coralEmployeeID: obj.EmployeeID !== undefined && obj.EmployeeID !== null ? obj.EmployeeID : 0,
             fullName: obj.FullName !== undefined && obj.FullName !== null ? obj.FullName : undefined,
             jobTitle: obj.JobTitle !== undefined && obj.JobTitle !== null ? { id: obj.JobTitle.Id, title: obj.JobTitle.Title } : undefined,
             company: obj.Company !== undefined && obj.Company !== null ? { id: obj.Company.Id, title: obj.Company.Title } : undefined,
             department: obj.Department !== undefined && obj.Department !== null ? { id: obj.Department.Id, title: obj.Department.Title } : undefined,
-            manager: obj.Manager !== undefined && obj.Manager !== null ? { Id: obj.Manager.Id, fullName: obj.Manager.FullName } as IEmployeeProps : undefined,
+            manager: obj.DirectManager !== undefined && obj.DirectManager !== null ? DirectManager : undefined,
             employmentStatus: obj.EmploymentStatus !== undefined && obj.EmploymentStatus !== null ? obj.EmploymentStatus : undefined,
-            division: obj.Division !== undefined && obj.Division !== null ? { id: obj.Division.Id, title: obj.Division.Title } : undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
+            EMailAddress: obj.EmailAddress !== undefined && obj.EmailAddress !== null ? obj.EmailAddress : undefined,
           };
 
           result.push(temp);
@@ -209,17 +202,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployeesPPEItemsCriteria = useCallback(async (usersArg?: IUser[], employeeID?: string) => {
     try {
-
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Employee_PPE_Items_Criteria');
-      if (!listGuid) throw new Error('Employee_PPE_Items_Criteria Guid not found');
-
-      const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
-        `Employee/ID,Employee/FullName,RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
+      const query: string = `?$select=Id,Employee/ID,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
+        `RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
         `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail,AdditionalPPEItems` +
         `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
-        `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+        `&$filter=Employee/ID eq ${employeeID}&$orderby=Order asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee_PPE_Items_Criteria', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       let result: IEmployeesPPEItemsCriteria;
 
@@ -227,7 +215,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const obj = data[0]; // Get the first object
         result = {
           Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-          employeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.EmployeeID : undefined,
+          employeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.ID : undefined,
+          coralEmployeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.EmployeeID : undefined,
           fullName: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.FullName : undefined,
           reflectiveVest: obj.ReflectiveVest !== undefined && obj.ReflectiveVest !== null ? obj.ReflectiveVest : undefined,
           safetyHelmet: obj.SafetyHelmet !== undefined && obj.SafetyHelmet !== null ? obj.SafetyHelmet : undefined,
@@ -241,24 +230,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           Created: undefined, CreatedBy: undefined,
         };
         setEmployeePPEItemsCriteria(result);
-
       }
 
     } catch (error) {
-      // console.error('An error has occurred while retrieving items!', error);
       setEmployeePPEItemsCriteria({ Id: '' });
     }
   }, [props.context, spHelpers]);
 
   const _getCoralFormsList = useCallback(async (usersArg?: IUser[]): Promise<ICoralFormsList | undefined> => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('Coral_Forms_List');
-      if (!listGuid) throw new Error('Coral_Forms_List guid not found');
 
       const searchEscaped = formName.replace(/'/g, "''");
-      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created,Author/EMail&$expand=Author&$filter=substringof('${searchEscaped}', Title)`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,Created,Author/EMail,SubmissionRangeInterval&$expand=Author&$filter=substringof('${searchEscaped}', Title)`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Coral_Forms_List', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
       const ppeform = data.find((obj: any) => obj !== null);
@@ -274,6 +258,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           Created: created,
           hasInstructionForUse: ppeform.hasInstructionForUse ?? undefined,
           hasWorkflow: ppeform.hasWorkflow ?? undefined,
+          SubmissionRangeInterval: ppeform.SubmissionRangeInterval ?? undefined,
         };
       }
       setCoralFormsList(result);
@@ -287,12 +272,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItems = useCallback(async (usersArg?: IUser[]) => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items');
-      if (!listGuid) throw new Error('PPE_Items list not found');
-
       const query: string = `?$select=Id,Title,Brands,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Items', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItem[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -323,12 +304,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEItemsDetails = useCallback(async (usersArg?: IUser[]) => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Items_Details');
-      if (!listGuid) throw new Error('PPE_Items_Details Guid not found');
-
       const query: string = `?$select=Id,Title,PPEItem,Sizes,Types,RecordOrder,Created,PPEItem/Id,PPEItem/Title,Author/EMail&$expand=Author,PPEItem`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Items_Details', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IPPEItemDetails[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -364,13 +341,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPItemInstructionsForUse = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('LKP_Item_Instructions_For_Use');
-      if (!listGuid) throw new Error('PPE_Items_Details guid list not found');
-
       const query: string = `?$select=Id,FormName,RecordOrder,Description,Created,Author/EMail&$expand=Author&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Item_Instructions_For_Use', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ILKPItemInstructionsForUse[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -405,12 +377,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getLKPWorkflowStatus = useCallback(async (usersArg?: IUser[], formName?: string) => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('LKP_Workflow_Status');
-      if (!listGuid) throw new Error('LKP_Workflow_Status guid list not found');
-
       const query: string = `?$select=Id,Title,RecordOrder,Created,Author/EMail&$expand=Author&$orderby=RecordOrder asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Workflow_Status', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ISPListItem[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -444,16 +412,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getPPEFormApprovalWorkflows = useCallback(async (usersArg?: IUser[], formId?: number) => {
     try {
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl);
-      const listGuid: string | undefined = await spCrudRef.current._getSharePointListGUID('PPE_Form_Approval_Workflow');
-      if (!listGuid) throw new Error('PPE_Form_Approval_Workflow guid list not found');
-
-      const query: string = `?$select=Id,SignOffName,FinalLevel,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,` +
+      const query: string = `?$select=Id,SignOffName,FinalLevel,Approver/Id,Approver/EMail,Approver/Title,Author/EMail,PPEForm/Id,ApproversName/Id,ApproversName/Title,ApproversName/EMail,` +
         `PPEForm/Title,IsFinalApprover,OrderRecord,Created,StatusRecord/Id,StatusRecord/Title,Reason,Modified,Editor/Id,Editor/EMail,Editor/Title` +
-        `&$expand=Author,Editor,PPEForm,StatusRecord,Approver` +
+        `&$expand=Author,Editor,PPEForm,StatusRecord,Approver,ApproversName` +
         (formId && formId > 0 ? `&$filter=PPEForm/Id eq ${formId}` : '') +
         `&$orderby=OrderRecord asc`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Approval_Workflow', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
@@ -476,6 +440,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           } else if (obj.Modified) {
             approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Modified));
           }
+
+          // Helper to normalize SharePoint multi-person fields to a simple array
+          const toPeopleArray = (field: any): any[] => {
+            if (!field) return [];
+            if (Array.isArray(field)) return field;
+            if (Array.isArray(field?.results)) return field.results;
+            if (Array.isArray(field?.value)) return field.value;
+            return [];
+          };
+
+          // Build IPersonaProps[] from ApproversName
+          const approversPeople = toPeopleArray(obj.ApproversName);
+          const approversPersonas: IPersonaProps[] = approversPeople.map((u: any) => ({
+            text: u?.Title || u?.Email || u?.LoginName || '',
+            secondaryText: u?.EMail || u?.Email || '',
+            id: u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')
+          }) as IPersonaProps);
+
+          // Use the group title from ApproverGroup (already mapped above as a Persona)
+          const approverGroupTitle = (deptApproverGroupPersona?.text || '').trim();
+
+          // Create the record keyed by group name
+          const approversNamesList: Record<string, IPersonaProps[]> = {};
+          if (approverGroupTitle) {
+            approversNamesList[approverGroupTitle] = approversPersonas;
+          }
+
           const temp: IFormsApprovalWorkflow = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             FormName: obj.FormName !== undefined && obj.FormName !== null ? { title: obj.FormName.Title, id: obj.FormName.Id } : undefined,
@@ -492,7 +483,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
             ModifiedByPersona: obj.Editor !== undefined && obj.Editor !== null ? obj.Editor : undefined,
+            ApproversNamesList: approversNamesList,
           };
+
+          if (approverGroupTitle) {
+            setGroupMembers(prev => ({ ...prev, [approverGroupTitle.toLowerCase()]: approversPersonas }));
+          }
           result.push(temp);
         }
       });
@@ -547,28 +543,28 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return byName?.email;
   }, [users]);
 
-  const loggedInUserEmail = useMemo(() => (props.context.pageContext?.user?.email || '').toLowerCase(),
-    [props.context]
-  );
-  const loggedInUser = useMemo(() => users.find(u => u.email === loggedInUserEmail), [loggedInUserEmail, users]);
+  // const loggedInUserEmail = useMemo(() => (props.context.pageContext?.user?.email || '').toLowerCase(),
+  //   [props.context]
+  // );
+  const loggedInUser = useMemo(() => users.find(u => u.email === props.context.pageContext?.user?.email), [users]);
 
   // Determine if current user is Requester or Submitter (identity match by email/id/name)
   const isCurrentRequester = useMemo(() => {
-    const currentEmail = (loggedInUserEmail || '').toLowerCase();
+    const currentEmail = (props.context.pageContext?.user?.email || '').toLowerCase();
     const requesterEmail = (emailFromPersona(_requester?.[0]) || '').toLowerCase();
     if (currentEmail && (currentEmail === requesterEmail)) return true;
 
     return false;
-  }, [loggedInUserEmail, _requester, emailFromPersona]);
+  }, [_requester, emailFromPersona]);
 
   const isCurrentSubmitter = useMemo(() => {
-    const currentEmail = (loggedInUserEmail || '').toLowerCase();
+    const currentEmail = (props.context.pageContext?.user?.email || '').toLowerCase();
     const submitterEmail = (emailFromPersona(_submitter?.[0]) || '').toLowerCase();
 
     if (currentEmail && (currentEmail === submitterEmail)) return true;
 
     return false;
-  }, [loggedInUserEmail, _submitter, emailFromPersona]);
+  }, [_submitter, emailFromPersona]);
 
   // Any approval row already marked as Approved?
   const anyApproved: boolean = useMemo(() => {
@@ -636,7 +632,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     // Otherwise rely on cached group membership check
     return editableRows[Number(item.Id!)] === true;
-  }, [editableRows, loggedInUserEmail]);
+  }, [editableRows]);
 
   const hasApprovalChanges = useMemo(() => {
     return (formsApprovalWorkflow || []).some(r => (r as any)?.__dirty === true);
@@ -646,11 +642,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return {
       formName,
       status,
-      employeeId: _employeeId,
+      employeeId: _SPEmployeeId,
       employeeName: _employee?.[0]?.text,
       _jobTitle,
       _department,
-      _division,
       _company,
       requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
       replacementReason: _isReplacementChecked ? _replacementReason : '',
@@ -673,16 +668,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }),
       approvals: formsApprovalWorkflow
     };
-  }, [_employee, _employeeId, _jobTitle, _department, _division, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
+  }, [_employee, _SPEmployeeId, _jobTitle, _department, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
-    // If “Others” is required, ensure a size is chosen (since you show size ComboBox when required)
     const missing: string[] = [];
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
     if (!_jobTitle?.title?.trim()) missing.push('Job Title');
     if (!_department.title?.trim()) missing.push('Department');
     if (!_company.title?.trim()) missing.push('Company');
-    if (!_division.title?.trim()) missing.push('Division');
     if (_requester.length === 0) missing.push('Requester');
 
     if (missing.length) {
@@ -784,52 +777,46 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
 
     return undefined;
-  }, [_employee, _jobTitle, _department, _company, _division, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
+  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
 
-  // ---------------------------
-  // useEffect: load data on mount
-  // ---------------------------
-  // Fetch and cache members for each referenced SharePoint group name
-  // useEffect(() => {
-  //   const names = Array.from(new Set((formsApprovalWorkflow || [])
-  //     .map(r => getGroupNameFromWorflowRecord(r))
-  //     .filter((g): g is string => !!g)
-  //     .map(g => g.trim())
-  //     .filter(Boolean)));
+  // Initial load of users, PPE items, Coral form config, etc.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const fetchedUsers = await _getUsers();
+      const coralListResult = await _getCoralFormsList(fetchedUsers);
+      await _getPPEItems(fetchedUsers);
+      await _getPPEItemsDetails(fetchedUsers);
 
-  //   if (!names.length) return;
+      // Use the returned result from _getCoralFormsList instead of the (possibly stale) coralFormsList state
+      if (coralListResult && coralListResult.hasInstructionForUse) {
+        if (coralListResult.hasInstructionForUse) await _getLKPItemInstructionsForUse(fetchedUsers, formName);
+        if (coralListResult.hasWorkflow) {
+          await _getLKPWorkflowStatus(fetchedUsers);
+          const editFormId = props.formId ? Number(props.formId) : undefined;
+          if (editFormId && editFormId > 0) {
+            await _getPPEFormApprovalWorkflows(fetchedUsers, editFormId);
+          } else {
+            setFormsApprovalWorkflow([]);
+          }
+        }
+      }
 
-  //   const webUrl = props.context.pageContext.web.absoluteUrl;
-  //   const esc = (s: string) => s.replace(/'/g, "''");
-
-  //   let disposed = false;
-  //   (async () => {
-  //     for (const name of names) {
-  //       const key = name.toLowerCase();
-  //       if (groupMembers[key]) continue; // already cached
-  //       try {
-  //         const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
-  //         const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
-  //         if (!resp || resp.status !== 200) {
-  //           // cache empty to avoid re-fetch loop
-  //           if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-  //           continue;
-  //         }
-  //         const json = await resp.json();
-  //         const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
-  //           text: u?.Title || u?.Email || u?.LoginName || '',
-  //           secondaryText: u?.Email || '',
-  //           id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
-  //         } as IPersonaProps)) : [];
-  //         if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: personas }));
-  //       } catch {
-  //         if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-  //       }
-  //     }
-  //   })();
-
-  //   return () => { disposed = true; };
-  // }, [formsApprovalWorkflow, props.context, getGroupNameFromWorflowRecord, groupMembers]);
+      if (!cancelled) {
+        try {
+          const currentUserEmail = props.context.pageContext.user.email;
+          const current = fetchedUsers.find(u => u.email === currentUserEmail);
+          if (current) setSubmitter([{ text: current.displayName || '', secondaryText: current.email || '', id: current.id }]);
+        } catch (e) {
+          // ignore if context not available
+        }
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [_getEmployees, _getUsers, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, _getPPEFormApprovalWorkflows, props.context, props.formId]);
 
   useEffect(() => {
     if (prefilledFormId) {
@@ -883,7 +870,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const checkInGroupMembership = async () => {
       try {
         const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
-        const loggesUserEmail = loggedInUser?.email ?? '';
+        const loggesUserEmail = props.context.pageContext?.user?.email || '';
         const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(groupTitle, loggesUserEmail);
         if (!cancelled) setHSEGroupMembership(isMember === true);
       } catch {
@@ -917,7 +904,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         try {
           const spCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, '', '');
-          const userEmail = loggedInUser?.email ?? '';
+          const userEmail = props.context.pageContext?.user?.email ?? '';
           const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(item.ApproverGroup.text, userEmail);
           results[Number(item.Id!)] = isMember === true && item.Status?.title?.toLowerCase() === 'pending';
         } catch {
@@ -937,56 +924,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     };
   }, [formsApprovalWorkflow, props.context, loggedInUser]);
 
-  // Fetch and cache members for referenced groups
-  useEffect(() => {
-    const names = Array.from(
-      new Set(
-        (formsApprovalWorkflow || [])
-          .map(r => resolveGroupUserForItemRow(r))
-          .filter((g): g is string => !!g)
-          .map(g => g.trim())
-          .filter(Boolean)
-      )
-    );
-    if (!names.length) return;
-
-    const webUrl = props.context.pageContext.web.absoluteUrl;
-    const esc = (s: string) => s.replace(/'/g, "''");
-
-    let disposed = false;
-    (async () => {
-      for (const name of names) {
-        const key = name.toLowerCase();
-        if (groupMembers[key]) continue; // already cached
-        try {
-          const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
-          const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
-          if (!resp || resp.status !== 200) {
-            if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-            continue;
-          }
-          const json = await resp.json();
-          const personas: IPersonaProps[] = Array.isArray(json?.value)
-            ? json.value.map((u: any) => ({
-              text: u?.Title || u?.Email || u?.LoginName || '',
-              secondaryText: u?.Email || '',
-              id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
-            } as IPersonaProps))
-            : [];
-          if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: personas }));
-        } catch {
-          if (!disposed) setGroupMembers(prev => ({ ...prev, [key]: [] }));
-        }
-      }
-    })();
-
-    return () => { disposed = true; };
-  }, [formsApprovalWorkflow, props.context, resolveGroupUserForItemRow, groupMembers]);
-
   // Default the approver to the logged-in user if they’re in the row’s group and the row is Pending
   useEffect(() => {
     if (!formsApprovalWorkflow?.length) return;
-    if (!loggedInUserEmail) return;
+    if (!props.context.pageContext?.user?.email) return;
 
     setFormsApprovalWorkflow(prev => {
       let changed = false;
@@ -997,14 +938,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         if (!members.length) return row;
 
         const isPending = String(row?.Status?.title || '').toLowerCase() === 'pending';
-        const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === loggedInUserEmail);
+        const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === props.context.pageContext?.user?.email);
         const hasApprover = !!row?.DepartmentManagerApprover?.secondaryText;
 
         if (isPending && isMember && !hasApprover) {
           const persona: IPersonaProps = {
-            text: loggedInUser?.displayName || loggedInUserEmail,
-            secondaryText: loggedInUserEmail,
-            id: loggedInUser?.id || loggedInUserEmail
+            text: loggedInUser?.displayName || props.context.pageContext?.user?.email,
+            secondaryText: props.context.pageContext?.user?.email,
+            id: loggedInUser?.id || props.context.pageContext?.user?.email
           };
           changed = true;
           return { ...row, DepartmentManagerApprover: persona };
@@ -1014,46 +955,57 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       return changed ? next : prev;
     });
-  }, [formsApprovalWorkflow, groupMembers, loggedInUser, loggedInUserEmail, resolveGroupUserForItemRow]);
+  }, [formsApprovalWorkflow, groupMembers, loggedInUser, resolveGroupUserForItemRow]);
 
-  // Initial load of users, PPE items, Coral form config, etc.
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const fetchedUsers = await _getUsers();
-      const coralListResult = await _getCoralFormsList(fetchedUsers);
-      await _getPPEItems(fetchedUsers);
-      await _getPPEItemsDetails(fetchedUsers);
+  // Check if the Submitter can submit a new form within a 3 month period of time from the last submitted form
+  // const canSubmitTimeIntervalPPEForm = useCallback(async (employeeId?: number, submissionDate?: Date): Promise<boolean> => {
+  //   try {
+  //     // If we can't determine the employee or date, don't block.
+  //     if (!employeeId || !submissionDate) return true;
 
-      // Use the returned result from _getCoralFormsList instead of the (possibly stale) coralFormsList state
-      if (coralListResult && coralListResult.hasInstructionForUse) {
-        if (coralListResult.hasInstructionForUse) await _getLKPItemInstructionsForUse(fetchedUsers, formName);
-        if (coralListResult.hasWorkflow) {
-          await _getLKPWorkflowStatus(fetchedUsers);
-          const editFormId = props.formId ? Number(props.formId) : undefined;
-          if (editFormId && editFormId > 0) {
-            await _getPPEFormApprovalWorkflows(fetchedUsers, editFormId);
-          } else {
-            setFormsApprovalWorkflow([]);
-          }
-        }
-      }
+  //     // Query the latest PPE_Form created for this employee
+  //     // Assumption: PPE_Form has a numeric "EmployeeID" column (same value you store in _employeeId)
+  //     // If your list uses a lookup instead, adjust the filter to EmployeeRecord/Id eq {id} and add &$expand=EmployeeRecord
+  //     const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord&$filter=EmployeeRecord/Id eq ${employeeId}&$orderby=Created desc&$top=1`;
+  //     const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PPE_Form', query);
+  //     const items = await spCrud._getItemsWithQuery();
+  //     if (!Array.isArray(items) || items.length === 0) {
+  //       // No previous forms -> allow
+  //       setIsEligibileForFormTimeInterval(true);
+  //       return true;
+  //     }
 
-      if (!cancelled) {
-        try {
-          const currentUserEmail = props.context.pageContext.user.email;
-          const current = fetchedUsers.find(u => u.email === currentUserEmail);
-          if (current) setSubmitter([{ text: current.displayName || '', secondaryText: current.email || '', id: current.id }]);
-        } catch (e) {
-          // ignore if context not available
-        }
-        setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [_getEmployees, _getUsers, _getPPEItems, _getPPEItemsDetails, _getCoralFormsList, _getLKPItemInstructionsForUse, _getPPEFormApprovalWorkflows, props.context, props.formId]);
+  //     const createdRaw = items[0]?.Created;
+  //     if (!createdRaw) {
+  //       setIsEligibileForFormTimeInterval(true);
+  //       return true;
+  //     }
+
+  //     // Normalize dates and compare in days
+  //     const lastDate = new Date(spHelpers.adjustDateForGMTOffset(createdRaw));
+  //     const intervalDays = _coralFormsList?.SubmissionRangeInterval ? _coralFormsList?.SubmissionRangeInterval : 90;
+  //     const msPerDay = 1000 * 60 * 60 * 24;
+  //     const diffDays = Math.floor((submissionDate.getTime() - lastDate.getTime()) / msPerDay);
+  //     const allowed = diffDays >= intervalDays;
+  //     setIsEligibileForFormTimeInterval(allowed);
+  //     return allowed;
+
+  //   } catch {
+  //     // On any error, don't block the user
+  //     setIsEligibileForFormTimeInterval(true);
+  //     return true
+  //   }
+  // }, [props.context, webUrl, spHelpers, _coralFormsList]);
+
+  // useEffect(() => {
+  //   let mounted = true;
+  //   (async () => {
+  //     if (!_SPEmployeeId || isEditMode) return;
+  //     const ok = await canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date());
+  //     if (mounted) setIsEligibileForFormTimeInterval(ok); // true = allowed, false = blocked
+  //   })();
+  //   return () => { mounted = false; };
+  // }, [_SPEmployeeId, isEditMode, canSubmitTimeIntervalPPEForm]);
 
   // Prefill when editing an existing form
   useEffect(() => {
@@ -1076,17 +1028,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       try {
         // Load PPEForm header by Id
         const headerQuery = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,` +
-          `EmployeeRecord/Id,EmployeeRecord/FullName,` +
+          `EmployeeRecord/Id,EmployeeRecord/FullName,EmployeeRecord/EmployeeID,` +
           `JobTitleRecord/Id,JobTitleRecord/Title,` +
           `DepartmentRecord/Id,DepartmentRecord/Title,` +
-          `DivisionRecord/Id,DivisionRecord/Title,` +
           `CompanyRecord/Id,CompanyRecord/Title,` +
           `RequesterName/Id,RequesterName/Title,RequesterName/EMail,` +
           `SubmitterName/Id,SubmitterName/Title,SubmitterName/EMail` +
-          `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+          `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
           `&$filter=Id eq ${formId}`;
 
-        const formCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, sharePointLists.PPEForm.value, headerQuery);
+        const formCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', headerQuery);
         const headerItems = await formCrud._getItemsWithQuery();
         const header = Array.isArray(headerItems) ? headerItems[0] : undefined;
 
@@ -1094,15 +1045,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           // Top-level fields prefill
           const employeePersona = toPersona({ Id: header?.EmployeeRecord?.Id, FullName: header?.EmployeeRecord?.FullName });
           setEmployee(employeePersona ? [employeePersona] : []);
-          setEmployeeId(header?.EmployeeID != null ? Number(header.EmployeeID) : undefined);
+          setSPEmployeeId(header?.EmployeeRecord?.Id != null ? Number(header.EmployeeRecord?.Id) : undefined);
+          setCoralEmployeeId(header?.EmployeeRecord?.EmployeeID != null ? Number(header.EmployeeRecord?.EmployeeID) : undefined);
 
           const jt = header?.JobTitleRecord ? { id: header.JobTitleRecord.Id ? String(header.JobTitleRecord.Id) : undefined, title: header.JobTitleRecord.Title || '' } : { id: undefined, title: '' };
           const dept = header?.DepartmentRecord ? { id: header.DepartmentRecord.Id ? String(header.DepartmentRecord.Id) : undefined, title: header.DepartmentRecord.Title || '' } : { id: undefined, title: '' };
-          const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
+          // const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
           const comp = header?.CompanyRecord ? { id: header.CompanyRecord.Id ? String(header.CompanyRecord.Id) : undefined, title: header.CompanyRecord.Title || '' } : { id: undefined, title: '' };
           setJobTitleId(jt);
           setDepartmentId(dept);
-          setDivisionId(div);
           setCompanyId(comp);
 
           const requesterPersona = toPersona({ Id: header?.RequesterName?.Id, Title: header?.RequesterName?.Title, EMail: header?.RequesterName?.EMail });
@@ -1121,7 +1072,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           `&$expand=PPEFormID,Item,PPEFormItemDetail` +
           `&$filter=PPEFormID/Id eq ${formId}`;
 
-        const itemsCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, sharePointLists.PPEFormItems.value, itemsQuery);
+        const itemsCrud = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, "PPE_Form_Items", itemsQuery);
         const childRows = await itemsCrud._getItemsWithQuery();
 
         if (!cancelled && Array.isArray(childRows)) {
@@ -1175,7 +1126,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     load();
 
     return () => { cancelled = true; };
-  }, [props.formId, prefilledFormId, loading, itemRows.length, props.context, sharePointLists.PPEForm.value, sharePointLists.PPEFormItems.value, ppeItemDetails]);
+  }, [props.formId, prefilledFormId, loading, itemRows.length, props.context, ppeItemDetails]);
 
   useEffect(() => {
     if (!bannerText) return;
@@ -1332,6 +1283,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (isEditMode) return;
     if (!c || !c.employeeID) return;
     if (!itemRows || itemRows.length === 0) return;
+
+    // canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date())
+    //   .then(ok => {
+    //     if (!ok) {
+    //       showBanner(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
+    //       setIsSubmitting(false);
+    //       return; // stop submit
+    //     }
+    //     else {
+    //       showBanner(``);
+    //     }
+    //   })
+    //   .catch(() => {
+    //     // optional: handle errors (function already defaults to allowing)
+    //   });
     // Prevent re-applying for the same employee
 
     // ---------------------------
@@ -1350,6 +1316,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       const name = normalize(r.item || '');
       const details = (r.details || []);
+      const itemSizes = (r.itemSizes || []);
       const detailsLower = details.map(d => normalize(d));
       const hasCoverallsDetail = detailsLower.some(d => /coveralls/.test(d));
 
@@ -1362,11 +1329,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         return partial;
       };
 
+      const findSizedDetail = (label?: string): string | undefined => {
+        if (!label) return undefined;
+        const l = normalize(label);
+        const exact = itemSizes.find(d => normalize(d) === l);
+        if (exact) return exact;
+        const partial = itemSizes.find(d => contains(d, l) || contains(l, d));
+        return partial;
+      };
+
       const setReq = (selectedDetail?: string) => ({ ...r, requiredRecord: true, selectedDetail });
       const setReqSizedDetail = (selectedDetail?: string, size?: string) =>
         ({ ...r, requiredRecord: true, selectedDetail, itemSizeSelected: size });
       const setAdditionalItemDetail = (selectedDetail?: string, othersText?: string) =>
-        ({ ...r, requiredRecord: true, selectedDetail, otherPurpose: othersText , itemSizeSelected: 'N/A'});
+        ({ ...r, requiredRecord: true, selectedDetail, otherPurpose: othersText, itemSizeSelected: 'N/A' });
       const setReqSizedDetailByTypes = (
         selectedDetail?: string,
         sizes?: { coveralls?: string; top?: string; pants?: string }
@@ -1400,27 +1376,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       // Rain Suit
       if (name === 'rain suit') {
-        const match = findDetail(c.rainSuit);
-        return setReq(match);
+        const match = findSizedDetail(c.rainSuit);
+        return match ? setReqSizedDetail(undefined, match) : r;
+        // return setReq(match);
       }
       // Winter Jacket: special UI, just mark required
       if (name === 'winter jacket') {
-        // return setReq(undefined);
-        return setReqSizedDetail(undefined, c.winterJacket);
+        const match = findSizedDetail(c.winterJacket);
+        return match ? setReqSizedDetail(undefined, match) : r;
+        // return setReqSizedDetail(undefined, match);
       }
       // Uniform / body cover: choose Coveralls vs non-Coveralls
       if (name.includes('uniform') || hasCoverallsDetail || name.includes('coveralls') || name.includes('body')) {
-        // if (c.uniformCoveralls && !c.uniformCoveralls?.trim().toLowerCase().includes('n/a')) {
-        //   const cv = details.find(d => /coveralls/i.test(d));
-        //   return setReqSizedDetail(cv, c.uniformCoveralls);
-        // }
-
-        // if (c.uniformTop && (!c.uniformTop?.trim().toLowerCase().includes('n/a') || !c.uniformPants?.trim().toLowerCase().includes('n/a'))) {
-        //   const hasSweatshirtOrPants = details.find(d => /sweatshirt/i.test(d) || /pants/i.test(d));
-        //   const size = `${c.uniformTop + ',' + c.uniformPants}`;
-        //   return setReqSizedDetail(hasSweatshirtOrPants, size);
-        //   // return setReq(nonCv);
-        // }
         if (c.uniformCoveralls && !/^\s*n\/a\s*$/i.test(c.uniformCoveralls)) {
           const cv = details.find(d => /coveralls/i.test(d));
           return setReqSizedDetailByTypes(cv, { coveralls: c.uniformCoveralls });
@@ -1466,7 +1433,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const changed = nextRows.some((nr, i) => nr !== itemRows[i]);
     if (changed) setItemRows(nextRows);
     setCriteriaAppliedForEmployeeId(empKey);
-  }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId]);
+  }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId, _SPEmployeeId]);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => {
@@ -1655,6 +1622,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return String(num);
   }, []);
 
+  // ---------------------------
+  // Handlers
+  // ---------------------------
+
   // Block non-numeric key entries except navigation and clipboard combos
   const handleQtyKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
@@ -1665,40 +1636,30 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, []);
 
-  // ---------------------------
-  // Handlers
-  // ---------------------------
-
   const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
+
+    // if (!isEditMode) {
+    //   const ok = await canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date());
+    //   if (!ok) {
+    //     showBanner(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
+    //     setIsSubmitting(false);
+    //     return; // stop submit
+    //   }
+    // }
 
     if (items && items.length > 0) {
       const selected = items[0];
+
       // First try to find in employees list by FullName (fullName -> persona.text)
       const emp = employees.find(e => (e.fullName || '').toLowerCase() === (selected?.text || '').toLowerCase());
-      // Fallback to users (Graph) if not found
-      const user = users.find(u => u.displayName?.toLowerCase() === (selected?.text || '').toLowerCase() || u.id === selected?.id);
-
-      const jobTitle: ICommon = emp?.jobTitle
-        ? { id: emp.jobTitle.id ? String(emp.jobTitle.id) : undefined, title: emp.jobTitle.title || '' }
-        : { id: undefined, title: user?.jobTitle || '' };
-
-      const department: ICommon = emp?.department
-        ? { id: emp.department.id ? String(emp.department.id) : undefined, title: emp.department.title || '' }
-        : { id: undefined, title: user?.department || '' };
-
-      const division: ICommon | undefined = emp?.division
-        ? { id: emp.division.id ? String(emp.division.id) : undefined, title: emp.division.title || '' }
-        : { id: undefined, title: '' };
-
-      const company: ICommon = emp?.company
-        ? { id: emp.company.id ? String(emp.company.id) : undefined, title: emp.company.title || '' }
-        : { id: undefined, title: user?.company || '' };
-
+      const jobTitle: ICommon = emp?.jobTitle ? { id: emp.jobTitle.id ? String(emp.jobTitle.id) : undefined, title: emp.jobTitle.title || '' } : { id: undefined, title: '' };
+      const department: ICommon = emp?.department ? { id: emp.department.id ? String(emp.department.id) : undefined, title: emp.department.title || '' } : { id: undefined, title: '' };
+      const company: ICommon = emp?.company ? { id: emp.company.id ? String(emp.company.id) : undefined, title: emp.company.title || '' } : { id: undefined, title: '' };
       setEmployee([selected]);
-      setEmployeeId(emp?.employeeID);
+      setSPEmployeeId(Number(emp?.Id));
+      setSPEmployeeId(emp?.Id ? Number(emp.Id) : undefined);
       setJobTitleId(jobTitle);
       setDepartmentId(department);
-      setDivisionId(division);
       setCompanyId(company);
       // Auto-set requester ONLY if Employee list record has a manager; otherwise leave empty
       if (emp?.manager?.fullName) {
@@ -1706,6 +1667,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       } else {
         setRequester([]);
       }
+
+      // Reset the one-time-apply guard so criteria can be applied for this selection
+      setCriteriaAppliedForEmployeeId(undefined);
+
       try {
         // Fetch PPE items criteria for this employee ID
         await _getEmployeesPPEItemsCriteria(users, selected?.tertiaryText ? String(selected.tertiaryText) : '');
@@ -1726,15 +1691,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       } catch (e) {
         console.warn('Failed to load PPE items criteria for employee', e);
       }
+
     } else {
       setEmployee([]);
-      setEmployeeId(undefined);
+      setSPEmployeeId(undefined);
       setJobTitleId({ id: '', title: '' });
       setDepartmentId({ id: '', title: '' });
-      setDivisionId({ id: '', title: '' });
+      // setDivisionId({ id: '', title: '' });
       setCompanyId({ id: '', title: '' });
       setRequester([]);
       setEmployeePPEItemsCriteria({ Id: '' });
+      setCriteriaAppliedForEmployeeId(undefined); // <-- important
+
+      setItemRows(prev =>
+        prev.map(r => ({
+          ...r,
+          requiredRecord: undefined,
+          brandSelected: undefined,
+          selectedDetail: undefined,
+          selectedDetails: [],           // for multi-select details
+          itemSizeSelected: undefined,   // single-size path
+          selectedType: undefined,       // if present in your state
+          selectedSizesByType: {},       // typed sizes (Top/Pants etc.)
+          qty: undefined,
+          otherPurpose: undefined,
+          othersItemdetailsText: {}
+        }))
+      );
     }
   }, [employees, users, _getEmployeesPPEItemsCriteria]);
 
@@ -1746,7 +1729,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const list = fetched.length ? fetched : employees; // fallback to existing state
       const matches = list
         .filter(e => (e.fullName || '').toLowerCase().includes(filterText.toLowerCase()))
-        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName), tertiaryText: (e.employeeID ? String(e.employeeID) : e.employeeID) }) as IPersonaProps);
+        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName), tertiaryText: (e.Id ? String(e.Id) : e.Id) }) as IPersonaProps);
       const deduped: IPersonaProps[] = [];
       const seen = new Set<string>();
       matches.forEach(m => { const key = (m.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(m); } });
@@ -1757,18 +1740,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // Requester resolver (merge employees and Graph users for broader search)
   const requesterOnFilterChanged = useCallback((filterText: string, currentPersonas: IPersonaProps[], limitResults?: number): IPersonaProps[] | Promise<IPersonaProps[]> => {
     if (!filterText || filterText.trim().length === 0) return [];
-    const lower = filterText.toLowerCase();
-    // const employeeMatches = employees
-    //   .filter(e => (e.fullName || '').toLowerCase().includes(lower))
-    //   .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName) }) as IPersonaProps);
-    const userMatches = users
-      .filter(u => (u.displayName || '').toLowerCase().includes(lower))
+    const userMatches = users.filter(u => (u.displayName || '').toLowerCase().includes(filterText.toLowerCase()))
       .map(u => ({ text: u.displayName || '', secondaryText: u.jobTitle, id: u.id }) as IPersonaProps);
-    // const combined = employeeMatches.concat(userMatches);
-    // const deduped: IPersonaProps[] = [];
-    // const seen = new Set<string>();
-    // combined.forEach(p => { const key = (p.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(p); } });
-    // return limitResults ? deduped.slice(0, limitResults) : deduped;
     return userMatches
   }, [users]);
 
@@ -1785,6 +1758,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
     setIsReplacementChecked(!!checked);
+    setItemRows(prev =>
+      prev.map(r => ({
+        ...r,
+        requiredRecord: undefined,
+        brandSelected: undefined,
+        selectedDetail: undefined,
+        selectedDetails: [],           // for multi-select details
+        itemSizeSelected: undefined,   // single-size path
+        selectedType: undefined,       // if present in your state
+        selectedSizesByType: {},       // typed sizes (Top/Pants etc.)
+        qty: undefined,
+        otherPurpose: undefined,
+        othersItemdetailsText: {}
+      }))
+    );
   }, []);
 
   const handleApprovalApproverChange = useCallback((id: number | string, persona?: IPersonaProps) => {
@@ -1799,7 +1787,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       // Only allow assigning self
       const selEmail = String(persona?.secondaryText || '').toLowerCase();
-      if (selEmail && selEmail !== loggedInUserEmail) {
+      if (selEmail && selEmail !== props.context.pageContext?.user?.email) {
         return prev; // ignore picking someone else
       }
 
@@ -1808,46 +1796,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       next[idx] = row;
       return next;
     });
-  }, [loggedInUserEmail]);
-
-  // const handleApprovalChange = useCallback((id: number | string, field: string, value: any) => {
-  //   setFormsApprovalWorkflow(prev => {
-  //     if (!prev || prev.length === 0) return prev;
-
-  //     const i = prev.findIndex(r => String(r.Id ?? '') === String(id));
-  //     if (i < 0) return prev;
-
-  //     // Only allow if this row is editable for the current user
-  //     const rowIdNum = Number(prev[i].Id!);
-  //     if (!editableRows[rowIdNum]) return prev;
-
-  //     const next = [...prev];
-  //     const row: any = { ...next[i] };
-
-  //     switch (field) {
-  //       case 'Status': {
-  //         const opt = value as { key?: string | number; text?: string } | undefined;
-  //         row.Status = opt ? { id: String(opt.key ?? ''), title: String(opt.text ?? '') } : undefined;
-  //         break;
-  //       }
-  //       case 'DepartmentManager': {
-  //         // 'value' should be the selected persona
-  //         row.DepartmentManagerApprover = value || undefined;
-  //         break;
-  //       }
-  //       case 'Date':
-  //         row.Date = value ? new Date(value) : undefined;
-  //         break;
-  //       default: {
-  //         row[field] = value;
-  //       }
-  //     }
-  //     row.__index = i;
-  //     row.__dirty = true; // mark as changed so we only persist modified rows
-  //     next[i] = row;
-  //     return next;
-  //   });
-  // }, [editableRows]);
+  }, []);
 
   //  Handles reason text change
   const handleApprovalReasonChange = useCallback((id: number | string, reason: string) => {
@@ -1861,6 +1810,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       // Allow if the row is currently editable OR already dirty (mid-edit)
       if (!editableRows[rowIdNum] && !(prev[idx] as any)?.__dirty) return prev;
+
+      // Only allow editing Reason when status is Rejected
+      const isRejected = /reject/i.test(String(prev[idx]?.Status?.title || ''));
+      if (!isRejected) return prev;
 
       const next = [...prev];
       const row: any = { ...next[idx] };
@@ -1893,6 +1846,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const row: any = { ...next[idx] };
 
         row.Status = { id: String(option.key ?? ''), title: String(option.text ?? '') };
+
+        const nowRejected = /reject/i.test(String(option.text || ''));
+        // Clear reason if no longer rejected (prevents stale reasons sticking around)
+        if (!nowRejected) {
+          row.Reason = undefined;
+        }
+
         row.__index = idx;
         row.__dirty = true;
 
@@ -1927,6 +1887,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const handleSubmit = useCallback(async () => {
     try {
 
+      // if (!isEditMode) {
+      //   const ok = await canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date());
+      //   if (!ok) {
+      //     showBanner(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
+      //     setIsSubmitting(false);
+      //     return; // stop submit
+      //   }
+      // }
+
       const validationError = validateBeforeSubmit();
       if (validationError) {
         showBanner(validationError);
@@ -1941,10 +1910,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          if (hasApprovalChanges) {
-            const saved = await _saveApprovalWorkflowChanges(editFormId);
-            savedSomething = savedSomething || saved > 0;
-          }
+          // if (hasApprovalChanges) {
+          //   const saved = await _saveApprovalWorkflowChanges(editFormId);
+          //   savedSomething = savedSomething || saved > 0;
+          // }
           if (isHSEApprovalLevel) {
             const payload = formPayload('Submitted');
             await _replacePPEItemDetailsRows(editFormId, payload);
@@ -1969,7 +1938,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         await _updatePPEForm(editFormId, payload);
         await _replacePPEItemDetailsRows(editFormId, payload);
         // Persist approval changes if any
-        await _saveApprovalWorkflowChanges(editFormId);
+        // await _saveApprovalWorkflowChanges(editFormId);
         try { window.alert('PPE Form updated successfully.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
       } else {
@@ -1977,7 +1946,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const newId = await _createPPEForm(payload);
         await _createPPEItemDetailsRows(newId, payload);
         // No approvals to save typically on create, but call saver in case
-        await _saveApprovalWorkflowChanges(newId);
+        // await _saveApprovalWorkflowChanges(newId);
         // Popup success and go back to host
         try { window.alert('Your PPE Form is submitted successfully and it is now under processing. Be Patient will be there in a while.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
@@ -1991,9 +1960,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   // Persist approval changes for only rows the user is allowed to edit and that were modified
   const _saveApprovalWorkflowChanges = useCallback(async (formId: number): Promise<number> => {
-    const listGuid = sharePointLists.PPEFormApprovalWorkflow?.value;
-    if (!listGuid) return 0;
-
     // Only persist rows that were actually changed
     const rows = (formsApprovalWorkflow || []).filter(r => (r as any)?.__dirty === true);
     if (!rows.length) return 0;
@@ -2004,7 +1970,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const names = invalid.map(r => r.SignOffName || r.Id).join(', ');
       throw new Error(`Reason is required when rejecting for: ${names}`);
     }
-    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Approval_Workflow', '');
 
     const updates = rows.map(async (row) => {
       const body: any = {
@@ -2027,7 +1993,39 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     const res = await Promise.all(updates);
     return res.length;
-  }, [formsApprovalWorkflow, props.context, sharePointLists.PPEFormApprovalWorkflow]);
+  }, [formsApprovalWorkflow, props.context]);
+
+  const handleSaveApprovalsOnly = useCallback(async () => {
+    const editFormId = props.formId ? Number(props.formId) : undefined;
+    if (!editFormId || editFormId <= 0) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // No changes? Tell the user and exit
+      if (!hasApprovalChanges) {
+        showBanner('No approval changes to save.');
+        return;
+      }
+
+      const saved = await _saveApprovalWorkflowChanges(editFormId);
+      if (saved > 0) {
+        try {
+          window.alert('Approvals updated.');
+
+          goBackToHost();
+        } catch { /* ignore */ }
+        // Optional: refresh approvals from server if needed
+        // await _getPPEFormApprovalWorkflows(users, editFormId);
+      } else {
+        showBanner('No approval changes to save.');
+      }
+    } catch (err: any) {
+      showBanner('Failed to save approvals: ' + (err?.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [_saveApprovalWorkflowChanges, props.formId, hasApprovalChanges, showBanner]);
 
   // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
@@ -2045,22 +2043,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       RequesterNameId: requesterId ?? null, // SharePoint person field
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
-      DivisionRecordId: _division?.id ? Number(_division.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
       ReplacementReason: payload.replacementReason ?? null,
       EmployeeID: payload.employeeId ?? null,
+      WorkflowStatus: 'In Process',
+      RejectionReason: null,
     };
-    const listGuid = sharePointLists.PPEForm?.value;
-    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
-      listGuid, '');
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     const data = await spCrudRef.current._insertItem(body);
     if (!data) throw new Error('Failed to create PPE Form');
     return data as number;
-  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
+  }, [emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
 
   // Update existing PPEForm item
-  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>, RejectionReason?: string, WorkflowStatus?: string): Promise<void> => {
+  const _updatePPEForm = useCallback(async (formId: number, payload: ReturnType<typeof formPayload>): Promise<void> => {
     const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
     const submitterEmail = emailFromPersona(_submitter?.[0]) || loggedInUser?.email;
     const requesterId = await ensureUserId(requesterEmail);
@@ -2069,25 +2066,47 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const _employeeSPId = _employee ? Number(_employee[0]?.id) : undefined;
     if (_employeeSPId == null) throw new Error('Employee is required');
 
+    const lastApproval = (payload.approvals || []).reduce<IFormsApprovalWorkflow | undefined>((acc, cur) => {
+      if (!acc) return cur;
+      const a = Number(acc?.Order || 0);
+      const b = Number(cur?.Order || 0);
+      return b >= a ? cur : acc;
+    }, undefined);
+
+    const rejectionReason = lastApproval?.Reason ? String(lastApproval.Reason).trim() : '';
+    // Get the status text (fallback to 'Pending' when empty)
+    const lastStatusTitle = (lastApproval?.Status?.title || '').trim() || 'Pending';
+    const statusLower = lastStatusTitle.toLowerCase();
+    let workflowStatusFinal: string;
+    const modifiedUserName = props.context.pageContext?.user?.displayName;
+
+    if (statusLower === 'pending') {
+      // Pending: do not show "by <user>"
+      workflowStatusFinal = lastStatusTitle;
+    } else if (statusLower.includes('rejected') || statusLower.includes('closed')) {
+      // Rejected/Closed: include actor
+      workflowStatusFinal = `${lastStatusTitle} by ${modifiedUserName || 'Approver'}`;
+    } else {
+      // Other statuses (e.g., Approved): include actor as well
+      workflowStatusFinal = `${lastStatusTitle} by ${modifiedUserName || 'Approver'}`;
+    }
+
     const body = {
       EmployeeRecordId: _employeeSPId,
       SubmitterNameId: submitterId ?? null,
       RequesterNameId: requesterId ?? null,
       JobTitleRecordId: _jobTitle?.id ? Number(_jobTitle.id) : null,
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
-      DivisionRecordId: _division?.id ? Number(_division.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
       ReplacementReason: payload.replacementReason ?? null,
       EmployeeID: payload.employeeId ?? null,
-      RejectionReason: RejectionReason ?? null,
-      WorkflowStatus: WorkflowStatus ?? null,
+      RejectionReason: rejectionReason,
+      WorkflowStatus: workflowStatusFinal,
     };
-    const listGuid = sharePointLists.PPEForm?.value;
-    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
-      listGuid, '');
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
-  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
 
   // Update existing PPEForm item workflow status only
   const _updatePPEFormStatus = useCallback(async (formId: number, RejectionReason?: string, WorkflowStatus?: string): Promise<void> => {
@@ -2095,15 +2114,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       RejectionReason: RejectionReason ?? null,
       WorkflowStatus: WorkflowStatus ?? null,
     };
-    const listGuid = sharePointLists.PPEForm?.value;
-    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl,
-      listGuid, '');
+
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
-  }, [sharePointLists.PPEForm, emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _division, _department, props.context.spHttpClient]);
+  }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
 
   // // Create detail rows for each required item
   const _createPPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
-    const listGuid = sharePointLists.PPEFormItems?.value;
     const requiredItems = (payload.items || []).filter(i => i.requiredRecord);
     if (requiredItems.length === 0) return;
     const posts = requiredItems.map(item => {
@@ -2121,29 +2138,29 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         PPEFormItemDetailId: detailId ?? null,
         OthersPurpose: item.othersText ?? null,
       };
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Items', '');
       const data = spCrudRef.current._insertItem(body);
       if (!data) throw new Error('Failed to create PPE Item Details');
       return data;
     });
     await Promise.all(posts);
-  }, [sharePointLists.PPEFormItems, props.context.spHttpClient]);
+  }, [props.context.spHttpClient]);
 
   // Replace child rows: delete existing detail rows then insert current required ones
   const _replacePPEItemDetailsRows = useCallback(async (parentId: number, payload: ReturnType<typeof formPayload>) => {
-    const listGuid = sharePointLists.PPEFormItems?.value;
     // First, fetch existing children for this parent form
     const query = `?$select=Id&$filter=PPEFormID/Id eq ${parentId}`;
-    const itemsOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, query);
+    const itemsOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Items', query);
     const existing = await itemsOps._getItemsWithQuery();
     if (Array.isArray(existing) && existing.length) {
       // Delete all existing children
-      const delOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, listGuid, '');
+      const delOps = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Items', '');
       await Promise.all(existing.map((row: any) => delOps._deleteItem(Number(row.Id))));
     }
     // Insert current selection
     await _createPPEItemDetailsRows(parentId, payload);
-  }, [sharePointLists.PPEFormItems, props.context.spHttpClient, _createPPEItemDetailsRows]);
+  }, [props.context.spHttpClient, _createPPEItemDetailsRows]);
 
   // ---------------------------
   // Render
@@ -2201,22 +2218,19 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             alignItems: 'center',
             justifyContent: 'center',
             pointerEvents: 'all'
-          }}
-        >
+          }}>
           <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
         </div>
       )}
-      {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
       <form>
         <div className={styles.formHeader}>
           <img src={logoUrl} alt="Logo" className={styles.formLogo} />
           <span className={styles.formTitle}>PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM</span>
         </div>
-
+        {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
         <Stack horizontal styles={stackStyles}>
-          <div className="row">
-            <div className="form-group col-md-6"><TextField label="Employee ID" value={_employeeId?.toString()} disabled={true} /></div>
-          </div>
+          {/* <div className="row">
+          </div> */}
 
           <div className="row">
             <div className="form-group col-md-6">
@@ -2240,10 +2254,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 }}
               />
             </div>
-
-            <div className="form-group col-md-6">
-              <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings} />
-            </div>
+            <div className="form-group col-md-6"><TextField label="Employee ID" value={_coralEmployeeId?.toString()} disabled={true} /></div>
           </div>
 
           <div className="row">
@@ -2256,8 +2267,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           </div>
 
           <div className="row">
-            <div className="form-group col-md-6"><TextField label="Division" value={_division?.title} disabled={true} /></div>
             <div className="form-group col-md-6"><TextField label="Company" value={_company?.title} disabled={true} /></div>
+            <div className="form-group col-md-6">
+              <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings} />
+            </div>
           </div>
 
           <div className="row">
@@ -2299,11 +2312,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         <Separator />
 
-        <div className="mb-2 text-center">
+        <div className="text-center">
           <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.0rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
         </div>
 
-        <Separator />
+        {/* <Separator /> */}
         {/* Aggregated PPE Items Grid with detail checkboxes */}
         <Stack horizontal styles={stackStyles}>
           <div className="row">
@@ -2335,33 +2348,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     )
                   },
                   {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
-                    onRender: (r: ItemRowState) => {
-                      return (
-                        <>
-                          {r.brands.length === 0 && <span>N/A</span>}
-                          {
-                            r.brands.map(brand => {
-                              const brandChecked = r.brandSelected === brand;
-                              return (
-                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                                  <Checkbox label={brand} checked={brandChecked}
-                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
-                                    disabled={!canEditItems || !r.requiredRecord}
-                                    styles={{
-                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
-                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })
-                          }
-                        </>
-                      );
-                    }
-                  },
-                  {
                     key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 300, isResizable: true, onRender: (r: ItemRowState) => (
                       <div>
                         {r.details.map(detail => {
@@ -2388,7 +2374,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                             const checked = r.selectedDetail === detail;
                             return (
-                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                                 <Checkbox
                                   label={detail}
                                   checked={checked}
@@ -2407,6 +2393,35 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       </div>
                     )
                   },
+
+                  {
+                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
+                    onRender: (r: ItemRowState) => {
+                      return (
+                        <>
+                          {r.brands.length === 0 && <span>N/A</span>}
+                          {
+                            r.brands.map(brand => {
+                              const brandChecked = r.brandSelected === brand;
+                              return (
+                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                                  <Checkbox label={brand} checked={brandChecked}
+                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
+                                    disabled={!canEditItems || !r.requiredRecord}
+                                    styles={{
+                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          }
+                        </>
+                      );
+                    }
+                  },
+
                   {
                     key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 50, maxWidth: 50, onRender: (r: ItemRowState) => (
                       <TextField
@@ -2437,7 +2452,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
                         return (
-                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
                             <ComboBox
                               placeholder={sizes.length ? 'Size' : 'No sizes'}
                               selectedKey={r.itemSizeSelected || undefined}
@@ -2468,12 +2483,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                               return (
                                 <div key={type}
-                                  style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
+                                  style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
                                   <Label styles={{ root: { marginBottom: 4, fontWeight: 600 } }}>{type}</Label>
 
                                   {sizes.length === 0 ? (<span>N/A</span>) :
                                     (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                         {sizes.map(size => {
                                           const sizeChecked = r.selectedSizesByType?.[type] === size;
                                           const id = `${r.itemId}-${type}-${size}`;
@@ -2514,7 +2529,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                       const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
                       return (
-                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 4 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 2 }}>
                           {sizes.map(size => {
                             const sizeChecked = r.itemSizeSelected === size;
                             return (
@@ -2578,17 +2593,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       onRender: (item: any) => (<div> <span>{item.SignOffName}</span></div>)
                     },
                     {
-                      key: 'colDepartmentManager',
-                      name: 'Department Manager',
-                      fieldName: 'DepartmentManager',
-                      minWidth: 240,
-                      isResizable: true,
+                      key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager',
+                      minWidth: 240, isResizable: true,
                       onRender: (item: any) => {
                         const grpName = resolveGroupUserForItemRow(item as IFormsApprovalWorkflow);
-                        const key = (grpName || '').toLowerCase();
-                        const members = key ? (groupMembers[key] || []) : [];
-                        const isMember = members.some(m => (String(m.secondaryText || '').toLowerCase()) === (loggedInUserEmail || '').toLowerCase());
-                        const selectedKey = (isMember) ? (loggedInUserEmail || undefined) : '';
+                        const key = (grpName || '');
+                        const members: IPersonaProps[] = key ? ((item.ApproversNamesList?.[key] as IPersonaProps[]) ?? []) : [];
+                        const isMember = members.find(m => (String(m.secondaryText).toLowerCase()) === (props.context.pageContext?.user?.email || '').toLowerCase());
+                        const selectedKey = (isMember) ? (props.context.pageContext?.user?.email || '') : '';
+
                         if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
                           return (
                             <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} />
@@ -2596,17 +2609,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         } else {
                           return (
                             <ComboBox
-                              placeholder={members.length ? 'Select approver' : 'No members'}
+                              placeholder={!members.length ? 'No members' : (isMember ? 'Select approver' : '')}
                               selectedKey={selectedKey}
                               options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
                               useComboBoxAsMenuWidth
-                              disabled={!canEditApprovalRow(item)}
+                              disabled={!members.length || !canEditApprovalRow(item)}
                               onChange={(_, opt) => {
                                 const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
                                 if (persona) {
                                   // Only allow selecting yourself; ignore picking others
                                   const selEmail = (persona.secondaryText || '').toLowerCase();
-                                  if (selEmail !== loggedInUserEmail) return;
+                                  if (selEmail !== props.context.pageContext?.user?.email) return;
                                   handleApprovalApproverChange(item.Id!, persona);
                                   const rid = String(item.Id ?? '');
                                   if (rid) setLockedApprovalRowIds(prev => ({ ...prev, [rid]: true }));
@@ -2626,43 +2639,60 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             const bo = b?.Order ?? Number.POSITIVE_INFINITY;
                             return Number(ao) - Number(bo);
                           });
-                        const isFinalApprover = !!item.IsFinalFormApprover && (item.FinalLevel == item.Order);
-                        const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
-                        const options = sorted.map(s => {
-                          const id = String(s.Id);
-                          const title = String(s.Title ?? '').trim();
-                          const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
-                          return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
-                        });
+                        // This removes the closed status from the dropdown if the user is not a final approver
+                        // const isFinalApprover = !!item.IsFinalFormApprover && (item.FinalLevel == item.Order);
+                        // const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
+                        // const options = sorted.map(s => {
+                        //   const id = String(s.Id);
+                        //   const title = String(s.Title ?? '').trim();
+                        //   const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
+                        //   return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
+                        // });
+
+                        const options = sorted.filter(s => String(s.Title ?? '').trim().toLowerCase() !== 'closed')
+                          .map(s => ({
+                            key: String(s.Id),
+                            text: String(s.Title ?? '').trim(),
+                          }));
                         // item.Status is ICommon { id, title }
                         const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
-                        return (
-                          <ComboBox
-                            placeholder={options.length ? 'Select status' : 'No status'}
-                            selectedKey={selectedKey}
-                            options={options}
-                            useComboBoxAsMenuWidth={true}
-                            disabled={!canEditApprovalRow(item)}
-                            onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)}
-                          />
-                        );
+                        if (item?.Status?.title && (String(item.Status.title).toLowerCase() === 'closed')) {
+                          return (
+                            <TextField value={item?.Status?.title || ''} disabled={true} />
+                          )
+                        } else {
+                          return (
+                            <ComboBox
+                              placeholder={options.length ? 'Select status' : 'No status'}
+                              selectedKey={selectedKey}
+                              options={options}
+                              useComboBoxAsMenuWidth={true}
+                              disabled={!canEditApprovalRow(item)}
+                              onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)} />
+                          );
+                        }
+
                       }
                     },
                     {
                       key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
-                      onRender: (item: any, idx?: number) => (
-                        <TextField value={item.Reason || ''}
-                          placeholder={!canEditApprovalRow(item) ? '' : 'Enter Reason'}
-                          disabled={!canEditApprovalRow(item)}
-                          onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
-                        />)
+                      onRender: (item: any, idx?: number) => {
+                        const canEdit = canEditApprovalRow(item);
+                        const isRejected = /reject/i.test(String(item?.Status?.title || ''));
+                        const canEditReason = canEdit && isRejected;
+                        return (
+                          <TextField value={item.Reason || ''}
+                            placeholder={canEditReason ? 'Enter rejection reason' : ''}
+                            disabled={!canEditReason}
+                            onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
+                          />);
+                      }
                     },
                     {
                       key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
                       onRender: (item: any, idx?: number) => (
                         <DatePicker value={item.Date ? new Date(item.Date) : undefined}
                           disabled={prefilledFormId ? true : false}
-                          // onSelectDate={(date) => handleApprovalChange(item.Id!, 'Date', date || undefined)}
                           strings={defaultDatePickerStrings}
                         />)
                     }
@@ -2691,13 +2721,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         <Separator />
 
         <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+        {/* <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
           <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
           <PrimaryButton
             text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
             onClick={handleSubmit}
             disabled={isSubmitting || (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
           />
+        </div> */}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+          <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
+          {isEditMode && !canEditFormHeader ? (
+            // Approval-phase: show approvals-only button
+            <PrimaryButton
+              text={isSubmitting ? 'Saving approvals…' : 'Save approvals'}
+              onClick={handleSaveApprovalsOnly}
+              disabled={isSubmitting || !canChangeApprovalRows || !hasApprovalChanges}
+            />
+          ) : (
+            // Normal create/update
+            <PrimaryButton
+              text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
+              onClick={handleSubmit}
+              disabled={isSubmitting ||
+                (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
+            />
+          )}
         </div>
       </form>
     </div>

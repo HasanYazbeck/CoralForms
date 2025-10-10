@@ -3,14 +3,32 @@ import { Stack, CommandBar, ICommandBarItemProps } from '@fluentui/react';
 import PpeForm from './PpeForm';
 import SubmittedPpeFormsList from './SubmittedPpeFormsList';
 import type { IPpeFormWebPartProps } from './IPpeFormProps';
+import { SPCrudOperations } from '../../../Classes/SPCrudOperations';
 
 type Mode = 'list' | 'add' | 'edit';
-
-const PPEFormListGuid = '7afa2286-c552-4ff6-952e-1c09f32734cd';
 
 const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
     const [mode, setMode] = React.useState<Mode>('list');
     const [formId, setFormId] = React.useState<number | undefined>(undefined);
+    const [PPEFormListGuid, setPPEFormListGuid] = React.useState<string>('');
+
+    React.useEffect(() => {
+        if (PPEFormListGuid) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const sp = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
+                const guid = await sp._getSharePointListGUID();
+                if (!cancelled) {
+                    setPPEFormListGuid(guid || '');
+                }
+            } catch {
+                if (!cancelled) setPPEFormListGuid('');
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [PPEFormListGuid, props.context]);
 
     // Initialize mode based on (priority) props.formId > URL formId > explicit mode param
     React.useEffect(() => {

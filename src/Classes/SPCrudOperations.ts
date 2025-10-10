@@ -8,22 +8,47 @@ import { IUser } from "../Interfaces/IUser";
 import { FieldTypeKind } from "../Enums/enums";
 
 export class SPCrudOperations {
-  private listGUID?: string;
+  private listName: string;
   private siteUrl: string;
   private spHttpClient: SPHttpClient;
   private query?: string;
 
-  constructor(spHttpClient: SPHttpClient, siteUrl: string, listGUID?: string, query?: string) {
+  constructor(spHttpClient: SPHttpClient, siteUrl: string, listName: string, query?: string) {
     this.spHttpClient = spHttpClient;
     this.siteUrl = siteUrl;
-    this.listGUID = listGUID;
+    this.listName = listName;
     this.query = query;
   }
 
-  public async _getSharePointListGUID(listName?: string): Promise<string | undefined> {
+  private escapeOData(value: string): string {
+    return value.replace(/'/g, "''");
+  }
+
+  private isGuid(val?: string): boolean {
+    if (!val) return false;
+    const s = val.replace(/[{}]/g, '');
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(s);
+  }
+
+  private getListLocator(): string {
+    if (!this.listName) throw new Error('List identifier not set (GUID or Title).');
+    // If listGUID looks like a GUID, use getbyid; otherwise treat it as a Title
+    if (this.isGuid(this.listName)) {
+      const clean = this.listName.replace(/[{}]/g, '');
+      return `getbyid('${clean}')`;
+    }
+    const title = this.escapeOData(this.listName);
+    return `getbytitle('${title}')`;
+  }
+
+  private getListBaseUrl(): string {
+    return `${this.siteUrl}/_api/web/lists/${this.getListLocator()}`;
+  }
+
+  public async _getSharePointListGUID(): Promise<string | undefined> {
     try {
       // Escape single quotes in title if provided
-      const safeTitle = listName ? listName.replace(/'/g, "''") : undefined;
+      const safeTitle = this.listName ? this.listName.replace(/'/g, "''") : undefined;
       const baseUrl: string = `${this.siteUrl}/_api/web/lists?$select=Id,Title,Fields`;
       const filter = safeTitle ? `&$filter=Title eq '${safeTitle}'` : '';
       const listUrl: string = `${baseUrl}${filter}`;
@@ -50,11 +75,8 @@ export class SPCrudOperations {
   }
 
   // Create List
-  public async _createList(
-    listName: string,
-    listDescription: string
-  ): Promise<void> {
-    const listUrl: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')`;
+  public async _createList(listDescription: string): Promise<void> {
+    const listUrl: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')`;
     try {
       await this.spHttpClient
         .get(listUrl, SPHttpClient.configurations.v1)
@@ -66,7 +88,7 @@ export class SPCrudOperations {
           if (response.status === 404) {
             const url: string = `${this.siteUrl}/_api/web/lists`;
             const listDefinition: any = {
-              Title: listName,
+              Title: this.listName,
               Description: listDescription,
               AllowContentTypes: true,
               BaseTemplate: 100,
@@ -110,11 +132,8 @@ export class SPCrudOperations {
   }
 
   // Add columns to List
-  public async _addColumnToList(
-    columnName: string,
-    columnType: FieldTypeKind
-  ): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}'))/fields`;
+  public async _addColumnToList(columnName: string, columnType: FieldTypeKind): Promise<void> {
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/fields`;
     const columnDefinition: any = {
       Title: columnName,
       FieldTypeKind: columnType, // Change based on the type of column
@@ -145,7 +164,7 @@ export class SPCrudOperations {
 
   // Delete columns from List
   public async _deleteColumnFromList(columnName: string): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/fields/getByTitle('${columnName}')`;
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/fields/getByTitle('${columnName}')`;
 
     try {
       const response = await this.spHttpClient.post(
@@ -172,8 +191,7 @@ export class SPCrudOperations {
 
   // Insert item List
   public async _insertItem(item: any): Promise<number> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
-    // console.log("Item to insert:", JSON.stringify(item));
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/items`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       body: JSON.stringify(item),
       headers: {
@@ -203,7 +221,7 @@ export class SPCrudOperations {
 
   // Add a new method that returns the created item (or at least the Id)
   public async _insertItemReturn<T = any>(item: any): Promise<T> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/items`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         Accept: 'application/json;odata=nometadata',
@@ -227,7 +245,7 @@ export class SPCrudOperations {
 
   // Get Items List
   public async _getItems(): Promise<any[]> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items`;
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/items`;
 
     try {
       const response = await this.spHttpClient.get(
@@ -252,23 +270,41 @@ export class SPCrudOperations {
     }
   }
 
-  // Get Items List
-  public async _getItemsWithQuery(): Promise<any[]> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items/${this.query}`;
-
+  // Get Items with query (ensure leading ?)
+  public async _getItemsByListNameOrGuid(): Promise<any[]> {
+    const qs = this.query ? (this.query.startsWith('?') ? this.query : `?${this.query}`) : '';
+    const url: string = `${this.getListBaseUrl()}/items${qs}`;
     try {
-      const response = await this.spHttpClient.get(
-        url,
-        SPHttpClient.configurations.v1
-      );
+      const response = await this.spHttpClient.get(url, SPHttpClient.configurations.v1);
       if (response.status === 200) {
         const responseData: any = await response.json();
         // console.log('Items retrieved successfully:', responseData.value);
         return responseData.value;
       } else {
         const responseError: any = await response.json();
-        // console.log(`Error retrieving items. Status: ${responseError.status}`,responseError);
-        // alert('Error Message' + JSON.stringify(responseError));
+        throw new Error(
+          `Error retrieving items. Status: ${responseError.status}`
+        );
+      }
+    }
+    catch (error) {
+      throw error;
+    }
+  }
+
+
+  // Get Items List
+  public async _getItemsWithQuery(): Promise<any[]> {
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/items/${this.query}`;
+
+    try {
+      const response = await this.spHttpClient.get(url, SPHttpClient.configurations.v1);
+      if (response.status === 200) {
+        const responseData: any = await response.json();
+        // console.log('Items retrieved successfully:', responseData.value);
+        return responseData.value;
+      } else {
+        const responseError: any = await response.json();
         throw new Error(
           `Error retrieving items. Status: ${responseError.status}`
         );
@@ -281,7 +317,7 @@ export class SPCrudOperations {
 
   // Get Item List By Id or Title
   public async _getItemById(id: string): Promise<ISPItem> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items?filter=Id eq ${id}`;
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/items?filter=Id eq ${id}`;
 
     try {
       return this.spHttpClient
@@ -301,11 +337,8 @@ export class SPCrudOperations {
   }
 
   // Update Item
-  public async _updateItem(
-    itemId: string,
-    item: any
-  ): Promise<SPHttpClientResponse> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items(${itemId})`;
+  public async _updateItem(itemId: string, item: any): Promise<SPHttpClientResponse> {
+    const url: string = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items(${itemId})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         "X-HTTP-Method": "MERGE",
@@ -335,7 +368,7 @@ export class SPCrudOperations {
 
   // Delete Item
   public async _deleteItem(itemId: number): Promise<void> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/items(${itemId})`;
+    const url: string = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items(${itemId})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         "X-HTTP-Method": "DELETE",
@@ -432,7 +465,7 @@ export class SPCrudOperations {
 
   // Update Choices Field within a list
   public async _updateChoicesField(fieldColumnName: string, itemId: string, item: any): Promise<SPHttpClientResponse> {
-    const url: string = `${this.siteUrl}/_api/web/lists/getbyid('${this.listGUID}')/fields/getbytitle(${fieldColumnName})`;
+    const url: string = `${this.siteUrl}/_api/web/lists/GetByTitle('${this.listName}')/fields/GetByTitle(${fieldColumnName})`;
     const spHttpClientOptions: ISPHttpClientOptions = {
       headers: {
         Accept: "application/json;odata=verbose",
@@ -467,7 +500,7 @@ export class SPCrudOperations {
 
     try {
       const endpoint: string = `${this.siteUrl}/_api/web/currentuser/groups`;
-      const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint,SPHttpClient.configurations.v1);
+      const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint, SPHttpClient.configurations.v1);
 
       if (response.ok) {
         const data = await response.json();
@@ -481,22 +514,23 @@ export class SPCrudOperations {
   }
 
   public async _IsUserInSPGroup(groupName: string, userEmail: string): Promise<boolean> {
-  try {
-    // Get group by name → get its users
-    const endpoint : string = `${this.siteUrl}/_api/web/sitegroups/getbyname('${groupName}')/users?$select=Email`;
-    const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint,SPHttpClient.configurations.v1);
+    try {
+      // Get group by name → get its users
+      const endpoint: string = `${this.siteUrl}/_api/web/sitegroups/getbyname('${groupName}')/users?$select=Email`;
+      const response: SPHttpClientResponse = await this.spHttpClient.get(endpoint, SPHttpClient.configurations.v1);
 
-    if (!response.ok) return false;
+      if (!response.ok) return false;
 
-    const data = await response.json();
-    const emails: string[] = (data.value || []).map((u: any) => (u.Email || '').toLowerCase());
+      const data = await response.json();
+      const emails: string[] = (data.value || []).map((u: any) => (u.Email || '').toLowerCase());
 
-    return emails.includes(userEmail.toLowerCase());
-  } catch (e) {
-    console.error("Error checking if user is in group", e);
-    return false;
+      return emails.includes(userEmail.toLowerCase());
+    } catch (e) {
+      console.error("Error checking if user is in group", e);
+      return false;
+    }
   }
-}
+
 
 
 }

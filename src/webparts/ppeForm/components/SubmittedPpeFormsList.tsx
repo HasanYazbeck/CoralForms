@@ -19,7 +19,7 @@ import { SPCrudOperations } from '../../../Classes/SPCrudOperations';
 type Row = {
   id: number;
   employeeName?: string;
-  employeeID?: number;
+  coralEmployeeID: number;
   reason?: string;
   replacementReason?: string;
   jobTitle?: string;
@@ -64,8 +64,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
   const columns = React.useMemo<IColumn[]>(
     () => [
-      // { key: 'colId', name: 'ID', fieldName: 'id', minWidth: 50, maxWidth: 70 },
-      { key: 'colEmpId', name: 'Emp #', fieldName: 'employeeID', minWidth: 70, maxWidth: 90 },
+      { key: 'colId', name: 'Form Id', fieldName: 'id', minWidth: 50, maxWidth: 70  },
+      { key: 'colEmpId', name: 'Emp #', fieldName: 'coralEmployeeID', minWidth: 70, maxWidth: 90 },
       { key: 'colEmployee', name: 'Employee', fieldName: 'employeeName', minWidth: 150, isResizable: true },
       { key: 'colReason', name: 'Reason', fieldName: 'reason', minWidth: 110 },
       { key: 'colJobTitle', name: 'Job Title', fieldName: 'jobTitle', minWidth: 120, isResizable: true },
@@ -74,7 +74,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       { key: 'colCompany', name: 'Company', fieldName: 'company', minWidth: 120 },
       { key: 'colRequester', name: 'Requester', fieldName: 'requester', minWidth: 140 },
       { key: 'colSubmitter', name: 'Submitter', fieldName: 'submitter', minWidth: 140 },
-      // { key: 'colworkflowStatus', name: 'Workflow Status', fieldName: 'workflowStatus', minWidth: 200, isResizable: true },
+      { key: 'colworkflowStatus', name: 'Status', fieldName: 'workflowStatus', minWidth: 200, isResizable: true },
       { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 200, isResizable: true },
       {
         key: 'colCreated', name: 'Date Submitted', fieldName: 'created', minWidth: 140,
@@ -90,35 +90,34 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     try {
       const guid = listGuid;
       if (!guid) {
-        setItems([]);
-        setError('PPEForm list GUID not provided.');
         setLoading(false);
+        setItems([]);
         return;
       }
 
-      const select = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,` +
+      const select = `?$select=Id,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/EmployeeID,` +
         `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
         `&$orderby=Created desc`;
 
-      const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, guid, select);
-      const data: any[] = await crud._getItemsWithQuery();
+      const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
+      const data: any[] = await crud._getItemsByListNameOrGuid();
       const filteredItems = data.filter(item => {
-        const created = new Date(item.Created); // SharePoint returns ISO date string
-        const now = new Date();
-        // Calculate time difference in milliseconds
-        const diffMs = now.getTime() - created.getTime();
-        // Convert to minutes
-        const diffMinutes = diffMs / 60000;
-        return(!item.WorkflowStatus?.toLowerCase().includes('closed') && diffMinutes >= 0.3);
+        // const created = new Date(item.Created); // SharePoint returns ISO date string
+        // const now = new Date();
+        // // Calculate time difference in milliseconds
+        // const diffMs = now.getTime() - created.getTime();
+        // // Convert to minutes
+        // const diffMinutes = diffMs / 60000;
+        return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
       });
 
       const mapped: Row[] = (filteredItems || []).map((obj: any): Row => {
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
           id: Number(obj.Id),
-          employeeID: obj.EmployeeID ?? undefined,
+          coralEmployeeID: obj.EmployeeRecord?.EmployeeID ?? undefined,
           employeeName: obj.EmployeeRecord?.FullName ?? undefined,
           reason: obj.ReasonForRequest ?? undefined,
           replacementReason: obj.ReplacementReason ?? undefined,

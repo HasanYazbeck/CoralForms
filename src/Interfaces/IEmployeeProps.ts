@@ -1,7 +1,7 @@
 import { ICommon, ISPListItem } from "./ICommon";
 
 export interface IEmployeeProps extends ISPListItem{
-  employeeID?: number | undefined;
+  coralEmployeeID?: number | undefined;
   fullName?: string;
   jobTitle?: ICommon | undefined;
   company?: ICommon | undefined;
@@ -13,6 +13,7 @@ export interface IEmployeeProps extends ISPListItem{
 }
 
 export interface IEmployeesPPEItemsCriteria extends ISPListItem {
+  coralEmployeeID?: number | undefined;
   employeeID?: number | undefined;
   fullName?: string | undefined;
   safetyHelmet?: string | undefined;
