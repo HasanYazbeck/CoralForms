@@ -95,7 +95,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         return;
       }
 
-      const select = `?$select=Id,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/EmployeeID,` +
+      const select = `?$select=Id,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
         `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
@@ -117,7 +117,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
           id: Number(obj.Id),
-          coralEmployeeID: obj.EmployeeRecord?.EmployeeID ?? undefined,
+          coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
           employeeName: obj.EmployeeRecord?.FullName ?? undefined,
           reason: obj.ReasonForRequest ?? undefined,
           replacementReason: obj.ReplacementReason ?? undefined,
