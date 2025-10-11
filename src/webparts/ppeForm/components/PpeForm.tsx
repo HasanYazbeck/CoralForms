@@ -33,6 +33,7 @@ import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/
 import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
+import BannerComponent, { BannerKind } from "./BannerComponent";
 const stackStyles: IStackStyles = {
   root: {
     background: DefaultPalette.themeTertiary,
@@ -62,6 +63,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [_submitter, setSubmitter] = useState<IPersonaProps[]>([]);
   const [_requester, setRequester] = useState<IPersonaProps[]>([]);
   const [_isReplacementChecked, setIsReplacementChecked] = useState(false);
+  const [_isAccidentalChecked, setIsAccidentalChecked] = useState(false);
   const [_replacementReason, setReplacementReason] = useState<string>('');
   const [users, setUsers] = useState<IUser[]>([]);
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
@@ -81,11 +83,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
   const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
   const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
-  const [, setIsEligibleToSubmitForm] = useState<boolean>(true);
+  const [IsEligibleToSubmitForm, setIsEligibleToSubmitForm] = useState<boolean>(true);
   const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
   const [, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
+  const [bannerOpts, setBannerOpts] = React.useState<{ autoHideMs?: number; fade?: boolean; kind?: BannerKind } | undefined>();
   const webUrl = props.context.pageContext.web.absoluteUrl;
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
@@ -1671,6 +1674,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, []);
 
+  const hideBanner = useCallback(() => {
+    showBanner(``);
+    setBannerText(undefined);
+    setBannerOpts(undefined);
+  }, []);
+
   const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
     if (items && items.length > 0) {
       const selected = items[0];
@@ -1682,15 +1691,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       if (!isEditMode) {
         const eligible = await isEligibleToSubmit(Number(selected?.id), new Date());
         if (!eligible) {
-          showBanner(`The selected employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. Try for another employee.`);
+          showBanner(`The selected employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. Try for another employee.`
+            , { autoHideMs: 30000, fade: true, kind: 'error' }
+          );
           setIsSubmitting(false);
           setEmployee([]);
           setSPEmployeeId(undefined);
           setCoralEmployeeId(undefined);
           return; // stop submit
         }
-        else{
-          showBanner(``);
+        else {
+          hideBanner();
         }
       }
 
@@ -1796,6 +1807,30 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setReplacementReason('');
     }
   }, []);
+
+  const handleAccidentalChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
+    setIsAccidentalChecked(!!checked);
+    setIsReplacementChecked(false);
+
+    // setReplacementReason('');
+    setItemRows(prev =>
+      prev.map(r => ({
+        ...r,
+        requiredRecord: undefined,
+        brandSelected: undefined,
+        selectedDetail: undefined,
+        selectedDetails: [],           // for multi-select details
+        itemSizeSelected: undefined,   // single-size path
+        selectedType: undefined,       // if present in your state
+        selectedSizesByType: {},       // typed sizes (Top/Pants etc.)
+        qty: undefined,
+        otherPurpose: undefined,
+        othersItemdetailsText: {}
+      }))
+    );
+
+  }, []);
+
 
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
     setIsReplacementChecked(!!checked);
@@ -1904,9 +1939,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     [editableRows]
   );
 
-  const showBanner = useCallback((text: string) => {
+  const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
     setBannerText(text);
     setBannerTick(t => t + 1);
+    setBannerOpts(opts);
   }, []);
 
   // Navigate back to host list view (via callback or URL params)
@@ -2266,7 +2302,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <img src={logoUrl} alt="Logo" className={styles.formLogo} />
           <span className={styles.formTitle}>PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM</span>
         </div>
-        {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
+        <BannerComponent
+          text={bannerText}
+          kind={bannerOpts?.kind || 'error'}
+          autoHideMs={bannerOpts?.autoHideMs}
+          fade={bannerOpts?.fade}
+          onDismiss={() => {
+            setBannerText(undefined);
+            setBannerOpts(undefined);
+          }}
+        />
+
+        {/* {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>} */}
         <Stack horizontal styles={stackStyles}>
           {/* <div className="row">
           </div> */}
@@ -2337,13 +2384,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           <div className={`row  ${styles.mt10}`}>
             <div className="form-group col-md-12 d-flex justify-content-between" >
-              <Label htmlFor={""}>Reason for Request</Label>
-
+              <Label htmlFor={""}>Request Reason</Label>
               <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditFormHeader} />
-
               <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditFormHeader} />
-
-              <TextField placeholder="Reason" disabled={!_isReplacementChecked || !canEditFormHeader} value={_replacementReason}
+              <Checkbox label="Accidental" className="align-items-center" checked={_isAccidentalChecked} onChange={handleAccidentalChange} disabled={IsEligibleToSubmitForm} />
+              <TextField placeholder="Reason" multiline autoAdjustHeight resizable disabled={!_isReplacementChecked || !canEditFormHeader} value={_replacementReason}
                 onChange={(_e, v) => setReplacementReason(v || '')} />
             </div>
           </div>
