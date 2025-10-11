@@ -99,6 +99,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
+        // `&$filter=not substringof('Closed', WorkflowStatus)` +
         `&$orderby=Created desc`;
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
