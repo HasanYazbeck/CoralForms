@@ -8,11 +8,8 @@ type DocMetaProps = {
     page?: string | number;
 };
 
-export const DocumentMetaBanner: React.FC<DocMetaProps> = ({
-    docCode = 'COR-HSE-01-FOR-001',
-    version = 'V03',
-    effectiveDate = '16-SEP-2020',
-    page = 1
+export const DocumentMetaBanner: React.FC<DocMetaProps> = ({docCode = 'COR-HSE-01-FOR-001',version = 'V03',
+    effectiveDate = '16-SEP-2020', page = 1
 }) => {
     const grid: React.CSSProperties = {
         display: 'flex',

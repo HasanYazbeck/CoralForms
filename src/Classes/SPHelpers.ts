@@ -1,3 +1,6 @@
+import { SPCrudOperations } from "./SPCrudOperations";
+import { SPHttpClient } from '@microsoft/sp-http';
+
 export class SPHelpers {
   private padWithZero(num: number): string {
     return num < 10 ? `0${num}` : `${num}`;
@@ -39,11 +42,6 @@ export class SPHelpers {
     return formattedTime;
   }
 
-  // public formatDateToTimeString(date: Date): string {
-  //     const hours = date.getHours().toString().padStart(2, '0');
-  //     const minutes = date.getMinutes().toString().padStart(2, '0');
-  //     return `${hours}:${minutes}`;
-  //   }
   public convertLocalToGMT(localDate: Date): Date {
     // Get the time in milliseconds since January 1, 1970, 00:00:00 UTC
     const utcMilliseconds =
@@ -113,4 +111,66 @@ export class SPHelpers {
   public removeWhitespaces(str: string): string {
     return str.replace(/\s+/g, '');
   }
+
+  public getCompanyCode(companyTitle?: string): string {
+    if (!companyTitle) return 'UNK';
+    const letters = String(companyTitle).replace(/[^A-Za-z]/g, '').toUpperCase();
+    return letters.slice(0, 3) || 'UNK';
+  }
+
+  public formatYYYYMMDD(d: Date): string {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}`;
+  }
+
+  public async generateCoralReferenceNumber(spHttpClient: SPHttpClient,webUrl: string,listTitle: string,
+    finalRecord: { Id: number; Created?: string | Date },companyTitle?: string): Promise<string> {
+    const companyCode = this.getCompanyCode(companyTitle);
+    const createdDate = finalRecord?.Created
+      ? new Date(finalRecord.Created as any)
+      : new Date();
+
+    const yyyymmdd = this.formatYYYYMMDD(createdDate);
+    const prefix = `${companyCode}-HSE-PPE-${yyyymmdd}-`;
+    const esc = (s: string) => s.replace(/'/g, "''");
+
+    // Get the last reference for this date and prefix, then increment NN
+    const query = `?$select=Id,CoralReferenceNumber` +
+      `&$filter=startswith(CoralReferenceNumber,'${esc(prefix)}')` +
+      `&$orderby=CoralReferenceNumber desc` +
+      `&$top=1`;
+
+    const reader = new SPCrudOperations(spHttpClient, webUrl, listTitle, query);
+    const items: Array<{ Id: number; CoralReferenceNumber?: string }> = await reader._getItemsWithQuery();
+
+    let next = 1;
+    if (Array.isArray(items) && items.length) {
+      const last = String(items[0]?.CoralReferenceNumber || '');
+      const lastNN = last.split('-').pop();
+      const parsed = lastNN ? parseInt(lastNN, 10) : NaN;
+      if (Number.isFinite(parsed)) next = parsed + 1;
+    }
+    const nnStr = String(next).padStart(2, '0');
+    return `${prefix}${nnStr}`;
+  }
+
+  // Convenience: compute and immediately update the item’s CoralReferenceNumber
+  public async assignCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string,listTitle: string,finalRecord: { Id: number; Created?: string | Date },
+    companyTitle?: string
+  ): Promise<string> {
+    const coralRef = await this.generateCoralReferenceNumber(
+      spHttpClient,
+      webUrl,
+      listTitle,
+      finalRecord,
+      companyTitle
+    );
+
+    const updater = new SPCrudOperations(spHttpClient, webUrl, listTitle, '');
+    await updater._updateItem(String(finalRecord.Id), { CoralReferenceNumber: coralRef });
+    return coralRef;
+  }
+
 }

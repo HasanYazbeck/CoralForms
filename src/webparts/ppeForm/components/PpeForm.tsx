@@ -4,20 +4,20 @@ import { ISPHttpClientOptions, MSGraphClientV3, SPHttpClient } from "@microsoft/
 import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse, ISPListItem } from "../../../Interfaces/ICommon";
 
 // Components
-import { ComboBox, DefaultPalette, DetailsListLayoutMode } from "@fluentui/react";
 import type { IPpeFormWebPartProps } from "./IPpeFormProps";
 import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
 import { TextField } from '@fluentui/react/lib/TextField';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
-import { DetailsList, SelectionMode } from '@fluentui/react';
-import { DatePicker, mergeStyleSets, defaultDatePickerStrings } from '@fluentui/react';
+import { DatePicker, mergeStyleSets, defaultDatePickerStrings, ConstrainMode } from '@fluentui/react';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
-import { Label } from '@fluentui/react/lib/Label';
-import { Checkbox } from '@fluentui/react';
-import { Separator } from '@fluentui/react/lib/Separator';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
 import { PrimaryButton, DefaultButton } from '@fluentui/react';
+import ExportPdfControls from './ExportPdfControls';
+import {
+  DetailsList, DetailsListLayoutMode, SelectionMode, Label, Separator,
+  ComboBox, DefaultPalette, Checkbox
+} from '@fluentui/react';
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -33,13 +33,7 @@ import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/
 import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
-// import { IPPEForm } from "../../../Interfaces/IPPEForm";
-const stackStyles: IStackStyles = {
-  root: {
-    background: DefaultPalette.themeTertiary,
-    display: "inline",
-  },
-};
+import BannerComponent, { BannerKind } from "./BannerComponent";
 
 const datePickerStyles = mergeStyleSets({
   root: { selectors: { '> *': { marginBottom: 15 } } },
@@ -56,16 +50,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [_jobTitle, setJobTitleId] = useState<ICommon>({ id: '', title: '' });
   const [_department, setDepartmentId] = useState<ICommon>({ id: '', title: '' });
-  // const [_division, setDivisionId] = useState<ICommon>({ id: '', title: '' });
   const [_company, setCompanyId] = useState<ICommon>({ id: '', title: '' });
-  const [_SPEmployeeId, setSPEmployeeId] = useState<number>();
-
   const [_employee, setEmployee] = useState<IPersonaProps[]>([]);
-  const [_employeeId, setEmployeeId] = useState<number | undefined>(undefined);
+  const [_SPEmployeeId, setSPEmployeeId] = useState<number>();
+  const [_coralEmployeeId, setCoralEmployeeId] = useState<string | undefined>(undefined);
   const [_submitter, setSubmitter] = useState<IPersonaProps[]>([]);
   const [_requester, setRequester] = useState<IPersonaProps[]>([]);
   const [_isReplacementChecked, setIsReplacementChecked] = useState(false);
+  const [_isAccidentalChecked, setIsAccidentalChecked] = useState(false);
   const [_replacementReason, setReplacementReason] = useState<string>('');
+  const [_coralReferenceNumber, setCoralReferenceNumber] = useState<string>('');
   const [users, setUsers] = useState<IUser[]>([]);
   const [employees, setEmployees] = useState<IEmployeeProps[]>([]);
   const [employeePPEItemsCriteria, setEmployeePPEItemsCriteria] = useState<IEmployeesPPEItemsCriteria>({ Id: '' });
@@ -82,13 +76,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
   const [isHSEApprovalLevel, setIsHSEApprovalLevel] = React.useState<boolean>(false);
   const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
-  const [IsEligibileForFormTimeInterval, setIsEligibileForFormTimeInterval] = useState<boolean>(false);
   const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
   const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
+  const [IsEligibleToSubmitForm, setIsEligibleToSubmitForm] = useState<boolean>(true);
   const [groupMembers, setGroupMembers] = useState<Record<string, IPersonaProps[]>>({});
   const [, setLockedApprovalRowIds] = useState<Record<string, boolean>>({});
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
   const [criteriaAppliedForEmployeeId, setCriteriaAppliedForEmployeeId] = useState<string | undefined>(undefined);
+  const [bannerOpts, setBannerOpts] = React.useState<{ autoHideMs?: number; fade?: boolean; kind?: BannerKind } | undefined>();
+  const [exportMode, setExportMode] = React.useState(false);
+  const [isExportingPdf, setIsExportingPdf] = React.useState(false); // NEW
+
+  const webUrl = props.context.pageContext.web.absoluteUrl;
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
     item: string;
@@ -107,7 +106,32 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     typeSizesMap?: Record<string, string[]>;
     selectedSizesByType?: Record<string, string | undefined>; // NEW: one size per type
   }
-  const webUrl = props.context.pageContext.web.absoluteUrl;
+
+  // Build a consolidated Required Items summary for export in-place
+  type ItemSummary = { item: string; detail?: string; quantity?: string; size?: string; brand?: string };
+  const itemsSummary: ItemSummary[] = React.useMemo(() => {
+    const rows = (itemRows || []).filter(r => !!r.requiredRecord);
+    return rows.map(r => {
+      const hasTypes = Array.isArray(r.types) && r.types.length > 0;
+      const size = hasTypes
+        ? Object.entries(r.selectedSizesByType || {})
+          .filter(([, v]) => !!v && String(v).trim().length > 0)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('; ')
+        : (r.itemSizeSelected || '');
+      const detail = r.selectedDetail || (r.item.toLowerCase() === 'others' ? (r.otherPurpose || '') : '');
+      return { item: r.item, detail, quantity: r.qty || '', size: size || '', brand: r.brandSelected || '' };
+    });
+  }, [itemRows]);
+
+  const uiDisabled = React.useCallback((normalDisabled: boolean) => (exportMode ? false : normalDisabled), [exportMode]);
+  const stackStyles: IStackStyles = React.useMemo(() => ({
+    root: {
+      display: 'inline',
+      // Blue normally, transparent when exporting
+      background: exportMode ? 'transparent' : DefaultPalette.themeTertiary,
+    },
+  }), [exportMode]);
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -158,7 +182,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
-      const query: string = `?$select=Id,EmployeeID,FullName,EmailAddress,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
+      const query: string = `?$select=Id,CoralEmployeeID,FullName,EmailAddress,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
         `Department/Id,Department/Title,Created,Author/EMail,DirectManager/Id,DirectManager/Title,DirectManager/EMail` +
         `&$expand=Author,Company,JobTitle,Department,Author,DirectManager` +
         `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
@@ -176,7 +200,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           const temp: IEmployeeProps = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-            employeeID: obj.EmployeeID !== undefined && obj.EmployeeID !== null ? obj.EmployeeID : 0,
+            coralEmployeeID: obj.CoralEmployeeID !== undefined && obj.CoralEmployeeID !== null ? obj.CoralEmployeeID : 0,
             fullName: obj.FullName !== undefined && obj.FullName !== null ? obj.FullName : undefined,
             jobTitle: obj.JobTitle !== undefined && obj.JobTitle !== null ? { id: obj.JobTitle.Id, title: obj.JobTitle.Title } : undefined,
             company: obj.Company !== undefined && obj.Company !== null ? { id: obj.Company.Id, title: obj.Company.Title } : undefined,
@@ -200,13 +224,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [props.context, spHelpers]);
 
-  const _getEmployeesPPEItemsCriteria = useCallback(async (usersArg?: IUser[], employeeID?: string) => {
+  const _getEmployeesPPEItemsCriteria = useCallback(async (usersArg?: IUser[], employeeID?: number | undefined) => {
     try {
-      const query: string = `?$select=Id,Employee/EmployeeID,Employee/FullName,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
+      const query: string = `?$select=Id,Employee/ID,Employee/FullName,Employee/CoralEmployeeID,Created,SafetyHelmet,ReflectiveVest,SafetyShoes,` +
         `RainSuit/Id,RainSuit/DisplayText,UniformCoveralls/Id,UniformCoveralls/DisplayText,UniformTop/Id,UniformTop/DisplayText,` +
         `UniformPants/Id,UniformPants/DisplayText,WinterJacket/Id,WinterJacket/DisplayText,Author/EMail,AdditionalPPEItems` +
         `&$expand=Author,Employee,RainSuit,UniformCoveralls,UniformTop,UniformPants,WinterJacket` +
-        `&$filter=Employee/EmployeeID eq ${employeeID}&$orderby=Order asc`;
+        `&$filter=Employee/ID eq ${employeeID}&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee_PPE_Items_Criteria', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       let result: IEmployeesPPEItemsCriteria;
@@ -215,7 +239,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const obj = data[0]; // Get the first object
         result = {
           Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-          employeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.EmployeeID : undefined,
+          employeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.ID : undefined,
+          coralEmployeeID: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.CoralEmployeeID : undefined,
           fullName: obj.Employee !== undefined && obj.Employee !== null ? obj.Employee.FullName : undefined,
           reflectiveVest: obj.ReflectiveVest !== undefined && obj.ReflectiveVest !== null ? obj.ReflectiveVest : undefined,
           safetyHelmet: obj.SafetyHelmet !== undefined && obj.SafetyHelmet !== null ? obj.SafetyHelmet : undefined,
@@ -420,77 +445,86 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IFormsApprovalWorkflow[] = [];
       const usersToUse = usersArg && usersArg.length ? usersArg : users;
-      data.forEach((obj: any) => {
-        if (obj) {
-          const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
-          let created: Date | undefined;
-          const approverEmail = obj?.Editor?.EMail;
-          const approverTitle = obj?.Editor?.Title;
-          const match = (approverEmail && usersToUse.find(u => (u.email || '').toLowerCase() === String(approverEmail).toLowerCase()));
+      // Collect group member fetches and set state once at the end
+      const membersAccumulator: Record<string, IPersonaProps[]> = {};
 
-          const deptApproverPersona: IPersonaProps | undefined = match
-            ? { text: match.displayName || approverTitle || '', secondaryText: match.email || match.jobTitle || '', id: match.id }
-            : (approverTitle ? { text: approverTitle, secondaryText: approverEmail || '', id: String(obj.Editor?.Id ?? approverTitle) } as IPersonaProps : undefined);
-          const deptApproverGroupPersona: IPersonaProps | undefined = { id: String(obj?.Approver?.Id), text: obj?.Approver?.Title, secondaryText: '' };
+      for (const obj of data) {
+        if (!obj) continue;
 
-          let approvalDate: Date | undefined = undefined;
-          if (obj.Created) {
-            approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
-          } else if (obj.Modified) {
-            approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Modified));
-          }
+        const createdBy = usersToUse && usersToUse.length ? usersToUse.filter(u => u.email?.toString() === obj.Author?.EMail?.toString())[0] : undefined;
+        let created: Date | undefined;
+        const approverEmail = obj?.Editor?.EMail;
+        const approverTitle = obj?.Editor?.Title;
+        const match = (approverEmail && usersToUse.find(u => (u.email || '').toLowerCase() === String(approverEmail).toLowerCase()));
 
-          // Helper to normalize SharePoint multi-person fields to a simple array
-          const toPeopleArray = (field: any): any[] => {
-            if (!field) return [];
-            if (Array.isArray(field)) return field;
-            if (Array.isArray(field?.results)) return field.results;
-            if (Array.isArray(field?.value)) return field.value;
-            return [];
-          };
+        const deptApproverPersona: IPersonaProps | undefined = match
+          ? { text: match.displayName || approverTitle || '', secondaryText: match.email || match.jobTitle || '', id: match.id }
+          : (approverTitle ? { text: approverTitle, secondaryText: approverEmail || '', id: String(obj.Editor?.Id ?? approverTitle) } as IPersonaProps : undefined);
+        const deptApproverGroupPersona: IPersonaProps | undefined = { id: String(obj?.Approver?.Id), text: obj?.Approver?.Title, secondaryText: '' };
 
-          // Build IPersonaProps[] from ApproversName
-          const approversPeople = toPeopleArray(obj.ApproversName);
-          const approversPersonas: IPersonaProps[] = approversPeople.map((u: any) => ({
-            text: u?.Title || u?.Email || u?.LoginName || '',
-            secondaryText: u?.EMail || u?.Email || '',
-            id: u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')
-          }) as IPersonaProps);
-
-          // Use the group title from ApproverGroup (already mapped above as a Persona)
-          const approverGroupTitle = (deptApproverGroupPersona?.text || '').trim();
-
-          // Create the record keyed by group name
-          const approversNamesList: Record<string, IPersonaProps[]> = {};
-          if (approverGroupTitle) {
-            approversNamesList[approverGroupTitle] = approversPersonas;
-          }
-
-          const temp: IFormsApprovalWorkflow = {
-            Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-            FormName: obj.FormName !== undefined && obj.FormName !== null ? { title: obj.FormName.Title, id: obj.FormName.Id } : undefined,
-            Order: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
-            SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
-            EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
-            DepartmentManagerApprover: deptApproverPersona,
-            ApproverGroup: deptApproverGroupPersona,
-            FinalLevel: obj.FinalLevel !== undefined && obj.FinalLevel !== null ? obj.FinalLevel : false,
-            IsFinalFormApprover: obj.IsFinalApprover !== undefined && obj.IsFinalApprover !== null ? obj.IsFinalApprover : false,
-            Status: obj.StatusRecord !== undefined && obj.StatusRecord !== null ? { id: obj.StatusRecord.Id?.toString(), title: obj.StatusRecord.Title } : undefined,
-            Reason: obj.Reason !== undefined && obj.Reason !== null ? obj.Reason : undefined,
-            Date: approvalDate,
-            Created: created !== undefined ? created : undefined,
-            CreatedBy: createdBy !== undefined ? createdBy : undefined,
-            ModifiedByPersona: obj.Editor !== undefined && obj.Editor !== null ? obj.Editor : undefined,
-            ApproversNamesList: approversNamesList,
-          };
-
-          if (approverGroupTitle) {
-            setGroupMembers(prev => ({ ...prev, [approverGroupTitle.toLowerCase()]: approversPersonas }));
-          }
-          result.push(temp);
+        let approvalDate: Date | undefined = undefined;
+        if (obj.Created) {
+          approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Created));
+        } else if (obj.Modified) {
+          approvalDate = new Date(spHelpers.adjustDateForGMTOffset(obj.Modified));
         }
-      });
+
+        // Helper to normalize SharePoint multi-person fields to a simple array
+        const toPeopleArray = (field: any): any[] => {
+          if (!field) return [];
+          if (Array.isArray(field)) return field;
+          if (Array.isArray(field?.results)) return field.results;
+          if (Array.isArray(field?.value)) return field.value;
+          return [];
+        };
+
+        // Build IPersonaProps[] from ApproversName
+        const approversPeople = toPeopleArray(obj.ApproversName);
+        const approversPersonas: IPersonaProps[] = approversPeople.map((u: any) => ({
+          text: u?.Title || u?.Email || u?.LoginName || '',
+          secondaryText: u?.EMail || u?.Email || '',
+          id: u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')
+        }) as IPersonaProps);
+
+        // Use the group title from ApproverGroup (already mapped above as a Persona)
+        const approverGroupTitle = (deptApproverGroupPersona?.text || '').trim();
+
+        // Create the record keyed by group name
+        const approversNamesList: Record<string, IPersonaProps[]> = {};
+        if (approverGroupTitle) {
+          approversNamesList[approverGroupTitle] = approversPersonas;
+        }
+
+        const temp: IFormsApprovalWorkflow = {
+          Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+          FormName: obj.FormName !== undefined && obj.FormName !== null ? { title: obj.FormName.Title, id: obj.FormName.Id } : undefined,
+          Order: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
+          SignOffName: obj.SignOffName !== undefined && obj.SignOffName !== null ? obj.SignOffName : undefined,
+          EmployeeId: obj.ManagerName !== undefined && obj.ManagerName !== null ? obj.ManagerName.Id : undefined,
+          DepartmentManagerApprover: deptApproverPersona,
+          ApproverGroup: deptApproverGroupPersona,
+          FinalLevel: obj.FinalLevel !== undefined && obj.FinalLevel !== null ? obj.FinalLevel : false,
+          IsFinalFormApprover: obj.IsFinalApprover !== undefined && obj.IsFinalApprover !== null ? obj.IsFinalApprover : false,
+          Status: obj.StatusRecord !== undefined && obj.StatusRecord !== null ? { id: obj.StatusRecord.Id?.toString(), title: obj.StatusRecord.Title } : undefined,
+          Reason: obj.Reason !== undefined && obj.Reason !== null ? obj.Reason : undefined,
+          Date: approvalDate,
+          Created: created !== undefined ? created : undefined,
+          CreatedBy: createdBy !== undefined ? createdBy : undefined,
+          ModifiedByPersona: obj.Editor !== undefined && obj.Editor !== null ? obj.Editor : undefined,
+          ApproversNamesList: approversNamesList,
+        };
+
+        if (approverGroupTitle) {
+          const key = approverGroupTitle.toLowerCase();
+          if (!membersAccumulator[key]) {
+            const members = await _getGroupMembers(approverGroupTitle);
+            membersAccumulator[key] = members;
+          }
+          // setGroupMembers(prev => ({ ...prev, [approverGroupTitle.toLowerCase()]: approversPersonas }));
+        }
+        result.push(temp);
+      }
+
       // sort by Order (ascending). If Order is missing, place those items at the end.
       result.sort((a, b) => {
         const aOrder = (a && a.Order !== undefined && a.Order !== null) ? Number(a.Order) : Number.POSITIVE_INFINITY;
@@ -498,6 +532,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         return aOrder - bOrder;
       });
       setFormsApprovalWorkflow(result);
+
+      if (Object.keys(membersAccumulator).length) {
+        setGroupMembers(prev => ({ ...prev, ...membersAccumulator }));
+      }
+
     } catch (error) {
       setFormsApprovalWorkflow([]);
       // console.error('An error has occurred while retrieving items!', error);
@@ -542,9 +581,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return byName?.email;
   }, [users]);
 
-  // const loggedInUserEmail = useMemo(() => (props.context.pageContext?.user?.email || '').toLowerCase(),
-  //   [props.context]
-  // );
   const loggedInUser = useMemo(() => users.find(u => u.email === props.context.pageContext?.user?.email), [users]);
 
   // Determine if current user is Requester or Submitter (identity match by email/id/name)
@@ -638,17 +674,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [formsApprovalWorkflow]);
 
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
+
+    const requestType = _isAccidentalChecked ? 'Accidental' : _isReplacementChecked ? 'Replacement' : 'New Request';
+    const replacementReason = (_isReplacementChecked || _isAccidentalChecked) ? (_replacementReason?.trim() || undefined) : undefined;
+
     return {
       formName,
       status,
-      employeeId: _employeeId,
+      employeeId: _SPEmployeeId,
       employeeName: _employee?.[0]?.text,
       _jobTitle,
       _department,
-      // _division,
       _company,
-      requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
-      replacementReason: _isReplacementChecked ? _replacementReason : '',
+      requestType: requestType,
+      replacementReason: replacementReason,
       items: itemRows.map(r => {
         const hasTypes = r.types && r.types.length > 0;
         const sizeCsv = hasTypes ? r.types!.map(t => (r.selectedSizesByType?.[t] ?? '')).join(',') : (r.itemSizeSelected || '');
@@ -668,11 +707,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }),
       approvals: formsApprovalWorkflow
     };
-  }, [_employee, _employeeId, _jobTitle, _department, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
+  }, [_employee, _SPEmployeeId, _jobTitle, _department, _company, _isReplacementChecked, _isAccidentalChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     const missing: string[] = [];
-    if (!IsEligibileForFormTimeInterval && !isEditMode) return (`You have recently submitted a form. Forms can only be submitted once every ${_coralFormsList.SubmissionRangeInterval} days.`);
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
     if (!_jobTitle?.title?.trim()) missing.push('Job Title');
     if (!_department.title?.trim()) missing.push('Department');
@@ -684,7 +722,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
 
     // Example: if Replacement, require a reason
-    if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
+    // if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
+    if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
+      return 'Please provide a reason for this request.';
+    }
 
     // Ensure at least one item is required or has any selection
     const anyRequired = itemRows.some(r => r.requiredRecord);
@@ -778,7 +819,33 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
 
     return undefined;
-  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
+  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _isAccidentalChecked, _replacementReason, formsApprovalWorkflow]);
+
+  const _getGroupMembers = useCallback(async (goupName: string): Promise<IPersonaProps[]> => {
+    const members: IPersonaProps[] = [];
+    if (!goupName) return members;
+    const name = String(goupName).trim();
+    const webUrl = props.context.pageContext.web.absoluteUrl;
+    const esc = (s: string) => s.replace(/'/g, "''");
+
+    try {
+      const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
+      const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
+      if (!resp || resp.status !== 200) {
+        members;
+      }
+      const json = await resp.json();
+      const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
+        text: u?.Title || u?.Email || u?.LoginName || '',
+        secondaryText: u?.Email || '',
+        id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
+      } as IPersonaProps)) : [];
+      return personas;
+    }
+    catch (ex) {
+      return members;
+    }
+  }, [props.context]);
 
   // Initial load of users, PPE items, Coral form config, etc.
   useEffect(() => {
@@ -959,26 +1026,30 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [formsApprovalWorkflow, groupMembers, loggedInUser, resolveGroupUserForItemRow]);
 
   // Check if the Submitter can submit a new form within a 3 month period of time from the last submitted form
-  const canSubmitTimeIntervalPPEForm = useCallback(async (employeeId?: number, submissionDate?: Date): Promise<boolean> => {
+  const isEligibleToSubmit = useCallback(async (employeeId?: number, submissionDate?: Date): Promise<boolean> => {
     try {
       // If we can't determine the employee or date, don't block.
-      if (!employeeId || !submissionDate) return true;
+      if (!employeeId || !submissionDate) {
+        return true;
+      }
 
       // Query the latest PPE_Form created for this employee
       // Assumption: PPE_Form has a numeric "EmployeeID" column (same value you store in _employeeId)
       // If your list uses a lookup instead, adjust the filter to EmployeeRecord/Id eq {id} and add &$expand=EmployeeRecord
-      const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord&$filter=EmployeeRecord/Id eq ${employeeId}&$orderby=Created desc&$top=1`;
+      const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord` +
+        `&$filter=EmployeeRecord/Id eq ${employeeId} and ReasonForRequest ne 'Accidental' and WorkflowStatus ne 'Closed By System'` +
+        `&$orderby=Created desc&$top=1`;
       const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PPE_Form', query);
       const items = await spCrud._getItemsWithQuery();
       if (!Array.isArray(items) || items.length === 0) {
-        // No previous forms -> allow
-        setIsEligibileForFormTimeInterval(true);
+        // No previous forms -> then allow
+        setIsEligibleToSubmitForm(true);
         return true;
       }
 
       const createdRaw = items[0]?.Created;
       if (!createdRaw) {
-        setIsEligibileForFormTimeInterval(true);
+        setIsEligibleToSubmitForm(true);
         return true;
       }
 
@@ -987,37 +1058,26 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const intervalDays = _coralFormsList?.SubmissionRangeInterval ? _coralFormsList?.SubmissionRangeInterval : 90;
       const msPerDay = 1000 * 60 * 60 * 24;
       const diffDays = Math.floor((submissionDate.getTime() - lastDate.getTime()) / msPerDay);
-
-      if (diffDays >= intervalDays) {
-        setIsEligibileForFormTimeInterval(false);
-      }
-      return diffDays >= intervalDays;
+      const eligible = diffDays >= intervalDays;
+      setIsEligibleToSubmitForm(eligible);
+      return eligible;
 
     } catch {
       // On any error, don't block the user
-      setIsEligibileForFormTimeInterval(true);
+      setIsEligibleToSubmitForm(true);
       return true
     }
-  }, [props.context, webUrl, spHelpers, _coralFormsList]);
+  }, [props.context, spHelpers, _coralFormsList]);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!_employee || isEditMode) return;
-      const ok = await canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date(Date.now()));
-      if (!ok && !cancelled) {
-        setBannerText(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
-        setBannerTick(t => t + 1);
-      }
-      else {
-        setBannerText('');
-        setBannerTick(t => t + 1);
-      }
-    };
-
-    run();
-    return () => { cancelled = true; };
-  }, [isEditMode, canSubmitTimeIntervalPPEForm, _getCoralFormsList, _employee, _SPEmployeeId]);
+    let mounted = true;
+    (async () => {
+      if (!_SPEmployeeId || isEditMode) return;
+      const ok = await isEligibleToSubmit(_SPEmployeeId, new Date());
+      if (mounted) setIsEligibleToSubmitForm(ok); // true = allowed, false = blocked
+    })();
+    return () => { mounted = false; };
+  }, [_SPEmployeeId, isEditMode]);
 
   // Prefill when editing an existing form
   useEffect(() => {
@@ -1039,8 +1099,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const load = async () => {
       try {
         // Load PPEForm header by Id
-        const headerQuery = `?$select=Id,EmployeeID,ReasonForRequest,ReplacementReason,Created,` +
-          `EmployeeRecord/Id,EmployeeRecord/FullName,` +
+        const headerQuery = `?$select=Id,ReasonForRequest,ReasonRecord,Created,CoralReferenceNumber,` +
+          `EmployeeRecord/Id,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
           `JobTitleRecord/Id,JobTitleRecord/Title,` +
           `DepartmentRecord/Id,DepartmentRecord/Title,` +
           `CompanyRecord/Id,CompanyRecord/Title,` +
@@ -1058,16 +1118,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           const employeePersona = toPersona({ Id: header?.EmployeeRecord?.Id, FullName: header?.EmployeeRecord?.FullName });
           setEmployee(employeePersona ? [employeePersona] : []);
           setSPEmployeeId(header?.EmployeeRecord?.Id != null ? Number(header.EmployeeRecord?.Id) : undefined);
-          setEmployeeId(header?.EmployeeID != null ? Number(header.EmployeeID) : undefined);
+          setCoralEmployeeId(header?.EmployeeRecord?.CoralEmployeeID != null ? String(header.EmployeeRecord?.CoralEmployeeID) : undefined);
 
           const jt = header?.JobTitleRecord ? { id: header.JobTitleRecord.Id ? String(header.JobTitleRecord.Id) : undefined, title: header.JobTitleRecord.Title || '' } : { id: undefined, title: '' };
           const dept = header?.DepartmentRecord ? { id: header.DepartmentRecord.Id ? String(header.DepartmentRecord.Id) : undefined, title: header.DepartmentRecord.Title || '' } : { id: undefined, title: '' };
-          // const div = header?.DivisionRecord ? { id: header.DivisionRecord.Id ? String(header.DivisionRecord.Id) : undefined, title: header.DivisionRecord.Title || '' } : { id: undefined, title: '' };
           const comp = header?.CompanyRecord ? { id: header.CompanyRecord.Id ? String(header.CompanyRecord.Id) : undefined, title: header.CompanyRecord.Title || '' } : { id: undefined, title: '' };
           setJobTitleId(jt);
           setDepartmentId(dept);
-          // setDivisionId(div);
           setCompanyId(comp);
+          setCoralReferenceNumber(header?.CoralReferenceNumber || '');
 
           const requesterPersona = toPersona({ Id: header?.RequesterName?.Id, Title: header?.RequesterName?.Title, EMail: header?.RequesterName?.EMail });
           setRequester(requesterPersona ? [requesterPersona] : []);
@@ -1076,7 +1135,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           const reason: string = header?.ReasonForRequest || '';
           setIsReplacementChecked(/replacement/i.test(reason));
-          setReplacementReason(header?.ReplacementReason || '');
+          setReplacementReason(header?.ReasonRecord || '');
+          setIsAccidentalChecked(/accidental/i.test(reason));
         }
 
         // Load child PPEFormItems rows for this form
@@ -1296,10 +1356,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (isEditMode) return;
     if (!c || !c.employeeID) return;
     if (!itemRows || itemRows.length === 0) return;
-    canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date(Date.now()));
-    if (!IsEligibileForFormTimeInterval) return;
-    // Prevent re-applying for the same employee
-
     // ---------------------------
     // HSE approver group membership (for item edit permission)
     // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
@@ -1337,7 +1393,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         const partial = itemSizes.find(d => contains(d, l) || contains(l, d));
         return partial;
       };
-
 
       const setReq = (selectedDetail?: string) => ({ ...r, requiredRecord: true, selectedDetail });
       const setReqSizedDetail = (selectedDetail?: string, size?: string) =>
@@ -1434,7 +1489,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const changed = nextRows.some((nr, i) => nr !== itemRows[i]);
     if (changed) setItemRows(nextRows);
     setCriteriaAppliedForEmployeeId(empKey);
-  }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId, _SPEmployeeId, IsEligibileForFormTimeInterval]);
+  }, [employeePPEItemsCriteria, itemRows, isEditMode, criteriaAppliedForEmployeeId, _SPEmployeeId]);
 
   const toggleRequired = useCallback((rowIndex: number, checked?: boolean) => {
     setItemRows(prev => prev.map((r, i) => {
@@ -1637,35 +1692,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, []);
 
-  const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
+  const hideBanner = useCallback(() => {
+    showBanner(``);
+    setBannerText(undefined);
+    setBannerOpts(undefined);
+  }, []);
 
+  const handleEmployeeChange = useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
     if (items && items.length > 0) {
       const selected = items[0];
-
-      // First try to find in employees list by FullName (fullName -> persona.text)
-      const emp = employees.find(e => (e.fullName || '').toLowerCase() === (selected?.text || '').toLowerCase());
-      // Fallback to users (Graph) if not found
-      const user = users.find(u => u.displayName?.toLowerCase() === (selected?.text || '').toLowerCase() || u.id === selected?.id);
-
-      const jobTitle: ICommon = emp?.jobTitle
-        ? { id: emp.jobTitle.id ? String(emp.jobTitle.id) : undefined, title: emp.jobTitle.title || '' }
-        : { id: undefined, title: user?.jobTitle || '' };
-
-      const department: ICommon = emp?.department
-        ? { id: emp.department.id ? String(emp.department.id) : undefined, title: emp.department.title || '' }
-        : { id: undefined, title: user?.department || '' };
-
-      const company: ICommon = emp?.company
-        ? { id: emp.company.id ? String(emp.company.id) : undefined, title: emp.company.title || '' }
-        : { id: undefined, title: user?.company || '' };
-
+      const emp = employees.find(e => Number(e.Id) === Number(selected?.id));
       setEmployee([selected]);
       setSPEmployeeId(Number(emp?.Id));
+      setCoralEmployeeId(emp?.coralEmployeeID ? String(emp.coralEmployeeID) : undefined);
+      // First try to find in employees list by FullName (fullName -> persona.text)
 
-      setEmployeeId(emp?.employeeID);
+      const jobTitle: ICommon = emp?.jobTitle ? { id: emp.jobTitle.id ? String(emp.jobTitle.id) : undefined, title: emp.jobTitle.title || '' } : { id: undefined, title: '' };
+      const department: ICommon = emp?.department ? { id: emp.department.id ? String(emp.department.id) : undefined, title: emp.department.title || '' } : { id: undefined, title: '' };
+      const company: ICommon = emp?.company ? { id: emp.company.id ? String(emp.company.id) : undefined, title: emp.company.title || '' } : { id: undefined, title: '' };
+
       setJobTitleId(jobTitle);
       setDepartmentId(department);
-      // setDivisionId(division);
       setCompanyId(company);
       // Auto-set requester ONLY if Employee list record has a manager; otherwise leave empty
       if (emp?.manager?.fullName) {
@@ -1678,10 +1725,26 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setCriteriaAppliedForEmployeeId(undefined);
 
       try {
-        // Fetch PPE items criteria for this employee ID
-        await _getEmployeesPPEItemsCriteria(users, selected?.tertiaryText ? String(selected.tertiaryText) : '');
 
-        if (employeePPEItemsCriteria && employeePPEItemsCriteria.employeeID !== selected?.tertiaryText) {
+        if (!isEditMode) {
+          const eligible = await isEligibleToSubmit(Number(selected?.id), new Date());
+          if (!eligible) {
+            setIsAccidentalChecked(true);
+            showBanner(`A Registered PPE Request for this employee was submitted within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days.`
+              // , { autoHideMs: 60000, fade: true, kind: 'error' }
+              , { kind: 'error' });
+            return;
+          }
+          else {
+            setIsAccidentalChecked(false);
+            hideBanner();
+          }
+        }
+
+        // Fetch PPE items criteria for this employee ID
+        await _getEmployeesPPEItemsCriteria(users, selected?.id ? Number(selected?.id) : undefined);
+
+        if (employeePPEItemsCriteria && employeePPEItemsCriteria.employeeID !== selected?.id) {
           setItemRows(prev => prev.map(r => ({
             ...r,
             brandSelected: undefined,
@@ -1697,19 +1760,20 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       } catch (e) {
         console.warn('Failed to load PPE items criteria for employee', e);
       }
-      if (!IsEligibileForFormTimeInterval) return;
+
     } else {
+      hideBanner();
+      setIsEligibleToSubmitForm(true);
+      setIsAccidentalChecked(false);
       setEmployee([]);
       setSPEmployeeId(undefined);
-      setEmployeeId(undefined);
+      setCoralEmployeeId(undefined);
       setJobTitleId({ id: '', title: '' });
       setDepartmentId({ id: '', title: '' });
-      // setDivisionId({ id: '', title: '' });
       setCompanyId({ id: '', title: '' });
       setRequester([]);
       setEmployeePPEItemsCriteria({ Id: '' });
-      setCriteriaAppliedForEmployeeId(undefined); // <-- important
-
+      setCriteriaAppliedForEmployeeId(undefined);
       setItemRows(prev =>
         prev.map(r => ({
           ...r,
@@ -1736,7 +1800,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       const list = fetched.length ? fetched : employees; // fallback to existing state
       const matches = list
         .filter(e => (e.fullName || '').toLowerCase().includes(filterText.toLowerCase()))
-        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName), tertiaryText: (e.employeeID ? String(e.employeeID) : e.employeeID) }) as IPersonaProps);
+        .map(e => ({ text: e.fullName || '', secondaryText: e.jobTitle?.title, id: (e.Id ? String(e.Id) : e.fullName), tertiaryText: (e.Id ? String(e.Id) : e.Id) }) as IPersonaProps);
       const deduped: IPersonaProps[] = [];
       const seen = new Set<string>();
       matches.forEach(m => { const key = (m.text || '').toLowerCase(); if (!seen.has(key)) { seen.add(key); deduped.push(m); } });
@@ -1757,14 +1821,40 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, []);
 
   const handleNewRequestChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    if (checked) {
-      setIsReplacementChecked(false);
-      setReplacementReason('');
-    }
+    if (!checked) return;
+    setIsReplacementChecked(false);
+    setIsAccidentalChecked(false);
+    setReplacementReason('');
+
+    setItemRows(prev =>
+      prev.map(r => ({
+        ...r,
+        requiredRecord: undefined,
+        brandSelected: undefined,
+        selectedDetail: undefined,
+        selectedDetails: [],
+        itemSizeSelected: undefined,
+        selectedType: undefined,
+        selectedSizesByType: {},
+        qty: undefined,
+        otherPurpose: undefined,
+        othersItemdetailsText: {}
+      }))
+    );
+
   }, []);
 
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    setIsReplacementChecked(!!checked);
+
+    const next = !!checked;
+    setIsReplacementChecked(next);
+    if (next) {
+      setIsAccidentalChecked(false);
+    } else {
+      // If both are off, clear reason (returns to "New Request")
+      setReplacementReason('');
+    }
+
     setItemRows(prev =>
       prev.map(r => ({
         ...r,
@@ -1870,9 +1960,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     [editableRows]
   );
 
-  const showBanner = useCallback((text: string) => {
+  const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
     setBannerText(text);
     setBannerTick(t => t + 1);
+    setBannerOpts(opts);
   }, []);
 
   // Navigate back to host list view (via callback or URL params)
@@ -1900,6 +1991,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         return;
       }
 
+      if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
+        showBanner('Please provide a reason for this request.');
+        return;
+      }
+
       const editFormId = props.formId ? Number(props.formId) : undefined;
 
       // If the user cannot edit the header: allow approvals-only and/or HSE items-only update
@@ -1908,10 +2004,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          if (hasApprovalChanges) {
-            const saved = await _saveApprovalWorkflowChanges(editFormId);
-            savedSomething = savedSomething || saved > 0;
-          }
           if (isHSEApprovalLevel) {
             const payload = formPayload('Submitted');
             await _replacePPEItemDetailsRows(editFormId, payload);
@@ -1936,17 +2028,15 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         await _updatePPEForm(editFormId, payload);
         await _replacePPEItemDetailsRows(editFormId, payload);
         // Persist approval changes if any
-        await _saveApprovalWorkflowChanges(editFormId);
+        // await _saveApprovalWorkflowChanges(editFormId);
         try { window.alert('PPE Form updated successfully.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
       } else {
         // Create new parent and children
         const newId = await _createPPEForm(payload);
         await _createPPEItemDetailsRows(newId, payload);
-        // No approvals to save typically on create, but call saver in case
-        await _saveApprovalWorkflowChanges(newId);
         // Popup success and go back to host
-        try { window.alert('Your PPE Form is submitted successfully and it is now under processing. Be Patient will be there in a while.'); } catch { /* ignore */ }
+        try { window.alert('Your PPE Form is submitted successfully and it is now under processing.'); } catch { /* ignore */ }
         if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
       }
     } catch (err: any) {
@@ -1993,6 +2083,38 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return res.length;
   }, [formsApprovalWorkflow, props.context]);
 
+  const handleSaveApprovalsOnly = useCallback(async () => {
+    const editFormId = props.formId ? Number(props.formId) : undefined;
+    if (!editFormId || editFormId <= 0) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // No changes? Tell the user and exit
+      if (!hasApprovalChanges) {
+        showBanner('No approval changes to save.');
+        return;
+      }
+
+      const saved = await _saveApprovalWorkflowChanges(editFormId);
+      if (saved > 0) {
+        try {
+          window.alert('Approvals updated.');
+
+          goBackToHost();
+        } catch { /* ignore */ }
+        // Optional: refresh approvals from server if needed
+        // await _getPPEFormApprovalWorkflows(users, editFormId);
+      } else {
+        showBanner('No approval changes to save.');
+      }
+    } catch (err: any) {
+      showBanner('Failed to save approvals: ' + (err?.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [_saveApprovalWorkflowChanges, props.formId, hasApprovalChanges, showBanner]);
+
   // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
     const requesterEmail = emailFromPersona(_requester?.[0]) || loggedInUser?.email;
@@ -2011,15 +2133,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
-      ReplacementReason: payload.replacementReason ?? null,
-      EmployeeID: payload.employeeId ?? null,
+      ReasonRecord: payload.replacementReason ?? null,
+      // ReplacementReason: payload.replacementReason ?? null,
+      // EmployeeID: payload.employeeId ?? null,
       WorkflowStatus: 'In Process',
       RejectionReason: null,
     };
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
-    const data = await spCrudRef.current._insertItem(body);
-    if (!data) throw new Error('Failed to create PPE Form');
-    return data as number;
+    const newId = await spCrudRef.current._insertItem(body);
+    if (!newId) throw new Error('Failed to create PPE Form');
+
+    try {
+      const coralReferenceNumber = await spHelpers.assignCoralReferenceNumber(props.context.spHttpClient,
+        props.context.pageContext.web.absoluteUrl, 'PPE_Form', { Id: Number(newId) }, _company?.title);
+
+      setCoralReferenceNumber(coralReferenceNumber);
+    } catch (e) {
+      // Optional: log/show a non-blocking message; the form is created even if reference assignment fails
+      console.warn('Failed to set CoralReferenceNumber', e);
+    }
+
+    return newId as number;
   }, [emailFromPersona, ensureUserId, formPayload, _requester, _submitter, loggedInUser, props.context.spHttpClient]);
 
   // Update existing PPEForm item
@@ -2065,11 +2199,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
-      ReplacementReason: payload.replacementReason ?? null,
-      EmployeeID: payload.employeeId ?? null,
+      ReasonRecord: payload.replacementReason,
+      // EmployeeID: payload.employeeId ?? null,
       RejectionReason: rejectionReason,
       WorkflowStatus: workflowStatusFinal,
     };
+
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
   }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
@@ -2166,522 +2301,668 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
-    <div className={styles.ppeFormBackground} ref={containerRef} style={{ position: 'relative' }}>
-      <div ref={bannerTopRef} />
-      {isSubmitting && (
-        <div
-          ref={overlayRef}
-          aria-busy="true"
-          role="dialog"
-          aria-modal="true"
-          aria-label={props.formId ? 'Updating form' : 'Submitting form'}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(255,255,255,0.6)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'all'
-          }}>
-          <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
-        </div>
-      )}
-      <form>
-        <div className={styles.formHeader}>
-          <img src={logoUrl} alt="Logo" className={styles.formLogo} />
-          <span className={styles.formTitle}>PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM</span>
-        </div>
-        {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>}
-        <Stack horizontal styles={stackStyles}>
-          {/* <div className="row">
-          </div> */}
-
-          <div className="row">
-            <div className="form-group col-md-6">
-              <NormalPeoplePicker
-                label={"Employee Name"}
-                itemLimit={1}
-                // Use employee list based resolver
-                onResolveSuggestions={employeeOnFilterChanged}
-                className={'ms-PeoplePicker'}
-                key={'employee'}
-                removeButtonAriaLabel={'Remove'}
-                inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
-                onInputChange={onInputChange}
-                resolveDelay={50}
-                disabled={!canEditFormHeader}
-                selectedItems={_employee}
-                onChange={(items) => {
-                  const selectedText = items?.[0]?.text || '';
-                  const empId = employees.find(e => (e.fullName || '').toLowerCase() === selectedText.toLowerCase())?.Id;
-                  return handleEmployeeChange(items, empId ? String(empId) : undefined);
-                }}
-              />
-            </div>
-            <div className="form-group col-md-6"><TextField label="Employee ID" value={_employeeId?.toString()} disabled={true} /></div>
+    <div className={styles.ppeFormBackground} ref={containerRef} style={{ position: 'relative' }} data-export-mode={exportMode ? 'true' : 'false'}>
+      <div>
+        <div ref={bannerTopRef} />
+        {isSubmitting && !exportMode && (
+          <div
+            ref={overlayRef}
+            aria-busy="true"
+            role="dialog"
+            aria-modal="true"
+            className="no-pdf"
+            data-html2canvas-ignore="true"
+            aria-label={props.formId ? 'Updating form' : 'Submitting form'}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(255,255,255,0.6)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'all'
+            }}>
+            <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
           </div>
+        )}
 
-          <div className="row">
-            <div className="form-group col-md-6">
-              <TextField label="Job Title" value={_jobTitle?.title} disabled={true} />
-            </div>
-            <div className="form-group col-md-6">
-              <TextField label="Department" value={_department?.title} disabled={true} />
-            </div>
+        {/* Screen-blocking overlay while preparing the PDF */}
+        {isExportingPdf && (
+          <div
+            aria-busy="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Preparing PDF"
+            className="no-pdf"
+            data-html2canvas-ignore="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(255,255,255,0.75)',
+              zIndex: 1500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'all'
+            }}
+          >
+            <Spinner label="Preparing PDF…" />
           </div>
+        )}
 
-          <div className="row">
-            <div className="form-group col-md-6"><TextField label="Company" value={_company?.title} disabled={true} /></div>
-            <div className="form-group col-md-6">
-              <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings} />
+        <form >
+          <div id="PdfEmployeeInfoSegment">
+            <div className={styles.formHeader} >
+              <img src={logoUrl} alt="Logo" className={styles.formLogo} />
+              <span className={styles.formTitle}>PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM</span>
             </div>
-          </div>
+            <BannerComponent
+              text={bannerText}
+              kind={bannerOpts?.kind || 'error'}
+              autoHideMs={bannerOpts?.autoHideMs}
+              fade={bannerOpts?.fade}
+              onDismiss={() => {
+                setBannerText(undefined);
+                setBannerOpts(undefined);
+              }}
+            />
 
-          <div className="row">
-            <div className="form-group col-md-6">
-              <NormalPeoplePicker
-                label={"Requester Name"}
-                itemLimit={1}
-                onResolveSuggestions={requesterOnFilterChanged}
-                className={'ms-PeoplePicker'}
-                key={'requester'}
-                removeButtonAriaLabel={'Remove'}
-                inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
-                onInputChange={onInputChange}
-                resolveDelay={150}
-                disabled={!canEditFormHeader}
-                onChange={handleRequesterChange}
-                selectedItems={_requester}
-              />
-            </div>
-
-            <div className="form-group col-md-6">
-              <NormalPeoplePicker label={"Submitter Name"} itemLimit={1} onResolveSuggestions={onFilterChanged} className={'ms-PeoplePicker'} key={'normal'} removeButtonAriaLabel={'Remove'} inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
-            </div>
-          </div>
-
-          <div className={`row  ${styles.mt10}`}>
-            <div className="form-group col-md-12 d-flex justify-content-between" >
-              <Label htmlFor={""}>Reason for Request</Label>
-
-              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditFormHeader} />
-
-              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditFormHeader} />
-
-              <TextField placeholder="Reason" disabled={!_isReplacementChecked || !canEditFormHeader} value={_replacementReason}
-                onChange={(_e, v) => setReplacementReason(v || '')} />
-            </div>
-          </div>
-        </Stack>
-
-        <Separator />
-
-        <div className="text-center">
-          <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.0rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
-        </div>
-
-        {/* <Separator /> */}
-        {/* Aggregated PPE Items Grid with detail checkboxes */}
-        <Stack horizontal styles={stackStyles}>
-          <div className="row">
-            <div className="form-group col-md-12">
-              <DetailsList
-                items={itemRows.sort((a, b) => (a.order ? a.order : 0) - (b.order ? b.order : 0))}
-                setKey="ppeAggregatedItemsList"
-                selectionMode={SelectionMode.none}
-                layoutMode={DetailsListLayoutMode.fixedColumns}
-                columns={[
-                  {
-                    key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 80, isResizable: true,
-                    onRender: (r: ItemRowState) => <span style={{
-                      display: 'block', whiteSpace: 'normal',
-                      wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
-                    }}>{r.item}</span>
-                  },
-                  {
-                    key: 'colRequired', name: 'Required', fieldName: 'requiredRecord', minWidth: 70, maxWidth: 70,
-                    onRender: (r: ItemRowState) => (
-                      <Checkbox
-                        checked={!!r.requiredRecord}
-                        ariaLabel="Required"
-                        id={r.item}
-                        onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
-                        disabled={!canEditItems}
-                        styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }}
-                      />
-                    )
-                  },
-                  {
-                    key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 300, isResizable: true, onRender: (r: ItemRowState) => (
-                      <div>
-                        {r.details.map(detail => {
-                          // ...inside the onRender of colDetails...
-                          {
-                            const itemLabel = r.item.toLowerCase() === 'others';
-                            if (itemLabel) {
-                              return (
-                                <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
-                                  <TextField placeholder={detail} multiline autoAdjustHeight resizable
-                                    scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
-                                    value={r.otherPurpose ?? undefined}
-                                    disabled={!r.requiredRecord || !canEditItems}
-                                    key={`purpose-${r.itemId}-${r.requiredRecord ? 'on' : 'off'}`}
-                                    // eslint-disable-next-line react/jsx-no-bind
-                                    onChange={(ev, newValue) => updateOtherPurpose(itemRows.indexOf(r), newValue ?? '')}
-                                  />
-                                </div>
-                              );
-                            }
-
-                            // Special case: Winter Jacket - no checkboxes, just show the label (detail)
-                            if (r.item.toLowerCase() === 'winter jacket') return (<Label>{detail || ''}</Label>)
-
-                            const checked = r.selectedDetail === detail;
-                            return (
-                              <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
-                                <Checkbox
-                                  label={detail}
-                                  checked={checked}
-                                  onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
-                                  disabled={!canEditItems || !r.requiredRecord}
-                                  styles={{
-                                    root: { alignItems: 'flex-start' }, // top-align text if wrapped
-                                    label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                  }}
-                                />
-                              </div>
-                            );
-                          }
-                        })
-                        }
-                      </div>
-                    )
-                  },
-
-                  {
-                    key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 160, isResizable: false,
-                    onRender: (r: ItemRowState) => {
-                      return (
-                        <>
-                          {r.brands.length === 0 && <span>N/A</span>}
-                          {
-                            r.brands.map(brand => {
-                              const brandChecked = r.brandSelected === brand;
-                              return (
-                                <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
-                                  <Checkbox label={brand} checked={brandChecked}
-                                    onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
-                                    disabled={!canEditItems || !r.requiredRecord}
-                                    styles={{
-                                      root: { alignItems: 'flex-start' }, // top-align text if wrapped
-                                      label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })
-                          }
-                        </>
-                      );
-                    }
-                  },
-
-                  {
-                    key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 50, maxWidth: 50, onRender: (r: ItemRowState) => (
-                      <TextField
-                        value={r.qty || ''}
-                        type='text'
-                        onChange={(_e, v) => {
-                          const next = sanitizeQty(v);
-                          updateItemQty(itemRows.indexOf(r), next);
-                        }}
-                        onKeyDown={handleQtyKeyDown}
-                        disabled={!canEditItems || !r.requiredRecord}
-                        styles={{
-                          root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
-                        }}
-                      />
-                    )
-                  },
-
-                  // ...existing code...
-                  {
-                    key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 230, isResizable: true,
-                    onRender: (r: ItemRowState) => {
-                      if (r.item.toLowerCase() === 'others') {
-                        // Show Sizes only if Required is checked
-                        if (!r.requiredRecord) return <span />;
-
-                        const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean)))
-                          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
-                        return (
-                          <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
-                            <ComboBox
-                              placeholder={sizes.length ? 'Size' : 'No sizes'}
-                              selectedKey={r.itemSizeSelected || undefined}
-                              options={sizes.map(s => ({ key: s, text: s }))}
-                              styles={{ root: { width: 140 } }}
-                              disabled={!sizes.length || !canEditItems || !r.requiredRecord}
-                              onChange={(_e, opt) => {
-                                const val = opt?.key ? String(opt.key) : undefined;
-                                // If cleared, consider it as unchecked
-                                toggleSize(itemRows.indexOf(r), val, !!val);
-                              }}
-                            />
-                          </div>
-                        );
-                      }
-
-                      // If Types exist, render types next to each other (horizontally) with a vertical separator.
-                      // Under each type label, stack the sizes vertically (one per line).
-                      const hasTypes = r.types && r.types.length > 0;
-                      if (hasTypes) {
-                        return (
-                          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-
-                            {(r.types || []).map((type, idx) => {
-                              const sizesForType = (r.typeSizesMap && r.typeSizesMap[type]) || r.itemSizes || [];
-                              const sizes = Array.from(new Set(sizesForType.map(s => String(s).trim()).filter(Boolean)))
-                                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
-                              return (
-                                <div key={type}
-                                  style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
-                                  <Label styles={{ root: { marginBottom: 4, fontWeight: 600 } }}>{type}</Label>
-
-                                  {sizes.length === 0 ? (<span>N/A</span>) :
-                                    (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {sizes.map(size => {
-                                          const sizeChecked = r.selectedSizesByType?.[type] === size;
-                                          const id = `${r.itemId}-${type}-${size}`;
-                                          return (
-                                            <div key={`${type}-${size}`} style={{ display: 'flex', alignItems: 'center' }}>
-                                              <Checkbox
-                                                id={id}
-                                                label={size}
-                                                checked={sizeChecked}
-                                                onChange={(_e, ch) => toggleSizeType(itemRows.indexOf(r), size, !!ch, type, id)}
-                                                disabled={!canEditItems || !r.requiredRecord}
-                                                styles={{
-                                                  root: { alignItems: 'flex-start' },
-                                                  label: {
-                                                    whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3'
-                                                  }
-                                                }}
-                                              />
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )
-                                  }
-                                </div>
-                              );
-                            })
-                            }
-                          </div>
-                        );
-                      }
-
-                      // No types: original sizes grid
-                      const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean)))
-                        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
-                      if (!sizes.length) return <span>N/A</span>;
-
-                      const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
-                      return (
-                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 2 }}>
-                          {sizes.map(size => {
-                            const sizeChecked = r.itemSizeSelected === size;
-                            return (
-                              <div key={size} style={{ display: 'flex', alignItems: 'center' }}>
-                                <Checkbox
-                                  label={size}
-                                  checked={sizeChecked}
-                                  onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size, !!ch)}
-                                  disabled={!canEditItems || !r.requiredRecord}
-                                  styles={{
-                                    root: { alignItems: 'flex-start' },
-                                    label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
-                                  }}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    }
-                  }
-                ]}
-                isHeaderVisible={true}
-                className={styles.detailsListHeaderCenter}
-              />
-            </div>
-          </div>
-        </Stack>
-
-        <Separator />
-        {/* Instructions For Use */}
-        <Stack horizontal styles={stackStyles}>
-          {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <Label>Instructions for Use:</Label>
-              <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
-                {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
-                  <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
-                    <strong>{`${idx + 1}. `}</strong>
-                    {instr.Description}
-                  </MessageBar>
-                )
-                )}
+            {/* {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>} */}
+            <Stack horizontal styles={stackStyles} id="EmployeeInfoStack">
+              <div className="row">
+                <div className="form-group col-md-6">
+                  <NormalPeoplePicker
+                    label={"Employee Name"}
+                    itemLimit={1}
+                    // Use employee list based resolver
+                    onResolveSuggestions={employeeOnFilterChanged}
+                    className={'ms-PeoplePicker'}
+                    key={'employee'}
+                    removeButtonAriaLabel={'Remove'}
+                    inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
+                    onInputChange={onInputChange}
+                    resolveDelay={50}
+                    disabled={uiDisabled(!canEditFormHeader || isEditMode)}
+                    // disabled={!canEditFormHeader || isEditMode} // cannot change employee in edit mode
+                    selectedItems={_employee}
+                    onChange={(items) => {
+                      const selectedText = items?.[0]?.text || '';
+                      const empId = employees.find(e => (e.fullName || '').toLowerCase() === selectedText.toLowerCase())?.Id;
+                      return handleEmployeeChange(items, empId ? String(empId) : undefined);
+                    }}
+                  />
+                </div>
+                <div className="form-group col-md-6"><TextField label="Employee ID" value={_coralEmployeeId?.toString()} disabled={true} /></div>
               </div>
-            </div>
-          )}
-        </Stack>
 
-        {/* Approvals sign-off table - only show on Edit */}
-        {isEditMode &&
-          <Separator /> &&
-          (
-            <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection" style={{ width: '100%' }}>
-              <div style={{ width: '100%' }}>
-                <Label>Approvals / Sign-off</Label>
-                <DetailsList
-                  items={formsApprovalWorkflow}
-                  columns={[
-                    {
-                      key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: 140, isResizable: true,
-                      onRender: (item: any) => (<div> <span>{item.SignOffName}</span></div>)
-                    },
-                    {
-                      key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager',
-                      minWidth: 240, isResizable: true,
-                      onRender: (item: any) => {
-                        const grpName = resolveGroupUserForItemRow(item as IFormsApprovalWorkflow);
-                        const key = (grpName || '');
-                        const members: IPersonaProps[] = key ? ((item.ApproversNamesList?.[key] as IPersonaProps[]) ?? []) : [];
-                        const isMember = members.find(m => (String(m.secondaryText).toLowerCase()) === (props.context.pageContext?.user?.email || '').toLowerCase());
-                        const selectedKey = (isMember) ? (props.context.pageContext?.user?.email || '') : '';
+              <div className="row">
+                <div className="form-group col-md-6">
+                  <TextField label="Job Title" value={_jobTitle?.title} disabled={true} />
+                </div>
+                <div className="form-group col-md-6">
+                  <TextField label="Department" value={_department?.title} disabled={true} />
+                </div>
+              </div>
 
-                        if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
-                          return (
-                            <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} />
-                          )
-                        } else {
-                          return (
-                            <ComboBox
-                              placeholder={!members.length ? 'No members' : (isMember ? 'Select approver' : '')}
-                              selectedKey={selectedKey}
-                              options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
-                              useComboBoxAsMenuWidth
-                              disabled={!members.length || !canEditApprovalRow(item)}
-                              onChange={(_, opt) => {
-                                const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
-                                if (persona) {
-                                  // Only allow selecting yourself; ignore picking others
-                                  const selEmail = (persona.secondaryText || '').toLowerCase();
-                                  if (selEmail !== props.context.pageContext?.user?.email) return;
-                                  handleApprovalApproverChange(item.Id!, persona);
-                                  const rid = String(item.Id ?? '');
-                                  if (rid) setLockedApprovalRowIds(prev => ({ ...prev, [rid]: true }));
-                                }
-                              }}
-                            />
-                          );
-                        }
-                      }
-                    },
-                    {
-                      key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: 130, isResizable: true,
-                      onRender: (item: any, idx?: number) => {
-                        const sorted = (lKPWorkflowStatus || []).slice()
-                          .sort((a, b) => {
-                            const ao = a?.Order ?? Number.POSITIVE_INFINITY;
-                            const bo = b?.Order ?? Number.POSITIVE_INFINITY;
-                            return Number(ao) - Number(bo);
-                          });
-                        const isFinalApprover = !!item.IsFinalFormApprover && (item.FinalLevel == item.Order);
-                        const closedId = sorted.find(s => (s.Title || '').toLowerCase() === 'closed')?.Id;
-                        const options = sorted.map(s => {
-                          const id = String(s.Id);
-                          const title = String(s.Title ?? '').trim();
-                          const isClosed = s.Id === closedId || title.toLowerCase() === 'closed';
-                          return { key: id, text: title, disabled: !isFinalApprover && isClosed, };
-                        });
-                        // item.Status is ICommon { id, title }
-                        const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
-                        return (
-                          <ComboBox
-                            placeholder={options.length ? 'Select status' : 'No status'}
-                            selectedKey={selectedKey}
-                            options={options}
-                            useComboBoxAsMenuWidth={true}
-                            disabled={!canEditApprovalRow(item)}
-                            onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)} />
-                        );
-                      }
-                    },
-                    {
-                      key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: 200, isResizable: true,
-                      onRender: (item: any, idx?: number) => {
-                        const canEdit = canEditApprovalRow(item);
-                        const isRejected = /reject/i.test(String(item?.Status?.title || ''));
-                        const canEditReason = canEdit && isRejected;
-                        return (
-                          <TextField value={item.Reason || ''}
-                            placeholder={canEditReason ? 'Enter rejection reason' : ''}
-                            disabled={!canEditReason}
-                            onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
-                          />);
-                      }
-                    },
-                    {
-                      key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: 140, isResizable: true,
-                      onRender: (item: any, idx?: number) => (
-                        <DatePicker value={item.Date ? new Date(item.Date) : undefined}
-                          disabled={prefilledFormId ? true : false}
-                          strings={defaultDatePickerStrings}
-                        />)
-                    }
-                  ]}
-                  selectionMode={SelectionMode.none}
-                  setKey="approvalsList"
-                  layoutMode={DetailsListLayoutMode.fixedColumns}
-                  styles={{
-                    root: { width: '100%' },
-                    // target cells and rows
-                    contentWrapper: {
-                      selectors: {
-                        '.ms-DetailsRow-fields': {
-                          alignItems: 'center'  // stretch to max height of tallest cell in the row
-                        },
-                        '.ms-DetailsRow-cell': {
-                          padding: '8px 0px 8px 8px !important', // top-bottom left-right
-                        },
-                      }
-                    }
-                  }}
-                />
+              <div className="row">
+                <div className="form-group col-md-6"><TextField label="Company" value={_company?.title} disabled={true} /></div>
+                <div className="form-group col-md-6">
+                  <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings}
+                    style={{ maxWidth: "100%" }} />
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="form-group col-md-6">
+                  <NormalPeoplePicker
+                    label={"Requester Name"}
+                    itemLimit={1}
+                    onResolveSuggestions={requesterOnFilterChanged}
+                    className={'ms-PeoplePicker'}
+                    key={'requester'}
+                    removeButtonAriaLabel={'Remove'}
+                    inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
+                    onInputChange={onInputChange}
+                    resolveDelay={150}
+                    disabled={uiDisabled(!canEditFormHeader)}
+                    // disabled={!canEditFormHeader}
+                    onChange={handleRequesterChange}
+                    selectedItems={_requester}
+                  />
+                </div>
+
+                <div className="form-group col-md-6">
+                  <NormalPeoplePicker label={"Submitter Name"} itemLimit={1} onResolveSuggestions={onFilterChanged} className={'ms-PeoplePicker'} key={'normal'} removeButtonAriaLabel={'Remove'} inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
+                </div>
+              </div>
+
+              <div className={`row  ${styles.mt10}`}>
+                <div className="form-group col-md-12 d-flex justify-content-between align-items-center" >
+                  <Label htmlFor={""}>Request Reason</Label>
+                  <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked && !_isAccidentalChecked} onChange={handleNewRequestChange}
+                    //  disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode}
+                    disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)}
+                  />
+                  <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange}
+                    // disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode} 
+                    disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)}
+
+                  />
+                  <Checkbox label="Accidental" className="align-items-center" checked={_isAccidentalChecked}
+                    // disabled={IsEligibleToSubmitForm} 
+                    disabled={uiDisabled(IsEligibleToSubmitForm)}
+                  />
+                  <TextField placeholder="Reason" multiline autoAdjustHeight resizable style={{ minWidth: "33%" }}
+                    disabled={uiDisabled(!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader)}
+                    // disabled={!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader}
+                    // required={_isReplacementChecked || _isAccidentalChecked}
+                    value={_replacementReason}
+                    onChange={(_e, v) => setReplacementReason(v || '')} />
+                </div>
               </div>
             </Stack>
-          )}
-        <Separator />
+            <Separator />
+          </div>  {/* end PdfEmployeeInfoSegment */}
 
-        <DocumentMetaBanner docCode="COR-HSE-01-FOR-001" version="V03" effectiveDate="16-SEP-2020" page={1} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-          <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
-          <PrimaryButton
-            text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
-            onClick={handleSubmit}
-            disabled={isSubmitting || (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
-          />
-        </div>
-      </form>
+          <div className="text-center">
+            <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '1.0rem' }}>Please complete the table below in the blank spaces; grey spaces are for administrative use only.</small>
+          </div>
+
+          <div id="PdfItemsSegment" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+            <div >
+              {exportMode ? (
+                // During export: show summary where the items grid usually is
+                <Stack horizontal styles={stackStyles} id="ItemsSummaryStack">
+                  <div className="form-group col-md-12" style={{ width: '100%' }}>
+                    <Label>PPE Required Items</Label>
+                    <DetailsList
+                      items={itemsSummary}
+                      columns={[
+                        {
+                          key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 120, maxWidth: 130, isResizable: true,
+                          onRender: (r: ItemSummary) => <span style={{
+                            display: 'block', whiteSpace: 'normal',
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                          }}>{r.item}</span>
+                        },
+                        {
+                          key: 'colDetail', name: 'Detail/Purpose', fieldName: 'detail', minWidth: 230, isResizable: true,
+                          onRender: (r: ItemSummary) => <span style={{
+                            display: 'block', whiteSpace: 'normal',
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                          }}>{r.detail}</span>
+                        },
+                        { key: 'colQty', name: 'Qty', fieldName: 'quantity', minWidth: 50, isResizable: true },
+                        {
+                          key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 150, isResizable: true,
+                          onRender: (r: ItemSummary) => <span style={{
+                            display: 'block', whiteSpace: 'normal',
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                          }}>{r.brand}</span>
+                        },
+                        {
+                          key: 'colSize', name: 'Size(s)', fieldName: 'size', minWidth: 150, isResizable: true,
+                          onRender: (r: ItemSummary) => <span style={{
+                            display: 'block', whiteSpace: 'normal',
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                          }}>{r.size}</span>
+                        },
+                      ]}
+                      selectionMode={SelectionMode.none}
+                      layoutMode={DetailsListLayoutMode.justified}
+                      className={styles.detailsListHeaderCenter}
+                    />
+                  </div>
+                </Stack>
+              ) : (
+                <Stack horizontal styles={stackStyles} id="ItemsStack">
+                  <div className="row">
+                    <div className="form-group col-md-12">
+                      <DetailsList
+                        items={itemRows.sort((a, b) => (a.order ? a.order : 0) - (b.order ? b.order : 0))}
+                        setKey="ppeAggregatedItemsList"
+                        selectionMode={SelectionMode.none}
+                        layoutMode={DetailsListLayoutMode.justified}          // <-- responsive fill
+                        constrainMode={ConstrainMode.horizontalConstrained}
+                        columns={[
+                          {
+                            key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 90, isResizable: true,
+                            onRender: (r: ItemRowState) => <span style={{
+                              display: 'block', whiteSpace: 'normal',
+                              wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                            }}>{r.item}</span>
+                          },
+                          {
+                            key: 'colRequired', name: 'Required', fieldName: 'requiredRecord', minWidth: 70, maxWidth: 70,
+                            onRender: (r: ItemRowState) => (
+                              <Checkbox
+                                checked={!!r.requiredRecord}
+                                ariaLabel="Required"
+                                id={r.item}
+                                onChange={(_e, ch) => toggleRequired(itemRows.indexOf(r), ch)}
+                                // disabled={!canEditItems}
+                                disabled={uiDisabled(!canEditItems)}
+                                styles={{ root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' } }}
+                              />
+                            )
+                          },
+                          {
+                            key: 'colDetails', name: 'Specific Detail', fieldName: 'itemDetails', minWidth: 320, isResizable: true, onRender: (r: ItemRowState) => (
+                              <div>
+                                {r.details.map(detail => {
+                                  // ...inside the onRender of colDetails...
+                                  {
+                                    const itemLabel = r.item.toLowerCase() === 'others';
+                                    if (itemLabel) {
+                                      return (
+                                        <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
+                                          <TextField placeholder={detail} multiline autoAdjustHeight resizable
+                                            scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
+                                            value={r.otherPurpose ?? undefined}
+                                            disabled={!r.requiredRecord || !canEditItems}
+                                            key={`purpose-${r.itemId}-${r.requiredRecord ? 'on' : 'off'}`}
+                                            // eslint-disable-next-line react/jsx-no-bind
+                                            onChange={(ev, newValue) => updateOtherPurpose(itemRows.indexOf(r), newValue ?? '')}
+                                          />
+                                        </div>
+                                      );
+                                    }
+
+                                    // Special case: Winter Jacket - no checkboxes, just show the label (detail)
+                                    if (r.item.toLowerCase() === 'winter jacket') return (<Label>{detail || ''}</Label>)
+
+                                    const checked = r.selectedDetail === detail;
+                                    return (
+                                      <div key={detail} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                                        <Checkbox
+                                          label={detail}
+                                          checked={checked}
+                                          onChange={(_e, ch) => toggleItemDetail(itemRows.indexOf(r), detail, !!ch)}
+                                          // disabled={!canEditItems || !r.requiredRecord}
+                                          disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
+                                          styles={{
+                                            root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                            label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                })
+                                }
+                              </div>
+                            )
+                          },
+
+                          {
+                            key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 180, isResizable: false,
+                            onRender: (r: ItemRowState) => {
+                              return (
+                                <>
+                                  {r.brands.length === 0 && <span>N/A</span>}
+                                  {
+                                    r.brands.map(brand => {
+                                      const brandChecked = r.brandSelected === brand;
+                                      return (
+                                        <div key={brand} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                                          <Checkbox label={brand} checked={brandChecked}
+                                            onChange={(_e, ch) => toggleBrand(itemRows.indexOf(r), brand, !!ch)}
+                                            // disabled={!canEditItems || !r.requiredRecord}
+                                            disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
+
+                                            styles={{
+                                              root: { alignItems: 'flex-start' }, // top-align text if wrapped
+                                              label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                            }}
+                                          />
+                                        </div>
+                                      );
+                                    })
+                                  }
+                                </>
+                              );
+                            }
+                          },
+
+                          {
+                            key: 'colQty', name: 'Qty', fieldName: 'qty', minWidth: 50, maxWidth: 60, onRender: (r: ItemRowState) => (
+                              <TextField
+                                value={r.qty || ''}
+                                type='text'
+                                onChange={(_e, v) => {
+                                  const next = sanitizeQty(v);
+                                  updateItemQty(itemRows.indexOf(r), next);
+                                }}
+                                onKeyDown={handleQtyKeyDown}
+                                // disabled={!canEditItems || !r.requiredRecord}
+                                disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
+                                styles={{
+                                  root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
+                                }}
+                              />
+                            )
+                          },
+
+                          // ...existing code...
+                          {
+                            key: 'colSizes', name: 'Size', fieldName: 'size', minWidth: 280, isResizable: true,
+                            onRender: (r: ItemRowState) => {
+                              if (r.item.toLowerCase() === 'others') {
+                                // Show Sizes only if Required is checked
+                                if (!r.requiredRecord) return <span />;
+
+                                const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean)))
+                                  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                                return (
+                                  <div key={r.item} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                                    <ComboBox
+                                      placeholder={sizes.length ? 'Size' : 'No sizes'}
+                                      selectedKey={r.itemSizeSelected || undefined}
+                                      options={sizes.map(s => ({ key: s, text: s }))}
+                                      styles={{ root: { width: 140 } }}
+                                      // disabled={!sizes.length || !canEditItems || !r.requiredRecord}
+                                      disabled={uiDisabled(!sizes.length || !canEditItems || !r.requiredRecord)}
+                                      onChange={(_e, opt) => {
+                                        const val = opt?.key ? String(opt.key) : undefined;
+                                        // If cleared, consider it as unchecked
+                                        toggleSize(itemRows.indexOf(r), val, !!val);
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              }
+
+                              // If Types exist, render types next to each other (horizontally) with a vertical separator.
+                              // Under each type label, stack the sizes vertically (one per line).
+                              const hasTypes = r.types && r.types.length > 0;
+                              if (hasTypes) {
+                                return (
+                                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+
+                                    {(r.types || []).map((type, idx) => {
+                                      const sizesForType = (r.typeSizesMap && r.typeSizesMap[type]) || r.itemSizes || [];
+                                      const sizes = Array.from(new Set(sizesForType.map(s => String(s).trim()).filter(Boolean)))
+                                        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                                      return (
+                                        <div key={type}
+                                          style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: idx === 0 ? 0 : 12, marginLeft: idx === 0 ? 0 : 12, borderLeft: idx === 0 ? 'none' : '1px solid #ddd' }}>
+                                          <Label styles={{ root: { marginBottom: 4, fontWeight: 600 } }}>{type}</Label>
+
+                                          {sizes.length === 0 ? (<span>N/A</span>) :
+                                            (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {sizes.map(size => {
+                                                  const sizeChecked = r.selectedSizesByType?.[type] === size;
+                                                  const id = `${r.itemId}-${type}-${size}`;
+                                                  return (
+                                                    <div key={`${type}-${size}`} style={{ display: 'flex', alignItems: 'center' }}>
+                                                      <Checkbox
+                                                        id={id}
+                                                        label={size}
+                                                        checked={sizeChecked}
+                                                        onChange={(_e, ch) => toggleSizeType(itemRows.indexOf(r), size, !!ch, type, id)}
+                                                        // disabled={!canEditItems || !r.requiredRecord}
+                                                        disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
+                                                        styles={{
+                                                          root: { alignItems: 'flex-start' },
+                                                          label: {
+                                                            whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3'
+                                                          }
+                                                        }}
+                                                      />
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )
+                                          }
+                                        </div>
+                                      );
+                                    })
+                                    }
+                                  </div>
+                                );
+                              }
+
+                              // No types: original sizes grid
+                              const sizes = Array.from(new Set((r.itemSizes || []).map(s => String(s).trim()).filter(Boolean)))
+                                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                              if (!sizes.length) return <span>N/A</span>;
+
+                              const cols = sizes.length > 12 ? 2 : (sizes.length > 6 ? 2 : 1);
+                              return (
+                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 2 }}>
+                                  {sizes.map(size => {
+                                    const sizeChecked = r.itemSizeSelected === size;
+                                    return (
+                                      <div key={size} style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Checkbox
+                                          label={size}
+                                          checked={sizeChecked}
+                                          onChange={(_e, ch) => toggleSize(itemRows.indexOf(r), size, !!ch)}
+                                          // disabled={!canEditItems || !r.requiredRecord}
+                                          disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
+                                          styles={{
+                                            root: { alignItems: 'flex-start' },
+                                            label: { whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.3' }
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            }
+                          }
+                        ]}
+                        isHeaderVisible={true}
+                        className={styles.detailsListHeaderCenter}
+                      />
+                    </div>
+                  </div>
+                </Stack>
+              )}
+            </div>
+          </div> {/* end PdfItemsSegment */}
+
+          {/* PdfBottomSegment: everything below items */}
+          <div id="PdfInstructionsSegment" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+            {/* <Separator /> */}
+            {/* Instructions For Use */}
+            <Stack horizontal styles={stackStyles} id="InstructionsStack">
+              {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <Label>Instructions for Use:</Label>
+                  <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                    {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                      <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                        <strong>{`${idx + 1}. `}</strong>
+                        {instr.Description}
+                      </MessageBar>
+                    )
+                    )}
+                  </div>
+                </div>
+              )}
+            </Stack>
+          </div> {/* end PdfInstructionsSegment */}
+
+          {/* Approvals (edit mode) */}
+          {isEditMode && <Separator />}
+
+          <div id="PdfApprovalsSegment" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+            {isEditMode && (
+              <Stack horizontal styles={stackStyles} className="mt-3 mb-3" id="approvalsSection" style={{ width: '100%' }}>
+                <div style={{ width: '100%' }}>
+                  <Label>Approvals / Sign-off</Label>
+                  <DetailsList
+                    items={formsApprovalWorkflow}
+                    columns={[
+                      {
+                        key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: !!exportMode ? 130 : 160, isResizable: true,
+                        onRender: (item: any) => (<div> <span>{item.SignOffName}</span></div>)
+                      },
+                      {
+                        key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager', minWidth: !!exportMode ? 200 : 230, isResizable: true,
+                        onRender: (item: any) => {
+                          const grpName = resolveGroupUserForItemRow(item as IFormsApprovalWorkflow);
+                          const key = (grpName || '').toLowerCase();
+                          const members = key ? (groupMembers[key] || []) : [];
+                          // const members: IPersonaProps[] = key ? ((item.ApproversNamesList?.[key] as IPersonaProps[]) ?? []) : [];
+                          const isMember = members.find(m => (String(m.secondaryText).toLowerCase()) === (props.context.pageContext?.user?.email || '').toLowerCase());
+                          const selectedKey = (isMember) ? (props.context.pageContext?.user?.email || '') : '';
+
+                          if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
+                            return (
+                              <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} />
+                            )
+                          }
+                          else {
+                            return (
+                              <ComboBox
+                                placeholder={!members.length ? '' : (isMember ? 'Select approver' : '')}
+                                selectedKey={selectedKey}
+                                options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
+                                useComboBoxAsMenuWidth
+                                disabled={!members.length || !canEditApprovalRow(item)}
+                                onChange={(_, opt) => {
+                                  const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
+                                  if (persona) {
+                                    // Only allow selecting yourself; ignore picking others
+                                    const selEmail = (persona.secondaryText || '').toLowerCase();
+                                    if (selEmail !== props.context.pageContext?.user?.email) return;
+                                    handleApprovalApproverChange(item.Id!, persona);
+                                    const rid = String(item.Id ?? '');
+                                    if (rid) setLockedApprovalRowIds(prev => ({ ...prev, [rid]: true }));
+                                  }
+                                }}
+                              />
+                            );
+                          }
+                        }
+                      },
+                      {
+                        key: 'colStatus', name: 'Status', fieldName: 'Status', minWidth: !!exportMode ? 130 : 160, isResizable: true,
+                        onRender: (item: any, idx?: number) => {
+                          const sorted = (lKPWorkflowStatus || []).slice()
+                            .sort((a, b) => {
+                              const ao = a?.Order ?? Number.POSITIVE_INFINITY;
+                              const bo = b?.Order ?? Number.POSITIVE_INFINITY;
+                              return Number(ao) - Number(bo);
+                            });
+                          const options = sorted.filter(s => String(s.Title ?? '').trim().toLowerCase() !== 'closed')
+                            .map(s => ({
+                              key: String(s.Id),
+                              text: String(s.Title ?? '').trim(),
+                            }));
+                          // item.Status is ICommon { id, title }
+                          const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
+                          if (item?.Status?.title && (String(item.Status.title).toLowerCase() === 'closed')) {
+                            return (
+                              <TextField value={item?.Status?.title || ''} disabled={true} />
+                            )
+                          } else {
+                            return (
+                              <ComboBox
+                                placeholder={options.length ? 'Select status' : 'No status'}
+                                selectedKey={selectedKey}
+                                options={options}
+                                useComboBoxAsMenuWidth={true}
+                                disabled={!canEditApprovalRow(item)}
+                                onChange={(_, option) => handleApprovalStatusChange(item.Id!, option as any)} />
+                            );
+                          }
+                        }
+                      },
+                      {
+                        key: 'colReason', name: 'Reason', fieldName: 'Reason', minWidth: !!exportMode ? 160 : 280, isResizable: true,
+                        onRender: (item: any, idx?: number) => {
+                          const canEdit = canEditApprovalRow(item);
+                          const isRejected = /reject/i.test(String(item?.Status?.title || ''));
+                          const canEditReason = canEdit && isRejected;
+                          return (
+                            <TextField value={item.Reason || ''}
+                              placeholder={canEditReason ? 'Enter rejection reason' : ''}
+                              disabled={!canEditReason}
+                              multiline autoAdjustHeight style={{ minHeight: 40 }}
+                              onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
+                            />);
+                        }
+                      },
+                      {
+                        key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: !!exportMode ? 130 : 200, isResizable: true,
+                        onRender: (item: any, idx?: number) => (
+                          <DatePicker value={item.Date ? new Date(item.Date) : undefined}
+                            disabled={prefilledFormId ? true : false}
+                            strings={defaultDatePickerStrings}
+                          />)
+                      }
+                    ]}
+                    selectionMode={SelectionMode.none}
+                    setKey="approvalsList"
+                    layoutMode={DetailsListLayoutMode.justified}          // <-- responsive fill
+                    constrainMode={ConstrainMode.horizontalConstrained}
+                    onShouldVirtualize={() => false}
+                    styles={{
+                      root: { width: '100%' },
+                      // target cells and rows
+                      contentWrapper: {
+                        selectors: {
+                          '.ms-DetailsRow-fields': {
+                            alignItems: 'center'  // stretch to max height of tallest cell in the row
+                          },
+                          '.ms-DetailsRow-cell': {
+                            padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                          },
+                          '&': { overflowX: 'visible', overflowY: 'visible' }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </Stack>
+            )}
+            <DocumentMetaBanner docCode={_coralReferenceNumber ? _coralReferenceNumber : 'AAA-HSE-PPE-YYYY-MM-DD-NN'} version="V03" effectiveDate="16-SEP-2020" page={1} />
+          </div> {/* end PdfApprovalsSegment */}
+
+          <div id="PdfbuttonsSection">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}
+              className="no-pdf" data-html2canvas-ignore="true">
+              <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
+              <ExportPdfControls
+                targetRef={containerRef}
+                employeeName={_employee?.[0]?.text}
+                exportMode={exportMode}
+                onExportModeChange={setExportMode}
+                onBusyChange={setIsExportingPdf}
+                isClosedBySystem={(formsApprovalWorkflow || []).some(r => String(r?.Status?.title || '').toLowerCase().includes('approved') && r.FinalLevel === r.Order)}
+                onError={(m) => showBanner(m)}
+              />
+
+              {isEditMode && !canEditFormHeader ? (
+                // Approval-phase: show approvals-only button
+                <PrimaryButton
+                  text={isSubmitting ? 'Saving approvals…' : 'Save approvals'}
+                  onClick={handleSaveApprovalsOnly}
+                  disabled={isSubmitting || !canChangeApprovalRows || !hasApprovalChanges}
+                />
+              ) : (
+                // Normal create/update
+                <PrimaryButton
+                  text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
+                  onClick={handleSubmit}
+                  disabled={isSubmitting ||
+                    (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
+                />
+              )}
+            </div>
+          </div> {/* end PdfApprovalsSegment */}
+        </form>
+      </div>
     </div>
   );
 }

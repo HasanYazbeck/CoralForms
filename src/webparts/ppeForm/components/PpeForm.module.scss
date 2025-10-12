@@ -1,5 +1,33 @@
 @import '~@fluentui/react/dist/sass/References.scss';
 
+:global([data-export-mode='true']) {
+  font-size: 12px; // base; tweak to 11px or 13px if you prefer
+}
+
+// Fluent UI targeted tweaks for export
+:global([data-export-mode='true']) {
+  .ms-Label,
+  .ms-TextField,
+  .ms-TextField label,
+  .ms-ComboBox,
+  .ms-Checkbox,
+  .ms-MessageBar-content,
+  .ms-DetailsRow,
+  .ms-DetailsRow-cell,
+  .ms-DetailsHeader-cellTitle {
+    font-size: 12px !important;
+    line-height: 1.25;
+  }
+
+  // Compact the DetailsList rows a bit to match smaller font
+  .ms-DetailsRow {
+    min-height: 28px; // default ~36px; reduce carefully
+  }
+  .ms-DetailsHeader {
+    min-height: 28px;
+  }
+}
+
 .ppeForm {
   overflow: hidden;
   padding: 1em;
