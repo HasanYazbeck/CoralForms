@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { SPHttpClient } from '@microsoft/sp-http';
+import { WebPartContext } from '@microsoft/sp-webpart-base';
 import {
   DetailsList,
   DetailsListLayoutMode,
@@ -10,13 +12,13 @@ import {
   ICommandBarItemProps,
   Stack,
   Text,
-  Spinner
+  Spinner,
+  Pivot,
+  PivotItem,
+  DefaultButton
 } from '@fluentui/react';
-import { SPHttpClient } from '@microsoft/sp-http';
-import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { SPCrudOperations } from '../../../Classes/SPCrudOperations';
 
-type Row = {
+export type Row = {
   id: number;
   employeeName?: string;
   coralEmployeeID: number;
@@ -35,7 +37,8 @@ type Row = {
   coralReferenceNumber?: string;
 };
 
-export interface SubmittedPpeFormsListProps {
+
+interface SubmittedPpeFormsListProps {
   context: WebPartContext;
   /** PPEForm list GUID. If not supplied, the component will try to operate but delete will be disabled. */
   listGuid?: string;
@@ -50,17 +53,55 @@ export interface SubmittedPpeFormsListProps {
 
 const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, listGuid, title = 'PERSONAL PROTECTIVE EQUIPMENT (PPE) SUBMISSIONS', onAddNew, onEdit, onDelete }) => {
   const [loading, setLoading] = React.useState(true);
+  const [loadingMore, setLoadingMore] = React.useState(false);
   const [items, setItems] = React.useState<Row[]>([]);
   const [error, setError] = React.useState<string | undefined>(undefined);
+  const [view, setView] = React.useState<'active' | 'closed'>('active');
+  const [selectionVersion, setSelectionVersion] = React.useState(0);
+  const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = React.useState<boolean>(false);
+  const PAGE_SIZE = 50;
+
   const selectionRef = React.useRef(
     new Selection({
       selectionMode: SelectionMode.multiple,
       onSelectionChanged: () => setSelectionVersion(v => v + 1)
     })
   );
-  const [selectionVersion, setSelectionVersion] = React.useState(0);
 
   const selectedRows = React.useMemo(() => (selectionRef.current.getSelection() as Row[]) || [], [selectionVersion]);
+
+  // Build the shared select/expand pieces (without $top so we can append it)
+  const baseSelect = React.useMemo(() => (
+    `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
+    `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
+    `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
+    `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName`
+  ), []);
+
+  const mapRows = React.useCallback((data: any[]): Row[] => {
+    return (data || []).map((obj: any): Row => {
+      const created = obj.Created ? new Date(obj.Created) : undefined;
+      return {
+        id: Number(obj.Id),
+        coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
+        employeeName: obj.EmployeeRecord?.FullName ?? undefined,
+        reason: obj.ReasonForRequest ?? undefined,
+        replacementReason: obj.ReplacementReason ?? undefined,
+        jobTitle: obj.JobTitleRecord?.Title ?? undefined,
+        department: obj.DepartmentRecord?.Title ?? undefined,
+        company: obj.CompanyRecord?.Title ?? undefined,
+        requester: obj.RequesterName?.Title ?? undefined,
+        requesterEmail: obj.RequesterName?.EMail ?? undefined,
+        submitter: obj.SubmitterName?.Title ?? undefined,
+        submitterEmail: obj.SubmitterName?.EMail ?? undefined,
+        workflowStatus: obj.WorkflowStatus ?? undefined,
+        rejectionReason: obj.RejectionReason ?? undefined,
+        created,
+        coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
+      };
+    });
+  }, []);
 
   const columns = React.useMemo<IColumn[]>(
     () => [
@@ -83,75 +124,76 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     []
   );
 
-  const loadItems = React.useCallback(async () => {
-    setLoading(true);
+  const loadItems = React.useCallback(async (scope: 'active' | 'closed' = view, reset: boolean = false) => {
+
+    if (!listGuid) {
+      setItems([]);
+      setHasMore(false);
+      setNextLink(undefined);
+      return;
+    }
+
+    // Null-safe, startswith filter to keep "Closed By System" and any "Closed ..." statuses separate
+    const filterActive = `&$filter=WorkflowStatus ne 'Closed By System'`;
+    const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
+    const orderBy = `&$orderby=Created desc`;
+
+    const headers = {
+      Accept: 'application/json;odata=nometadata',
+      'odata-version': ''
+    } as any;
+    const webUrl = context.pageContext.web.absoluteUrl;
+    // Decide which URL to call
+    let url: string;
+    if (!reset && nextLink) {
+      // Continue from SharePoint’s paging link (absolute URL)
+      url = nextLink;
+    } else {
+      // First page
+      const filter = scope === 'closed' ? filterClosed : filterActive;
+      url = `${webUrl}/_api/web/lists(guid'${listGuid}')/items${baseSelect}${filter}${orderBy}&$top=${PAGE_SIZE}`;
+    }
+
+    // Toggle the right spinner
+    reset ? setLoading(true) : setLoadingMore(true);
     setError(undefined);
+
     try {
-      const guid = listGuid;
-      if (!guid) {
-        setLoading(false);
-        setItems([]);
-        return;
+      const res = await context.spHttpClient.get(url, SPHttpClient.configurations.v1, { headers });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || res.statusText);
       }
+      const json: any = await res.json();
 
+      // Read rows and the continuation link (SharePoint uses different keys depending on odata mode)
+      const rows = mapRows(json.value || json.d?.results || []);
+      const next =
+        json['odata.nextLink'] ||
+        json['@odata.nextLink'] ||
+        json.d?.__next ||
+        undefined;
 
-      const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
-        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
-        `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
-        `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
-        // `&$filter=WorkflowStatus ne 'Closed By System'` +
-        `&$orderby=Created desc`;
+      setItems(prev => (reset ? rows : prev.concat(rows)));
+      setNextLink(next);
+      setHasMore(!!next);
 
-      const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
-      const data: any[] = await crud._getItemsByListNameOrGuid();
-      // const filteredItems = data.filter(item => {
-      //   // const created = new Date(item.Created); // SharePoint returns ISO date string
-      //   // const now = new Date();
-      //   // // Calculate time difference in milliseconds
-      //   // const diffMs = now.getTime() - created.getTime();
-      //   // // Convert to minutes
-      //   // const diffMinutes = diffMs / 60000;
-      //   return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
-      // });
-      // const filteredItems = data.filter(item => {
-      //   // const created = new Date(item.Created); // SharePoint returns ISO date string
-      //   // const now = new Date();
-      //   // // Calculate time difference in milliseconds
-      //   // const diffMs = now.getTime() - created.getTime();
-      //   // // Convert to minutes
-      //   // const diffMinutes = diffMs / 60000;
-      //   return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
-      // });
-
-      const mapped: Row[] = (data || []).map((obj: any): Row => {
-        const created = obj.Created ? new Date(obj.Created) : undefined;
-        return {
-          id: Number(obj.Id),
-          coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
-          employeeName: obj.EmployeeRecord?.FullName ?? undefined,
-          reason: obj.ReasonForRequest ?? undefined,
-          replacementReason: obj.ReplacementReason ?? undefined,
-          jobTitle: obj.JobTitleRecord?.Title ?? undefined,
-          department: obj.DepartmentRecord?.Title ?? undefined,
-          company: obj.CompanyRecord?.Title ?? undefined,
-          requester: obj.RequesterName?.Title ?? undefined,
-          requesterEmail: obj.RequesterName?.EMail ?? undefined,
-          submitter: obj.SubmitterName?.Title ?? undefined,
-          submitterEmail: obj.SubmitterName?.EMail ?? undefined,
-          workflowStatus: obj.WorkflowStatus ?? undefined,
-          rejectionReason: obj.RejectionReason ?? undefined,
-          created,
-          coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
-        };
-      });
-
-      setItems(mapped);
+      // Clear selection when view resets
+      if (reset) {
+        selectionRef.current.setAllSelected(false);
+        setSelectionVersion(v => v + 1);
+      }
     } catch (e: any) {
       setError(`Failed to load forms: ${e?.message || e}`);
+      if (reset) {
+        setItems([]);
+        setHasMore(false);
+        setNextLink(undefined);
+      }
     } finally {
-      setLoading(false);
+      reset ? setLoading(false) : setLoadingMore(false);
     }
-  }, [context, listGuid]);
+  }, [context, listGuid, view, baseSelect, nextLink, mapRows]);
 
   const deleteSelected = React.useCallback(async () => {
     const rows = selectedRows;
@@ -192,8 +234,12 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
 
   React.useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    if (!listGuid) return;
+    // initial load
+    loadItems(view, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listGuid]);
+
 
   const navigateWithParams = (params: Record<string, string | number | undefined>) => {
     const url = new URL(window.location.href);
@@ -238,23 +284,64 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         key: 'refresh',
         text: 'Refresh',
         iconProps: { iconName: 'Refresh' },
-        onClick: () => loadItems()
+        onClick: () => {
+          setNextLink(undefined);
+          setHasMore(false);
+          loadItems(view, true);
+        }
       }
     ];
-  }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems]);
+  }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems, view]);
 
   return (
     <Stack tokens={{ childrenGap: 8 }}>
       <Text variant="xLarge">{title}</Text>
       <CommandBar items={cmdItems} />
+      <Pivot
+        selectedKey={view}
+        onLinkClick={(item) => {
+          const key = (item?.props.itemKey as 'active' | 'closed') ?? 'active';
+          setView(key);
+          setNextLink(undefined);
+          setHasMore(false);
+          loadItems(key, true); // reset paging
+        }}
+      >
+        <PivotItem headerText="Active" itemKey="active" />
+        <PivotItem headerText="Closed" itemKey="closed" />
+      </Pivot>
       {loading && <Spinner label="Loading..." />}
       {error && <Text styles={{ root: { color: 'red' } }}>{error}</Text>}
       <MarqueeSelection selection={selectionRef.current}>
-        <DetailsList items={items} columns={columns} selection={selectionRef.current} selectionMode={SelectionMode.multiple}
-          layoutMode={DetailsListLayoutMode.justified} setKey="ppeForms" compact isHeaderVisible />
+        <DetailsList
+          items={items}
+          columns={columns}
+          selection={selectionRef.current}
+          selectionMode={SelectionMode.multiple}
+          layoutMode={DetailsListLayoutMode.justified}
+          setKey={`ppeForms-${view}`}
+          compact
+          isHeaderVisible
+        />
       </MarqueeSelection>
+
+      {/* Paged footer */}
+      <Stack horizontal horizontalAlign="center" tokens={{ childrenGap: 8 }}>
+        {hasMore && !loading && (
+          <DefaultButton
+            text={loadingMore ? 'Loading…' : 'Load more'}
+            disabled={loadingMore}
+            onClick={() => loadItems(view, false)}
+          />
+        )}
+        {loadingMore && <Spinner size={0} />} {/* small spinner */}
+        {!hasMore && !loading && items.length >= PAGE_SIZE && (
+          <Text styles={{ root: { color: '#605e5c' } }}>No More Results</Text>
+        )}
+      </Stack>
     </Stack>
   );
+
 };
 
 export default SubmittedPpeFormsList;
