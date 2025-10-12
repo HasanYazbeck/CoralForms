@@ -20,7 +20,6 @@ type Row = {
   id: number;
   employeeName?: string;
   coralEmployeeID: number;
-  coralEmployeeID: number;
   reason?: string;
   replacementReason?: string;
   jobTitle?: string;
@@ -95,13 +94,10 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         return;
       }
 
-      const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
-        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
+
       const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
         `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
-        `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
-        // `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
         // `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$orderby=Created desc`;
@@ -128,11 +124,9 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       // });
 
       const mapped: Row[] = (data || []).map((obj: any): Row => {
-      const mapped: Row[] = (data || []).map((obj: any): Row => {
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
           id: Number(obj.Id),
-          coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
           coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
           employeeName: obj.EmployeeRecord?.FullName ?? undefined,
           reason: obj.ReasonForRequest ?? undefined,
@@ -147,7 +141,6 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           workflowStatus: obj.WorkflowStatus ?? undefined,
           rejectionReason: obj.RejectionReason ?? undefined,
           created,
-          coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
           coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
         };
       });
