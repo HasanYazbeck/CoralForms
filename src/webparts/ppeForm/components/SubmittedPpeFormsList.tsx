@@ -20,6 +20,7 @@ type Row = {
   id: number;
   employeeName?: string;
   coralEmployeeID: number;
+  coralEmployeeID: number;
   reason?: string;
   replacementReason?: string;
   jobTitle?: string;
@@ -96,7 +97,11 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
       const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
         `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
+      const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
+        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
+        `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
+        // `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
         // `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$orderby=Created desc`;
@@ -112,11 +117,22 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       //   // const diffMinutes = diffMs / 60000;
       //   return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
       // });
+      // const filteredItems = data.filter(item => {
+      //   // const created = new Date(item.Created); // SharePoint returns ISO date string
+      //   // const now = new Date();
+      //   // // Calculate time difference in milliseconds
+      //   // const diffMs = now.getTime() - created.getTime();
+      //   // // Convert to minutes
+      //   // const diffMinutes = diffMs / 60000;
+      //   return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
+      // });
 
+      const mapped: Row[] = (data || []).map((obj: any): Row => {
       const mapped: Row[] = (data || []).map((obj: any): Row => {
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
           id: Number(obj.Id),
+          coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
           coralEmployeeID: obj.EmployeeRecord?.CoralEmployeeID ?? undefined,
           employeeName: obj.EmployeeRecord?.FullName ?? undefined,
           reason: obj.ReasonForRequest ?? undefined,
@@ -131,6 +147,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           workflowStatus: obj.WorkflowStatus ?? undefined,
           rejectionReason: obj.RejectionReason ?? undefined,
           created,
+          coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
           coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
         };
       });
