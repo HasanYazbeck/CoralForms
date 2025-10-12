@@ -32,6 +32,7 @@ type Row = {
   created?: Date;
   workflowStatus?: string;
   rejectionReason?: string;
+  coralReferenceNumber?: string;
 };
 
 export interface SubmittedPpeFormsListProps {
@@ -63,7 +64,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
   const columns = React.useMemo<IColumn[]>(
     () => [
-      // { key: 'colId', name: 'Form Id', fieldName: 'id', minWidth: 50, maxWidth: 70  },
+      { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 50, maxWidth: 150, isResizable: true },
       { key: 'colEmpId', name: 'Emp #', fieldName: 'coralEmployeeID', minWidth: 70, maxWidth: 90 },
       { key: 'colEmployee', name: 'Employee', fieldName: 'employeeName', minWidth: 150, isResizable: true },
       { key: 'colReason', name: 'Reason', fieldName: 'reason', minWidth: 110 },
@@ -94,10 +95,10 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       }
 
       const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
-        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,`+
+        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,CoralReferenceNumber,` +
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
         `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
-        `&$filter=WorkflowStatus ne 'Closed By System'` +
+        // `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$orderby=Created desc`;
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
@@ -130,6 +131,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           workflowStatus: obj.WorkflowStatus ?? undefined,
           rejectionReason: obj.RejectionReason ?? undefined,
           created,
+          coralReferenceNumber: obj.CoralReferenceNumber ?? undefined
         };
       });
 
