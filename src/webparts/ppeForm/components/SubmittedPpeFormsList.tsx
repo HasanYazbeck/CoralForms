@@ -13,8 +13,6 @@ import {
   Stack,
   Text,
   Spinner,
-  Pivot,
-  PivotItem,
   DefaultButton
 } from '@fluentui/react';
 
@@ -56,7 +54,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [items, setItems] = React.useState<Row[]>([]);
   const [error, setError] = React.useState<string | undefined>(undefined);
-  const [view, setView] = React.useState<'active' | 'closed'>('active');
+  const [view, setView] = React.useState<'active' | 'closed' | 'rejected'>('active');
   const [selectionVersion, setSelectionVersion] = React.useState(0);
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
@@ -124,7 +122,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     []
   );
 
-  const loadItems = React.useCallback(async (scope: 'active' | 'closed' = view, reset: boolean = false) => {
+  const loadItems = React.useCallback(async (scope: 'active' | 'closed' | 'rejected' = view, reset: boolean = false) => {
 
     if (!listGuid) {
       setItems([]);
@@ -134,8 +132,9 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     }
 
     // Null-safe, startswith filter to keep "Closed By System" and any "Closed ..." statuses separate
-    const filterActive = `&$filter=WorkflowStatus ne 'Closed By System'`;
+    const filterActive = `&&$filter=WorkflowStatus ne 'Closed By System' and RejectionReason eq null`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
+    const filterRejected = `&$filter=(RejectionReason ne null and RejectionReason ne '')`;
     const orderBy = `&$orderby=Created desc`;
 
     const headers = {
@@ -150,7 +149,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
       url = nextLink;
     } else {
       // First page
-      const filter = scope === 'closed' ? filterClosed : filterActive;
+      // const filter = scope === 'closed' ? filterClosed : filterActive;
+      const filter = scope === 'closed' ? filterClosed : scope === 'rejected' ? filterRejected : filterActive;
       url = `${webUrl}/_api/web/lists(guid'${listGuid}')/items${baseSelect}${filter}${orderBy}&$top=${PAGE_SIZE}`;
     }
 
@@ -225,13 +225,25 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           }
         })
       );
-
       onDelete?.(ids);
-      await loadItems();
+      // await loadItems();
+      setNextLink(undefined);
+      setHasMore(false);
+      loadItems(view, true);
     } catch (e: any) {
       setError(`Delete error: ${e?.message || e}`);
     }
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
+
+  const switchState = React.useCallback((next: 'active' | 'rejected' | 'closed') => {
+    setView(next);
+    setNextLink(undefined);
+    setHasMore(false);
+    // Clear selection and load first page for the new scope
+    selectionRef.current.setAllSelected(false);
+    setSelectionVersion(v => v + 1);
+    loadItems(next, true);
+  }, [loadItems]);
 
   React.useEffect(() => {
     if (!listGuid) return;
@@ -239,7 +251,6 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     loadItems(view, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listGuid]);
-
 
   const navigateWithParams = (params: Record<string, string | number | undefined>) => {
     const url = new URL(window.location.href);
@@ -249,6 +260,10 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     });
     window.location.href = url.toString();
   };
+
+  const viewLabel = React.useMemo(() => (
+    view === 'active' ? 'Active' : view === 'rejected' ? 'Rejected' : 'Closed'
+  ), [view]);
 
   const cmdItems = React.useMemo<ICommandBarItemProps[]>(() => {
     const editDisabled = selectedRows.length !== 1;
@@ -289,7 +304,34 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           setHasMore(false);
           loadItems(view, true);
         }
-      }
+      },
+      {
+        key: 'view',
+        text: `${viewLabel}`,
+        iconProps: { iconName: 'View' },
+        subMenuProps: {
+          items: [
+            {
+              key: 'active',
+              text: 'Active',
+              iconProps: { iconName: 'ActivateOrders' },
+              onClick: () => switchState('active')
+            },
+            {
+              key: 'rejected',
+              text: 'Rejected',
+              iconProps: { iconName: 'StatusErrorFull' },
+              onClick: () => switchState('rejected')
+            },
+            {
+              key: 'closed',
+              text: 'Closed',
+              iconProps: { iconName: 'Cancel' },
+              onClick: () => switchState('closed')
+            },
+          ],
+        },
+      },
     ];
   }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems, view]);
 
@@ -297,10 +339,10 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     <Stack tokens={{ childrenGap: 8 }}>
       <Text variant="xLarge">{title}</Text>
       <CommandBar items={cmdItems} />
-      <Pivot
+      {/* <Pivot
         selectedKey={view}
         onLinkClick={(item) => {
-          const key = (item?.props.itemKey as 'active' | 'closed') ?? 'active';
+          const key = (item?.props.itemKey as 'active' | 'closed' | 'rejected') ?? 'active';
           setView(key);
           setNextLink(undefined);
           setHasMore(false);
@@ -308,8 +350,10 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         }}
       >
         <PivotItem headerText="Active" itemKey="active" />
+        <PivotItem headerText="Rejected" itemKey="rejected" />
         <PivotItem headerText="Closed" itemKey="closed" />
-      </Pivot>
+      </Pivot> */}
+
       {loading && <Spinner label="Loading..." />}
       {error && <Text styles={{ root: { color: 'red' } }}>{error}</Text>}
       <MarqueeSelection selection={selectionRef.current}>
