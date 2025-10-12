@@ -24,7 +24,6 @@ type Row = {
   replacementReason?: string;
   jobTitle?: string;
   department?: string;
-  division?: string;
   company?: string;
   requester?: string;
   requesterEmail?: string;
@@ -64,13 +63,12 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
   const columns = React.useMemo<IColumn[]>(
     () => [
-      { key: 'colId', name: 'Form Id', fieldName: 'id', minWidth: 50, maxWidth: 70  },
+      // { key: 'colId', name: 'Form Id', fieldName: 'id', minWidth: 50, maxWidth: 70  },
       { key: 'colEmpId', name: 'Emp #', fieldName: 'coralEmployeeID', minWidth: 70, maxWidth: 90 },
       { key: 'colEmployee', name: 'Employee', fieldName: 'employeeName', minWidth: 150, isResizable: true },
       { key: 'colReason', name: 'Reason', fieldName: 'reason', minWidth: 110 },
       { key: 'colJobTitle', name: 'Job Title', fieldName: 'jobTitle', minWidth: 120, isResizable: true },
       { key: 'colDept', name: 'Department', fieldName: 'department', minWidth: 160, isResizable: true },
-      { key: 'colDivision', name: 'Division', fieldName: 'division', minWidth: 120, isResizable: true },
       { key: 'colCompany', name: 'Company', fieldName: 'company', minWidth: 120 },
       { key: 'colRequester', name: 'Requester', fieldName: 'requester', minWidth: 140 },
       { key: 'colSubmitter', name: 'Submitter', fieldName: 'submitter', minWidth: 140 },
@@ -95,26 +93,26 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
         return;
       }
 
-      const select = `?$select=Id,ReasonForRequest,ReplacementReason,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
-        `JobTitleRecord/Title,DepartmentRecord/Title,DivisionRecord/Title,CompanyRecord/Title,` +
+      const select = `?$select=Id,ReasonForRequest,ReasonRecord,Created,WorkflowStatus,RejectionReason,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
+        `JobTitleRecord/Title,DepartmentRecord/Title,CompanyRecord/Title,`+
         `RequesterName/Title,RequesterName/EMail,SubmitterName/Title,SubmitterName/EMail` +
-        `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,DivisionRecord,CompanyRecord,RequesterName,SubmitterName` +
-        // `&$filter=not substringof('Closed', WorkflowStatus)` +
+        `&$expand=EmployeeRecord,JobTitleRecord,DepartmentRecord,CompanyRecord,RequesterName,SubmitterName` +
+        `&$filter=WorkflowStatus ne 'Closed By System'` +
         `&$orderby=Created desc`;
 
       const crud = new SPCrudOperations(context.spHttpClient, context.pageContext.web.absoluteUrl, 'PPE_Form', select);
       const data: any[] = await crud._getItemsByListNameOrGuid();
-      const filteredItems = data.filter(item => {
-        // const created = new Date(item.Created); // SharePoint returns ISO date string
-        // const now = new Date();
-        // // Calculate time difference in milliseconds
-        // const diffMs = now.getTime() - created.getTime();
-        // // Convert to minutes
-        // const diffMinutes = diffMs / 60000;
-        return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
-      });
+      // const filteredItems = data.filter(item => {
+      //   // const created = new Date(item.Created); // SharePoint returns ISO date string
+      //   // const now = new Date();
+      //   // // Calculate time difference in milliseconds
+      //   // const diffMs = now.getTime() - created.getTime();
+      //   // // Convert to minutes
+      //   // const diffMinutes = diffMs / 60000;
+      //   return (!item.WorkflowStatus?.toLowerCase().includes('closed') ); //&& diffMinutes >= 0.3
+      // });
 
-      const mapped: Row[] = (filteredItems || []).map((obj: any): Row => {
+      const mapped: Row[] = (data || []).map((obj: any): Row => {
         const created = obj.Created ? new Date(obj.Created) : undefined;
         return {
           id: Number(obj.Id),
@@ -124,7 +122,6 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           replacementReason: obj.ReplacementReason ?? undefined,
           jobTitle: obj.JobTitleRecord?.Title ?? undefined,
           department: obj.DepartmentRecord?.Title ?? undefined,
-          division: obj.DivisionRecord?.Title ?? undefined,
           company: obj.CompanyRecord?.Title ?? undefined,
           requester: obj.RequesterName?.Title ?? undefined,
           requesterEmail: obj.RequesterName?.EMail ?? undefined,

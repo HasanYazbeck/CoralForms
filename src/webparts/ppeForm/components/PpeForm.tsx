@@ -650,6 +650,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [formsApprovalWorkflow]);
 
   const formPayload = useCallback((status: 'Draft' | 'Submitted') => {
+
+    const requestType = _isAccidentalChecked ? 'Accidental' : _isReplacementChecked ? 'Replacement' : 'New Request';
+    const replacementReason = (_isReplacementChecked || _isAccidentalChecked) ? (_replacementReason?.trim() || undefined) : undefined;
+
     return {
       formName,
       status,
@@ -658,8 +662,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       _jobTitle,
       _department,
       _company,
-      requestType: _isReplacementChecked ? 'Replacement' : 'New Request',
-      replacementReason: _isReplacementChecked ? _replacementReason : '',
+      requestType: requestType,
+      replacementReason: replacementReason,
       items: itemRows.map(r => {
         const hasTypes = r.types && r.types.length > 0;
         const sizeCsv = hasTypes ? r.types!.map(t => (r.selectedSizesByType?.[t] ?? '')).join(',') : (r.itemSizeSelected || '');
@@ -679,7 +683,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }),
       approvals: formsApprovalWorkflow
     };
-  }, [_employee, _SPEmployeeId, _jobTitle, _department, _company, _isReplacementChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
+  }, [_employee, _SPEmployeeId, _jobTitle, _department, _company, _isReplacementChecked, _isAccidentalChecked, _replacementReason, itemRows, formsApprovalWorkflow, formName]);
 
   const validateBeforeSubmit = useCallback((): string | undefined => {
     const missing: string[] = [];
@@ -694,7 +698,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
 
     // Example: if Replacement, require a reason
-    if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
+    // if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
+    if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
+      return 'Please provide a reason for this request.';
+    }
 
     // Ensure at least one item is required or has any selection
     const anyRequired = itemRows.some(r => r.requiredRecord);
@@ -788,7 +795,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (rejectedForm && rejectedForm.length > 0 && rejectedForm[0]?.Reason === undefined) { return 'Please provide a reason for rejection before submitting the form.' };
 
     return undefined;
-  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _replacementReason, formsApprovalWorkflow]);
+  }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _isAccidentalChecked, _replacementReason, formsApprovalWorkflow]);
 
   const _getGroupMembers = useCallback(async (goupName: string): Promise<IPersonaProps[]> => {
     const members: IPersonaProps[] = [];
@@ -1005,7 +1012,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       // Query the latest PPE_Form created for this employee
       // Assumption: PPE_Form has a numeric "EmployeeID" column (same value you store in _employeeId)
       // If your list uses a lookup instead, adjust the filter to EmployeeRecord/Id eq {id} and add &$expand=EmployeeRecord
-      const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord&$filter=EmployeeRecord/Id eq ${employeeId}&$orderby=Created desc&$top=1`;
+      const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord` +
+        `&$filter=EmployeeRecord/Id eq ${employeeId} and ReasonForRequest ne 'Accidental' and WorkflowStatus ne 'Closed By System'` +
+        `&$orderby=Created desc&$top=1`;
       const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PPE_Form', query);
       const items = await spCrud._getItemsWithQuery();
       if (!Array.isArray(items) || items.length === 0) {
@@ -1066,7 +1075,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const load = async () => {
       try {
         // Load PPEForm header by Id
-        const headerQuery = `?$select=Id,ReasonForRequest,ReplacementReason,Created,` +
+        const headerQuery = `?$select=Id,ReasonForRequest,ReasonRecord,Created,` +
           `EmployeeRecord/Id,EmployeeRecord/FullName,EmployeeRecord/CoralEmployeeID,` +
           `JobTitleRecord/Id,JobTitleRecord/Title,` +
           `DepartmentRecord/Id,DepartmentRecord/Title,` +
@@ -1101,7 +1110,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
           const reason: string = header?.ReasonForRequest || '';
           setIsReplacementChecked(/replacement/i.test(reason));
-          setReplacementReason(header?.ReplacementReason || '');
+          setReplacementReason(header?.ReasonRecord || '');
+          setIsAccidentalChecked(/accidental/i.test(reason));
         }
 
         // Load child PPEFormItems rows for this form
@@ -1321,23 +1331,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     if (isEditMode) return;
     if (!c || !c.employeeID) return;
     if (!itemRows || itemRows.length === 0) return;
-
-    // canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date())
-    //   .then(ok => {
-    //     if (!ok) {
-    //       showBanner(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
-    //       setIsSubmitting(false);
-    //       return; // stop submit
-    //     }
-    //     else {
-    //       showBanner(``);
-    //     }
-    //   })
-    //   .catch(() => {
-    //     // optional: handle errors (function already defaults to allowing)
-    //   });
-    // Prevent re-applying for the same employee
-
     // ---------------------------
     // HSE approver group membership (for item edit permission)
     // Allow editing items if: canEditForm OR (3rd approval row is HSE Approval AND user is member of the assigned group)
@@ -1687,24 +1680,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setEmployee([selected]);
       setSPEmployeeId(Number(emp?.Id));
       setCoralEmployeeId(emp?.coralEmployeeID ? String(emp.coralEmployeeID) : undefined);
-
-      if (!isEditMode) {
-        const eligible = await isEligibleToSubmit(Number(selected?.id), new Date());
-        if (!eligible) {
-          showBanner(`The selected employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. Try for another employee.`
-            , { autoHideMs: 30000, fade: true, kind: 'error' }
-          );
-          setIsSubmitting(false);
-          setEmployee([]);
-          setSPEmployeeId(undefined);
-          setCoralEmployeeId(undefined);
-          return; // stop submit
-        }
-        else {
-          hideBanner();
-        }
-      }
-
       // First try to find in employees list by FullName (fullName -> persona.text)
 
       const jobTitle: ICommon = emp?.jobTitle ? { id: emp.jobTitle.id ? String(emp.jobTitle.id) : undefined, title: emp.jobTitle.title || '' } : { id: undefined, title: '' };
@@ -1725,6 +1700,22 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       setCriteriaAppliedForEmployeeId(undefined);
 
       try {
+
+        if (!isEditMode) {
+          const eligible = await isEligibleToSubmit(Number(selected?.id), new Date());
+          if (!eligible) {
+            setIsAccidentalChecked(true);
+            showBanner(`A Registered PPE Request for this employee was submitted within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days.`
+              // , { autoHideMs: 60000, fade: true, kind: 'error' }
+              , { kind: 'error' });
+            return;
+          }
+          else {
+            setIsAccidentalChecked(false);
+            hideBanner();
+          }
+        }
+
         // Fetch PPE items criteria for this employee ID
         await _getEmployeesPPEItemsCriteria(users, selected?.id ? Number(selected?.id) : undefined);
 
@@ -1746,6 +1737,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       }
 
     } else {
+      hideBanner();
+      setIsEligibleToSubmitForm(true);
+      setIsAccidentalChecked(false);
       setEmployee([]);
       setSPEmployeeId(undefined);
       setCoralEmployeeId(undefined);
@@ -1802,27 +1796,21 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, []);
 
   const handleNewRequestChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    if (checked) {
-      setIsReplacementChecked(false);
-      setReplacementReason('');
-    }
-  }, []);
-
-  const handleAccidentalChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    setIsAccidentalChecked(!!checked);
+    if (!checked) return;
     setIsReplacementChecked(false);
+    setIsAccidentalChecked(false);
+    setReplacementReason('');
 
-    // setReplacementReason('');
     setItemRows(prev =>
       prev.map(r => ({
         ...r,
         requiredRecord: undefined,
         brandSelected: undefined,
         selectedDetail: undefined,
-        selectedDetails: [],           // for multi-select details
-        itemSizeSelected: undefined,   // single-size path
-        selectedType: undefined,       // if present in your state
-        selectedSizesByType: {},       // typed sizes (Top/Pants etc.)
+        selectedDetails: [],
+        itemSizeSelected: undefined,
+        selectedType: undefined,
+        selectedSizesByType: {},
         qty: undefined,
         otherPurpose: undefined,
         othersItemdetailsText: {}
@@ -1831,9 +1819,17 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   }, []);
 
-
   const handleReplacementChange = useCallback((ev: React.FormEvent<HTMLElement>, checked?: boolean) => {
-    setIsReplacementChecked(!!checked);
+
+    const next = !!checked;
+    setIsReplacementChecked(next);
+    if (next) {
+      setIsAccidentalChecked(false);
+    } else {
+      // If both are off, clear reason (returns to "New Request")
+      setReplacementReason('');
+    }
+
     setItemRows(prev =>
       prev.map(r => ({
         ...r,
@@ -1964,18 +1960,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const handleSubmit = useCallback(async () => {
     try {
 
-      // if (!isEditMode) {
-      //   const ok = await canSubmitTimeIntervalPPEForm(_SPEmployeeId, new Date());
-      //   if (!ok) {
-      //     showBanner(`This employee has submitted a PPE form within the last ${_coralFormsList?.SubmissionRangeInterval || 90} days. You cannot submit a new form yet.`);
-      //     setIsSubmitting(false);
-      //     return; // stop submit
-      //   }
-      // }
-
       const validationError = validateBeforeSubmit();
       if (validationError) {
         showBanner(validationError);
+        return;
+      }
+
+      if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
+        showBanner('Please provide a reason for this request.');
         return;
       }
 
@@ -1987,10 +1979,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          // if (hasApprovalChanges) {
-          //   const saved = await _saveApprovalWorkflowChanges(editFormId);
-          //   savedSomething = savedSomething || saved > 0;
-          // }
           if (isHSEApprovalLevel) {
             const payload = formPayload('Submitted');
             await _replacePPEItemDetailsRows(editFormId, payload);
@@ -2120,7 +2108,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
-      ReplacementReason: payload.replacementReason ?? null,
+      ReasonRecord: payload.replacementReason ?? null,
+      // ReplacementReason: payload.replacementReason ?? null,
       // EmployeeID: payload.employeeId ?? null,
       WorkflowStatus: 'In Process',
       RejectionReason: null,
@@ -2174,11 +2163,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       CompanyRecordId: _company?.id ? Number(_company.id) : null,
       DepartmentRecordId: _department?.id ? Number(_department.id) : null,
       ReasonForRequest: payload.requestType ?? null,
-      ReplacementReason: payload.replacementReason ?? null,
-      EmployeeID: payload.employeeId ?? null,
+      ReasonRecord: payload.replacementReason,
+      // EmployeeID: payload.employeeId ?? null,
       RejectionReason: rejectionReason,
       WorkflowStatus: workflowStatusFinal,
     };
+
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form', '');
     await spCrudRef.current._updateItem(String(formId), body);
   }, [emailFromPersona, ensureUserId, _requester, _submitter, loggedInUser, _employee, _jobTitle, _company, _department, props.context.spHttpClient]);
@@ -2314,10 +2304,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         />
 
         {/* {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>} */}
-        <Stack horizontal styles={stackStyles}>
-          {/* <div className="row">
-          </div> */}
-
+        <Stack horizontal styles={stackStyles} id="EmployeeInfoStack">
           <div className="row">
             <div className="form-group col-md-6">
               <NormalPeoplePicker
@@ -2331,7 +2318,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
                 onInputChange={onInputChange}
                 resolveDelay={50}
-                disabled={!canEditFormHeader}
+                disabled={!canEditFormHeader || isEditMode} // cannot change employee in edit mode
                 selectedItems={_employee}
                 onChange={(items) => {
                   const selectedText = items?.[0]?.text || '';
@@ -2385,10 +2372,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
           <div className={`row  ${styles.mt10}`}>
             <div className="form-group col-md-12 d-flex justify-content-between" >
               <Label htmlFor={""}>Request Reason</Label>
-              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked} onChange={handleNewRequestChange} disabled={!canEditFormHeader} />
-              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditFormHeader} />
-              <Checkbox label="Accidental" className="align-items-center" checked={_isAccidentalChecked} onChange={handleAccidentalChange} disabled={IsEligibleToSubmitForm} />
-              <TextField placeholder="Reason" multiline autoAdjustHeight resizable disabled={!_isReplacementChecked || !canEditFormHeader} value={_replacementReason}
+              <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked && !_isAccidentalChecked} onChange={handleNewRequestChange} disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode} />
+              <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange} disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode} />
+              <Checkbox label="Accidental" className="align-items-center" checked={_isAccidentalChecked} disabled={IsEligibleToSubmitForm} />
+              <TextField placeholder="Reason" multiline autoAdjustHeight resizable disabled={!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader} required={_isReplacementChecked || _isAccidentalChecked}
+
+                value={_replacementReason}
                 onChange={(_e, v) => setReplacementReason(v || '')} />
             </div>
           </div>
@@ -2402,7 +2391,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         {/* <Separator /> */}
         {/* Aggregated PPE Items Grid with detail checkboxes */}
-        <Stack horizontal styles={stackStyles}>
+        <Stack horizontal styles={stackStyles} id="ItemsStack">
           <div className="row">
             <div className="form-group col-md-12">
               <DetailsList
@@ -2645,7 +2634,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
         <Separator />
         {/* Instructions For Use */}
-        <Stack horizontal styles={stackStyles}>
+        <Stack horizontal styles={stackStyles} id="InstructionsStack">
           {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
             <div style={{ marginTop: 12 }}>
               <Label>Instructions for Use:</Label>
