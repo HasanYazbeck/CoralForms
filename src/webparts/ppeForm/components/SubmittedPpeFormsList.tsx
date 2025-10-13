@@ -339,21 +339,6 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
     <Stack tokens={{ childrenGap: 8 }}>
       <Text variant="xLarge">{title}</Text>
       <CommandBar items={cmdItems} />
-      {/* <Pivot
-        selectedKey={view}
-        onLinkClick={(item) => {
-          const key = (item?.props.itemKey as 'active' | 'closed' | 'rejected') ?? 'active';
-          setView(key);
-          setNextLink(undefined);
-          setHasMore(false);
-          loadItems(key, true); // reset paging
-        }}
-      >
-        <PivotItem headerText="Active" itemKey="active" />
-        <PivotItem headerText="Rejected" itemKey="rejected" />
-        <PivotItem headerText="Closed" itemKey="closed" />
-      </Pivot> */}
-
       {loading && <Spinner label="Loading..." />}
       {error && <Text styles={{ root: { color: 'red' } }}>{error}</Text>}
       <MarqueeSelection selection={selectionRef.current}>
