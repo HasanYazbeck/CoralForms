@@ -103,7 +103,7 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
 
   const columns = React.useMemo<IColumn[]>(
     () => [
-      { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 100, maxWidth: 150, isResizable: true },
+      { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 150, maxWidth: 170, isResizable: true },
       { key: 'colEmpId', name: 'Emp #', fieldName: 'coralEmployeeID', minWidth: 70, maxWidth: 90 },
       { key: 'colEmployee', name: 'Employee', fieldName: 'employeeName', minWidth: 150, isResizable: true },
       { key: 'colReason', name: 'Reason', fieldName: 'reason', minWidth: 110 },

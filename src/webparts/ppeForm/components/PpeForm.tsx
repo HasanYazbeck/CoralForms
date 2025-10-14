@@ -7,9 +7,9 @@ import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse
 import type { IPpeFormWebPartProps } from "./IPpeFormProps";
 import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
-import { TextField } from '@fluentui/react/lib/TextField';
+import { TextField, ITextFieldStyles } from '@fluentui/react/lib/TextField';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
-import { DatePicker, mergeStyleSets, defaultDatePickerStrings, ConstrainMode } from '@fluentui/react';
+import { DatePicker, mergeStyleSets, defaultDatePickerStrings, ConstrainMode, IDatePickerStyles } from '@fluentui/react';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
 import { PrimaryButton, DefaultButton } from '@fluentui/react';
@@ -39,6 +39,36 @@ const datePickerStyles = mergeStyleSets({
   root: { selectors: { '> *': { marginBottom: 15 } } },
   control: { maxWidth: 300, marginBottom: 15 },
 });
+
+const textFieldBlackStyles: Partial<ITextFieldStyles> = {
+  // Applies to both input and textarea
+  field: {
+    color: '#000', // <-- main text
+    selectors: {
+      '&::placeholder': { color: '#666' },        // optional: darker placeholder
+      '&:disabled': { color: '#000' }             // ensure disabled still renders black
+    },
+    subComponentStyles: {
+      label: { root: { color: '#000' } }
+    }
+  }
+};
+
+// DatePicker: style its nested TextField input and label
+const datePickerBlackStyles: Partial<IDatePickerStyles> = {
+  textField: {
+    field: {
+      color: '#000',
+      selectors: {
+        '&::placeholder': { color: '#666' },
+        '&:disabled': { color: '#000' }
+      }
+    },
+    subComponentStyles: {
+      label: { root: { color: '#000' } }
+    }
+  } as Partial<ITextFieldStyles>
+};
 
 export default function PpeForm(props: IPpeFormWebPartProps) {
   // Helpers and refs
@@ -712,9 +742,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const validateBeforeSubmit = useCallback((): string | undefined => {
     const missing: string[] = [];
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
-    if (!_jobTitle?.title?.trim()) missing.push('Job Title');
-    if (!_department.title?.trim()) missing.push('Department');
-    if (!_company.title?.trim()) missing.push('Company');
+    // if (!_jobTitle?.title?.trim()) missing.push('Job Title');
+    // if (!_department.title?.trim()) missing.push('Department');
+    // if (!_company.title?.trim()) missing.push('Company');
     if (_requester.length === 0) missing.push('Requester');
 
     if (missing.length) {
@@ -1037,7 +1067,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       // Assumption: PPE_Form has a numeric "EmployeeID" column (same value you store in _employeeId)
       // If your list uses a lookup instead, adjust the filter to EmployeeRecord/Id eq {id} and add &$expand=EmployeeRecord
       const query = `?$select=Id,Created,EmployeeRecord/Id&$expand=EmployeeRecord` +
-        `&$filter=EmployeeRecord/Id eq ${employeeId} and ReasonForRequest ne 'Accidental' and WorkflowStatus ne 'Closed By System'` +
+        `&$filter=EmployeeRecord/Id eq ${employeeId} and ReasonForRequest ne 'Accidental'` +
         `&$orderby=Created desc&$top=1`;
       const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PPE_Form', query);
       const items = await spCrud._getItemsWithQuery();
@@ -2383,6 +2413,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
                     onInputChange={onInputChange}
                     resolveDelay={50}
+                    styles={textFieldBlackStyles}
                     disabled={uiDisabled(!canEditFormHeader || isEditMode)}
                     // disabled={!canEditFormHeader || isEditMode} // cannot change employee in edit mode
                     selectedItems={_employee}
@@ -2393,23 +2424,28 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     }}
                   />
                 </div>
-                <div className="form-group col-md-6"><TextField label="Employee ID" value={_coralEmployeeId?.toString()} disabled={true} /></div>
+                <div className="form-group col-md-6">
+                  <TextField label="Employee ID" styles={textFieldBlackStyles} value={_coralEmployeeId?.toString()} disabled={true} /></div>
               </div>
 
               <div className="row">
                 <div className="form-group col-md-6">
-                  <TextField label="Job Title" value={_jobTitle?.title} disabled={true} />
+                  <TextField label="Job Title" styles={textFieldBlackStyles} value={_jobTitle?.title} disabled={true} />
                 </div>
                 <div className="form-group col-md-6">
-                  <TextField label="Department" value={_department?.title} disabled={true} />
+                  <TextField label="Department" styles={textFieldBlackStyles} value={_department?.title} disabled={true} />
                 </div>
               </div>
 
               <div className="row">
-                <div className="form-group col-md-6"><TextField label="Company" value={_company?.title} disabled={true} /></div>
                 <div className="form-group col-md-6">
-                  <DatePicker disabled value={new Date(Date.now())} label="Date Requested" className={datePickerStyles.control} strings={defaultDatePickerStrings}
-                    style={{ maxWidth: "100%" }} />
+                  <TextField label="Company" styles={textFieldBlackStyles} value={_company?.title} disabled={true} /></div>
+                <div className="form-group col-md-6">
+                  <DatePicker disabled value={new Date(Date.now())} label="Date Requested"
+                    className={datePickerStyles.control} strings={defaultDatePickerStrings}
+                    style={{ maxWidth: "100%" }}
+                    styles={datePickerBlackStyles}
+                  />
                 </div>
               </div>
 
@@ -2425,6 +2461,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
                     onInputChange={onInputChange}
                     resolveDelay={150}
+                    styles={textFieldBlackStyles}
                     disabled={uiDisabled(!canEditFormHeader)}
                     // disabled={!canEditFormHeader}
                     onChange={handleRequesterChange}
@@ -2433,7 +2470,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 </div>
 
                 <div className="form-group col-md-6">
-                  <NormalPeoplePicker label={"Submitter Name"} itemLimit={1} onResolveSuggestions={onFilterChanged} className={'ms-PeoplePicker'} key={'normal'} removeButtonAriaLabel={'Remove'} inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
+                  <NormalPeoplePicker label={"Submitter Name"}
+                    itemLimit={1} onResolveSuggestions={onFilterChanged}
+                    className={'ms-PeoplePicker'}
+                    key={'normal'}
+                    removeButtonAriaLabel={'Remove'}
+                    styles={textFieldBlackStyles}
+                    inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
                 </div>
               </div>
 
@@ -2453,7 +2496,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     // disabled={IsEligibleToSubmitForm} 
                     disabled={uiDisabled(IsEligibleToSubmitForm)}
                   />
-                  <TextField placeholder="Reason" multiline autoAdjustHeight resizable style={{ minWidth: "33%" }}
+                  <TextField placeholder="Reason" multiline autoAdjustHeight resizable
+                    styles={textFieldBlackStyles}
+                    style={{ minWidth: "33%" }}
                     disabled={uiDisabled(!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader)}
                     // disabled={!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader}
                     // required={_isReplacementChecked || _isAccidentalChecked}
@@ -2558,8 +2603,23 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                       return (
                                         <div key={detail} style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
                                           <TextField placeholder={detail} multiline autoAdjustHeight resizable
-                                            scrollContainerRef={containerRef} styles={{ root: { width: '100%' } }}
+                                            scrollContainerRef={containerRef} styles={{
+                                              root: {
+                                                width: '100%',
+                                                field: {
+                                                  color: '#000', // <-- main text
+                                                  selectors: {
+                                                    '&::placeholder': { color: '#666' },        // optional: darker placeholder
+                                                    '&:disabled': { color: '#000' }             // ensure disabled still renders black
+                                                  },
+                                                  subComponentStyles: {
+                                                    label: { root: { color: '#000' } }
+                                                  }
+                                                }
+                                              }
+                                            }}
                                             value={r.otherPurpose ?? undefined}
+
                                             disabled={!r.requiredRecord || !canEditItems}
                                             key={`purpose-${r.itemId}-${r.requiredRecord ? 'on' : 'off'}`}
                                             // eslint-disable-next-line react/jsx-no-bind
@@ -2630,6 +2690,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               <TextField
                                 value={r.qty || ''}
                                 type='text'
+
                                 onChange={(_e, v) => {
                                   const next = sanitizeQty(v);
                                   updateItemQty(itemRows.indexOf(r), next);
@@ -2638,6 +2699,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                 // disabled={!canEditItems || !r.requiredRecord}
                                 disabled={uiDisabled(!canEditItems || !r.requiredRecord)}
                                 styles={{
+                                  field: {
+                                    color: '#000', // <-- main text
+                                    selectors: {
+                                      '&::placeholder': { color: '#666' },        // optional: darker placeholder
+                                      '&:disabled': { color: '#000' }             // ensure disabled still renders black
+                                    },
+                                    subComponentStyles: {
+                                      label: { root: { color: '#000' } }
+                                    }
+                                  },
                                   root: { display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' },
                                 }}
                               />
@@ -2818,7 +2889,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
                           if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
                             return (
-                              <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} />
+                              <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} styles={textFieldBlackStyles} />
                             )
                           }
                           else {
@@ -2863,7 +2934,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
                           if (item?.Status?.title && (String(item.Status.title).toLowerCase() === 'closed')) {
                             return (
-                              <TextField value={item?.Status?.title || ''} disabled={true} />
+                              <TextField value={item?.Status?.title || ''} disabled={true}
+                                styles={textFieldBlackStyles} />
                             )
                           } else {
                             return (
@@ -2888,6 +2960,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             <TextField value={item.Reason || ''}
                               placeholder={canEditReason ? 'Enter rejection reason' : ''}
                               disabled={!canEditReason}
+                              styles={textFieldBlackStyles}
                               multiline autoAdjustHeight style={{ minHeight: 40 }}
                               onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
                             />);
@@ -2899,6 +2972,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           <DatePicker value={item.Date ? new Date(item.Date) : undefined}
                             disabled={prefilledFormId ? true : false}
                             strings={defaultDatePickerStrings}
+                            styles={datePickerBlackStyles}
                           />)
                       }
                     ]}
@@ -2909,6 +2983,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     onShouldVirtualize={() => false}
                     styles={{
                       root: { width: '100%' },
+                      
                       // target cells and rows
                       contentWrapper: {
                         selectors: {
@@ -2926,7 +3001,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 </div>
               </Stack>
             )}
-            <DocumentMetaBanner docCode={_coralReferenceNumber ? _coralReferenceNumber : 'AAA-HSE-PPE-YYYY-MM-DD-NN'} version="V03" effectiveDate="16-SEP-2020" page={1} />
+            <DocumentMetaBanner docCode={'COR-HSE-01-FOR-001'} version="V03" effectiveDate="16-SEP-2020" page={1} />
           </div> {/* end PdfApprovalsSegment */}
 
           <div id="PdfbuttonsSection">
@@ -2935,6 +3010,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               <DefaultButton text="Close" onClick={handleCancel} disabled={isSubmitting} />
               <ExportPdfControls
                 targetRef={containerRef}
+                coralReferenceNumber={_coralReferenceNumber}
                 employeeName={_employee?.[0]?.text}
                 exportMode={exportMode}
                 onExportModeChange={setExportMode}

@@ -10,6 +10,7 @@ export type ExportPdfControlsProps = {
     // For filename
     employeeName?: string;
     fileName?: string;
+    coralReferenceNumber?: string;
     // Parent-managed export mode toggle so PpeForm can enable controls while exporting
     exportMode: boolean;
     onExportModeChange: (on: boolean) => void;
@@ -25,6 +26,7 @@ export type ExportPdfControlsProps = {
 
 const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
     targetRef,
+    coralReferenceNumber,
     employeeName,
     fileName,
     exportMode,
@@ -104,7 +106,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
 
             const safeEmp = (employeeName || 'employee').replace(/[^\w\s-]/g, '').trim() || 'employee';
             const ts = new Date().toISOString().slice(0, 10);
-            const name = fileName || `PPE_Form_${safeEmp}_${ts}.pdf`;
+            const name = fileName || `${coralReferenceNumber}_${safeEmp}_${ts}.pdf`;
             pdf.save(name);
         } catch (e: any) {
             onError?.('Failed to export PDF: ' + (e?.message || e));
