@@ -9,7 +9,10 @@ import { IPersonaProps } from '@fluentui/react/lib/Persona';
 import { NormalPeoplePicker } from '@fluentui/react/lib/Pickers';
 import { TextField, ITextFieldStyles } from '@fluentui/react/lib/TextField';
 import { Stack, IStackStyles } from '@fluentui/react/lib/Stack';
-import { DatePicker, mergeStyleSets, defaultDatePickerStrings, ConstrainMode, IDatePickerStyles } from '@fluentui/react';
+import {
+  DatePicker, defaultDatePickerStrings, ConstrainMode,
+  IBasePickerStyles, IComboBoxStyles, IDatePickerStyles
+} from '@fluentui/react';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { MessageBar } from '@fluentui/react/lib/MessageBar';
 import { PrimaryButton, DefaultButton } from '@fluentui/react';
@@ -35,40 +38,69 @@ import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
 import BannerComponent, { BannerKind } from "./BannerComponent";
 
-const datePickerStyles = mergeStyleSets({
-  root: { selectors: { '> *': { marginBottom: 15 } } },
-  control: { maxWidth: 300, marginBottom: 15 },
-});
 
 const textFieldBlackStyles: Partial<ITextFieldStyles> = {
   // Applies to both input and textarea
   field: {
     color: '#000', // <-- main text
     selectors: {
-      '&::placeholder': { color: '#666' },        // optional: darker placeholder
-      '&:disabled': { color: '#000' }             // ensure disabled still renders black
+      '&::placeholder': { color: '#666', fontWeight: 500, },        // optional: darker placeholder
+      '&:disabled': { color: '#000', fontWeight: 500, }             // ensure disabled still renders black
     },
     subComponentStyles: {
-      label: { root: { color: '#000' } }
+      label: { root: { color: '#000', fontWeight: 500, } }
     }
   }
 };
 
-// DatePicker: style its nested TextField input and label
-const datePickerBlackStyles: Partial<IDatePickerStyles> = {
-  textField: {
-    field: {
-      color: '#000',
-      selectors: {
-        '&::placeholder': { color: '#666' },
-        '&:disabled': { color: '#000' }
-      }
-    },
-    subComponentStyles: {
-      label: { root: { color: '#000' } }
+const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+  root: {
+    selectors: {
+      '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
     }
-  } as Partial<ITextFieldStyles>
+  },
+  input: { color: '#000' } // supported in v8; safe no-op if ignored
 };
+
+const peoplePickerBlackStyles: Partial<IBasePickerStyles> = {
+  text: {
+    selectors: {
+      '.primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+      '.ms-Persona-primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+      '.ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', },
+      '&.is-disabled .ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', }
+    }
+  },
+  input: { color: '#000 !important', fontWeight: '500 !important', }
+};
+
+const datePickerBlackStyles: Partial<IDatePickerStyles> = {
+  root: { width: '100%', selectors: { '> *': { marginBottom: 15 } } },
+  readOnlyTextField: {
+    selectors: {
+      '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+      '.field': { color: '#000 !important', fontWeight: 500, },
+    }
+  },
+  textField: {
+    selectors: {
+      '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+      '.field': { color: '#000 !important', fontWeight: 500, },
+    },
+    field: { color: '#000 !important', fontWeight: 500, },
+    root: { color: '#000  !important' },
+    suffix: { color: '#000' },
+    description: { color: '#000  !important' },
+    fieldGroup: {
+      // keep disabled background clean
+      selectors: { '&.is-disabled': { background: 'transparent' } }
+    }
+  },
+  icon: { color: '#000  !important' }
+};
+
 
 export default function PpeForm(props: IPpeFormWebPartProps) {
   // Helpers and refs
@@ -2012,69 +2044,81 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     goBackToHost();
   }, [goBackToHost]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (withapprovalflag: boolean): Promise<boolean> => {
     try {
-
       const validationError = validateBeforeSubmit();
       if (validationError) {
         showBanner(validationError);
-        return;
+        return false;
       }
 
       if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
         showBanner('Please provide a reason for this request.');
-        return;
+        return false;
       }
 
       const editFormId = props.formId ? Number(props.formId) : undefined;
 
       // If the user cannot edit the header: allow approvals-only and/or HSE items-only update
       if (!canEditFormHeader && editFormId && editFormId > 0) {
-
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          if (isHSEApprovalLevel) {
+          const loggedInUserEmail = props.context.pageContext?.user?.email
+            ? String(props.context.pageContext?.user?.email).toLowerCase()
+            : '';
+          const isFirstStageApprover = formsApprovalWorkflow.length === 1 && formsApprovalWorkflow.find(
+            (r) => r.Order === 1 && Object.values(r.ApproversNamesList || {}).some((list) =>
+              list.some((p) => (p.secondaryText || '').toLowerCase() === loggedInUserEmail)));
+
+          if (isHSEApprovalLevel || isFirstStageApprover) {
             const payload = formPayload('Submitted');
             await _replacePPEItemDetailsRows(editFormId, payload);
             savedSomething = true;
           }
+
           if (savedSomething) {
             try { window.alert('Changes saved.'); } catch { /* ignore */ }
-            if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
+            if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId);
+            else goBackToHost();
+            return true;
           } else {
             showBanner('Nothing to save.');
+            return false;
           }
         } finally {
           setIsSubmitting(false);
         }
-        return; // stop further header edits
       }
 
       setIsSubmitting(true);
       const payload = formPayload('Submitted');
+
       if (editFormId && editFormId > 0) {
         // Update existing parent + replace child rows
         await _updatePPEForm(editFormId, payload);
         await _replacePPEItemDetailsRows(editFormId, payload);
-        // Persist approval changes if any
-        // await _saveApprovalWorkflowChanges(editFormId);
         try { window.alert('PPE Form updated successfully.'); } catch { /* ignore */ }
-        if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId); else goBackToHost();
+        if (typeof props.onSubmitted === 'function') props.onSubmitted(editFormId);
+        else goBackToHost();
+        return true;
       } else {
         // Create new parent and children
         const newId = await _createPPEForm(payload);
         await _createPPEItemDetailsRows(newId, payload);
-        // Popup success and go back to host
         try { window.alert('Your PPE Form is submitted successfully and it is now under processing.'); } catch { /* ignore */ }
-        if (typeof props.onSubmitted === 'function') props.onSubmitted(newId); else goBackToHost();
+        if (typeof props.onSubmitted === 'function') props.onSubmitted(newId);
+        else goBackToHost();
+        return true;
       }
     } catch (err: any) {
       showBanner('Submit info Error: ' + (err?.message || err) + '. Please try again.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
-  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditFormHeader, formsApprovalWorkflow]);
+  }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditFormHeader, formsApprovalWorkflow
+  ]);
 
   // Persist approval changes for only rows the user is allowed to edit and that were modified
   const _saveApprovalWorkflowChanges = useCallback(async (formId: number): Promise<number> => {
@@ -2116,6 +2160,12 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const handleSaveApprovalsOnly = useCallback(async () => {
     const editFormId = props.formId ? Number(props.formId) : undefined;
     if (!editFormId || editFormId <= 0) return;
+
+
+    const result = await handleSubmit(true);
+    if (!result) {
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -2400,6 +2450,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
             {/* {bannerText && <MessageBar styles={{ root: { marginBottom: 8, color: 'red' } }}>{bannerText}</MessageBar>} */}
             <Stack horizontal styles={stackStyles} id="EmployeeInfoStack">
+              {isEditMode && _coralReferenceNumber && _coralReferenceNumber.trim().length > 0 && (
+                <div className="row" style={{ marginBottom: 8 }}>
+                  <Label styles={{ root: { color: '#000', fontWeight: 500 } }}>
+                    Reference No. <span style={{ fontWeight: 500 }}>{_coralReferenceNumber}</span>
+                  </Label>
+                </div>
+              )}
+
               <div className="row">
                 <div className="form-group col-md-6">
                   <NormalPeoplePicker
@@ -2413,7 +2471,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Employee Picker' }}
                     onInputChange={onInputChange}
                     resolveDelay={50}
-                    styles={textFieldBlackStyles}
+                    styles={peoplePickerBlackStyles}
                     disabled={uiDisabled(!canEditFormHeader || isEditMode)}
                     // disabled={!canEditFormHeader || isEditMode} // cannot change employee in edit mode
                     selectedItems={_employee}
@@ -2442,8 +2500,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                   <TextField label="Company" styles={textFieldBlackStyles} value={_company?.title} disabled={true} /></div>
                 <div className="form-group col-md-6">
                   <DatePicker disabled value={new Date(Date.now())} label="Date Requested"
-                    className={datePickerStyles.control} strings={defaultDatePickerStrings}
-                    style={{ maxWidth: "100%" }}
+                    strings={defaultDatePickerStrings}
+                    style={{ maxWidth: "100%", color: 'black !important' }}
                     styles={datePickerBlackStyles}
                   />
                 </div>
@@ -2461,9 +2519,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'Requester Picker' }}
                     onInputChange={onInputChange}
                     resolveDelay={150}
-                    styles={textFieldBlackStyles}
+                    styles={peoplePickerBlackStyles}
                     disabled={uiDisabled(!canEditFormHeader)}
-                    // disabled={!canEditFormHeader}
                     onChange={handleRequesterChange}
                     selectedItems={_requester}
                   />
@@ -2475,7 +2532,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     className={'ms-PeoplePicker'}
                     key={'normal'}
                     removeButtonAriaLabel={'Remove'}
-                    styles={textFieldBlackStyles}
+                    styles={peoplePickerBlackStyles}
                     inputProps={{ onBlur: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onBlur called'), onFocus: (ev: React.FocusEvent<HTMLInputElement>) => console.log('onFocus called'), 'aria-label': 'People Picker' }} onInputChange={onInputChange} resolveDelay={300} disabled={true} selectedItems={_submitter} />
                 </div>
               </div>
@@ -2528,29 +2585,38 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 120, maxWidth: 130, isResizable: true,
                           onRender: (r: ItemSummary) => <span style={{
                             display: 'block', whiteSpace: 'normal',
-                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3,
+                            color: "black !important", fontWeight: "500 !important"
                           }}>{r.item}</span>
                         },
                         {
                           key: 'colDetail', name: 'Detail/Purpose', fieldName: 'detail', minWidth: 230, isResizable: true,
                           onRender: (r: ItemSummary) => <span style={{
+
                             display: 'block', whiteSpace: 'normal',
-                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3,
+                            color: "black !important", fontWeight: "500 !important"
                           }}>{r.detail}</span>
                         },
-                        { key: 'colQty', name: 'Qty', fieldName: 'quantity', minWidth: 50, isResizable: true },
+                        {
+                          key: 'colQty', name: 'Qty', fieldName: 'quantity', minWidth: 50, isResizable: true,
+                          onRender: (r: ItemSummary) => <span style={{
+                            display: 'block', whiteSpace: 'normal', color: "black !important", fontWeight: "500 !important",
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                          }}>{r.quantity}</span>
+                        },
                         {
                           key: 'colBrand', name: 'Brand', fieldName: 'brand', minWidth: 150, isResizable: true,
                           onRender: (r: ItemSummary) => <span style={{
                             display: 'block', whiteSpace: 'normal',
-                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3, color: "black !important", fontWeight: "500 !important",
                           }}>{r.brand}</span>
                         },
                         {
                           key: 'colSize', name: 'Size(s)', fieldName: 'size', minWidth: 150, isResizable: true,
                           onRender: (r: ItemSummary) => <span style={{
                             display: 'block', whiteSpace: 'normal',
-                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3
+                            wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3, color: "black !important", fontWeight: "500 !important",
                           }}>{r.size}</span>
                         },
                       ]}
@@ -2732,7 +2798,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                       placeholder={sizes.length ? 'Size' : 'No sizes'}
                                       selectedKey={r.itemSizeSelected || undefined}
                                       options={sizes.map(s => ({ key: s, text: s }))}
-                                      styles={{ root: { width: 140 } }}
+                                      styles={comboBoxBlackStyles}
+                                      dropdownMaxWidth={140}
                                       // disabled={!sizes.length || !canEditItems || !r.requiredRecord}
                                       disabled={uiDisabled(!sizes.length || !canEditItems || !r.requiredRecord)}
                                       onChange={(_e, opt) => {
@@ -2874,8 +2941,16 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     items={formsApprovalWorkflow}
                     columns={[
                       {
+
+                        // <span style={{
+                        //     display: 'block', whiteSpace: 'normal',
+                        //     wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3,
+                        //    
+                        //   }}>{r.item}</span>
+
+
                         key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: !!exportMode ? 130 : 160, isResizable: true,
-                        onRender: (item: any) => (<div> <span>{item.SignOffName}</span></div>)
+                        onRender: (item: any) => (<div> <span style={{ color: "black !important", fontWeight: "400 !important" }}>{item.SignOffName}</span></div>)
                       },
                       {
                         key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager', minWidth: !!exportMode ? 200 : 230, isResizable: true,
@@ -2899,6 +2974,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                                 selectedKey={selectedKey}
                                 options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
                                 useComboBoxAsMenuWidth
+                                styles={comboBoxBlackStyles}
                                 disabled={!members.length || !canEditApprovalRow(item)}
                                 onChange={(_, opt) => {
                                   const persona = (opt?.data as IPersonaProps) || (opt ? { id: String(opt.key), text: String(opt.text || ''), secondaryText: String((opt as any).secondaryText || '') } as IPersonaProps : undefined);
@@ -2942,6 +3018,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               <ComboBox
                                 placeholder={options.length ? 'Select status' : 'No status'}
                                 selectedKey={selectedKey}
+                                styles={comboBoxBlackStyles}
                                 options={options}
                                 useComboBoxAsMenuWidth={true}
                                 disabled={!canEditApprovalRow(item)}
@@ -2983,7 +3060,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     onShouldVirtualize={() => false}
                     styles={{
                       root: { width: '100%' },
-                      
+
                       // target cells and rows
                       contentWrapper: {
                         selectors: {
@@ -3030,7 +3107,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 // Normal create/update
                 <PrimaryButton
                   text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
-                  onClick={handleSubmit}
+                  onClick={this.handleSubmit.bind(this, false)}
                   disabled={isSubmitting ||
                     (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
                 />
