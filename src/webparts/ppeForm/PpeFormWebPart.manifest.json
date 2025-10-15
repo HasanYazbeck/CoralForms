@@ -12,11 +12,11 @@
   "preconfiguredEntries": [{
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
     "group": { "default": "Advanced" },
-    "title": { "default": "PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM" },
+    "title": { "default": "PPE Form" },
     "description": { "default": "This form is used to request, record, and describe the Personal Protective Equipment (PPE) required for employees to safely perform their work tasks. It ensures that the correct type, size, and quantity of PPE are provided in compliance with safety standards and organizational requirements" },
     "officeFabricIconFontName": "Page",
     "properties": {
-      "description": "PERSONAL PROTECTIVE EQUIPMENT (PPE) REQUISITION FORM"
+      "description": "PPE Form"
     }
   }]
 }

@@ -3,6 +3,7 @@ import { IPersonaProps } from "@fluentui/react";
 import { IPPEItem } from "../../../Interfaces/IPPEItem";
 import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
 import { IPPEItemDetails } from "../../../Interfaces/IPPEItemDetails";
+import { IPropertyFieldGroupOrPerson } from "@pnp/spfx-property-controls";
 
 export interface IPpeFormWebPartProps {
   context: WebPartContext;
@@ -11,12 +12,12 @@ export interface IPpeFormWebPartProps {
   HasTeamsContext: boolean;
   onClose?: () => void;
   onSubmitted?: (newFormId?: number) => void;
-  // Optional: when provided, the form opens in edit mode and loads this form
   formId?: number;
+  useTargetAudience: boolean;
+  targetAudience: IPropertyFieldGroupOrPerson[];
 }
 
 export interface IPpeFormWebPartState {
-  // SelectedEmployeeId?: string;
   JobTitle: string;
   Department: string;
   Division: string;

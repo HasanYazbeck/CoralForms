@@ -80,6 +80,8 @@ const PpeFormHost: React.FC<IPpeFormWebPartProps> = (props) => {
                     formId={formId}
                     onClose={() => setMode('list')}
                     onSubmitted={() => setMode('list')}
+                    useTargetAudience={props.useTargetAudience}
+                    targetAudience={props.targetAudience}
                 />
             )}
         </Stack>
