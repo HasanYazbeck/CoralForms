@@ -136,7 +136,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerText, setBannerText] = useState<string>();
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
-  const [isHSEApprovalLevel, setIsHSEApprovalLevel] = React.useState<boolean>(false);
+  const [, setIsHSEApprovalLevel] = React.useState<boolean>(false);
   const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
   const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
   const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
@@ -2056,7 +2056,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         showBanner('Please provide a reason for this request.');
         return false;
       }
-
       const editFormId = props.formId ? Number(props.formId) : undefined;
 
       // If the user cannot edit the header: allow approvals-only and/or HSE items-only update
@@ -2064,18 +2063,23 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          const loggedInUserEmail = props.context.pageContext?.user?.email
-            ? String(props.context.pageContext?.user?.email).toLowerCase()
-            : '';
-          const isFirstStageApprover = formsApprovalWorkflow.length === 1 && formsApprovalWorkflow.find(
-            (r) => r.Order === 1 && Object.values(r.ApproversNamesList || {}).some((list) =>
-              list.some((p) => (p.secondaryText || '').toLowerCase() === loggedInUserEmail)));
+          // const loggedInUserEmail = props.context.pageContext?.user?.email
+          //   ? String(props.context.pageContext?.user?.email).toLowerCase()
+          //   : '';
+          // const isFirstStageApprover = formsApprovalWorkflow.length === 1 && formsApprovalWorkflow.find(
+          //   (r) => r.Order === 1 && Object.values(r.ApproversNamesList || {}).some((list) =>
+          //     list.some((p) => (p.secondaryText || '').toLowerCase() === loggedInUserEmail)));
 
-          if (isHSEApprovalLevel || isFirstStageApprover) {
-            const payload = formPayload('Submitted');
-            await _replacePPEItemDetailsRows(editFormId, payload);
-            savedSomething = true;
+          // if (isHSEApprovalLevel || isFirstStageApprover) {
+
+          // }
+          const payload = formPayload('Submitted');
+          await _replacePPEItemDetailsRows(editFormId, payload);
+          if (withapprovalflag) {
+            await _saveApprovalWorkflowChanges(editFormId);
           }
+
+          savedSomething = true;
 
           if (savedSomething) {
             try { window.alert('Changes saved.'); } catch { /* ignore */ }
@@ -2119,7 +2123,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [formPayload, validateBeforeSubmit, showBanner, props.onSubmitted, goBackToHost, canEditFormHeader, formsApprovalWorkflow
   ]);
-
   // Persist approval changes for only rows the user is allowed to edit and that were modified
   const _saveApprovalWorkflowChanges = useCallback(async (formId: number): Promise<number> => {
     // Only persist rows that were actually changed
@@ -2157,43 +2160,42 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return res.length;
   }, [formsApprovalWorkflow, props.context]);
 
-  const handleSaveApprovalsOnly = useCallback(async () => {
-    const editFormId = props.formId ? Number(props.formId) : undefined;
-    if (!editFormId || editFormId <= 0) return;
+  // const handleSaveApprovalsOnly = useCallback(async () => {
+  //   const editFormId = props.formId ? Number(props.formId) : undefined;
+  //   if (!editFormId || editFormId <= 0) return;
 
+  //   const result = await handleSubmit(true);
+  //   if (!result) {
+  //     return;
+  //   }
 
-    const result = await handleSubmit(true);
-    if (!result) {
-      return;
-    }
+  //   try {
+  //     setIsSubmitting(true);
 
-    try {
-      setIsSubmitting(true);
+  //     // No changes? Tell the user and exit
+  //     if (!hasApprovalChanges) {
+  //       showBanner('No approval changes to save.');
+  //       return;
+  //     }
 
-      // No changes? Tell the user and exit
-      if (!hasApprovalChanges) {
-        showBanner('No approval changes to save.');
-        return;
-      }
+  //     const saved = await _saveApprovalWorkflowChanges(editFormId);
+  //     if (saved > 0) {
+  //       try {
+  //         window.alert('Approvals updated.');
 
-      const saved = await _saveApprovalWorkflowChanges(editFormId);
-      if (saved > 0) {
-        try {
-          window.alert('Approvals updated.');
-
-          goBackToHost();
-        } catch { /* ignore */ }
-        // Optional: refresh approvals from server if needed
-        // await _getPPEFormApprovalWorkflows(users, editFormId);
-      } else {
-        showBanner('No approval changes to save.');
-      }
-    } catch (err: any) {
-      showBanner('Failed to save approvals: ' + (err?.message || err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [_saveApprovalWorkflowChanges, props.formId, hasApprovalChanges, showBanner]);
+  //         goBackToHost();
+  //       } catch { /* ignore */ }
+  //       // Optional: refresh approvals from server if needed
+  //       // await _getPPEFormApprovalWorkflows(users, editFormId);
+  //     } else {
+  //       showBanner('No approval changes to save.');
+  //     }
+  //   } catch (err: any) {
+  //     showBanner('Failed to save approvals: ' + (err?.message || err));
+  //   } finally {
+  //     setIsSubmitting(false);
+  //   }
+  // }, [_saveApprovalWorkflowChanges, props.formId, hasApprovalChanges, showBanner, handleSubmit]);
 
   // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
@@ -2538,29 +2540,27 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
               </div>
 
               <div className={`row  ${styles.mt10}`}>
-                <div className="form-group col-md-12 d-flex justify-content-between align-items-center" >
-                  <Label htmlFor={""}>Request Reason</Label>
-                  <Checkbox label="New Request" className="align-items-center" checked={!_isReplacementChecked && !_isAccidentalChecked} onChange={handleNewRequestChange}
-                    //  disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode}
-                    disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)}
-                  />
-                  <Checkbox label="Replacement" className="align-items-center" checked={_isReplacementChecked} onChange={handleReplacementChange}
-                    // disabled={!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode} 
-                    disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)}
+                <div className="form-group col-md-12" >
+                  <div className={styles.requestReasonRow}>
+                    <Label className={styles.requestReasonLabel}>Request Reason</Label>
+                    <Checkbox label="New Request" checked={!_isReplacementChecked && !_isAccidentalChecked} onChange={handleNewRequestChange}
+                      disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)} />
 
-                  />
-                  <Checkbox label="Accidental" className="align-items-center" checked={_isAccidentalChecked}
-                    // disabled={IsEligibleToSubmitForm} 
-                    disabled={uiDisabled(IsEligibleToSubmitForm)}
-                  />
-                  <TextField placeholder="Reason" multiline autoAdjustHeight resizable
-                    styles={textFieldBlackStyles}
-                    style={{ minWidth: "33%" }}
-                    disabled={uiDisabled(!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader)}
-                    // disabled={!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader}
-                    // required={_isReplacementChecked || _isAccidentalChecked}
-                    value={_replacementReason}
-                    onChange={(_e, v) => setReplacementReason(v || '')} />
+                    <Checkbox label="Replacement" checked={_isReplacementChecked} onChange={handleReplacementChange}
+                      disabled={uiDisabled(!canEditFormHeader || !IsEligibleToSubmitForm || isEditMode)} />
+
+                    <Checkbox label="Accidental" checked={_isAccidentalChecked}
+                      disabled={uiDisabled(IsEligibleToSubmitForm)} />
+
+
+                    <div className={styles.requestReasonField}>
+                      <TextField placeholder="Reason" multiline autoAdjustHeight resizable
+                        styles={textFieldBlackStyles}
+                        disabled={uiDisabled(!(_isReplacementChecked || _isAccidentalChecked) || !canEditFormHeader)}
+                        value={_replacementReason}
+                        onChange={(_e, v) => setReplacementReason(v || '')} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </Stack>
@@ -2960,8 +2960,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           const members = key ? (groupMembers[key] || []) : [];
                           // const members: IPersonaProps[] = key ? ((item.ApproversNamesList?.[key] as IPersonaProps[]) ?? []) : [];
                           const isMember = members.find(m => (String(m.secondaryText).toLowerCase()) === (props.context.pageContext?.user?.email || '').toLowerCase());
-                          const selectedKey = (isMember) ? (props.context.pageContext?.user?.email || '') : '';
-
+                          const isPending = item?.Status?.title && (String(item.Status.title).toLowerCase() === 'pending');
+                          let selectedKey = '';
+                          let placeHolderDisplay = '';
+                          if (isMember && isPending) {
+                            selectedKey = (props.context.pageContext?.user?.displayName || '');
+                            placeHolderDisplay = selectedKey;
+                          }
+                          else if (isMember && !isPending) {
+                            selectedKey = item?.DepartmentManagerApprover?.text || '';
+                            placeHolderDisplay = selectedKey;
+                          }
+                    
                           if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
                             return (
                               <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} styles={textFieldBlackStyles} />
@@ -2970,7 +2980,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                           else {
                             return (
                               <ComboBox
-                                placeholder={!members.length ? '' : (isMember ? 'Select approver' : '')}
+                                placeholder={placeHolderDisplay || (members.length ? '' : 'No members Assigned to this role.')}
                                 selectedKey={selectedKey}
                                 options={members.map(m => ({ key: String(m.secondaryText), text: m.text || (m.secondaryText || ''), data: m }))}
                                 useComboBoxAsMenuWidth
@@ -3008,6 +3018,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             }));
                           // item.Status is ICommon { id, title }
                           const selectedKey = item.Status?.id ? String(item.Status.id) : undefined;
+
                           if (item?.Status?.title && (String(item.Status.title).toLowerCase() === 'closed')) {
                             return (
                               <TextField value={item?.Status?.title || ''} disabled={true}
@@ -3037,8 +3048,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             <TextField value={item.Reason || ''}
                               placeholder={canEditReason ? 'Enter rejection reason' : ''}
                               disabled={!canEditReason}
-                              styles={textFieldBlackStyles}
-                              multiline autoAdjustHeight style={{ minHeight: 40 }}
+                              styles={textFieldBlackStyles} rows={1}
+                              multiline autoAdjustHeight 
                               onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
                             />);
                         }
@@ -3100,14 +3111,14 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 // Approval-phase: show approvals-only button
                 <PrimaryButton
                   text={isSubmitting ? 'Saving approvals…' : 'Save approvals'}
-                  onClick={handleSaveApprovalsOnly}
+                  onClick={() => handleSubmit(true)}
                   disabled={isSubmitting || !canChangeApprovalRows || !hasApprovalChanges}
                 />
               ) : (
                 // Normal create/update
                 <PrimaryButton
                   text={isSubmitting ? (props.formId ? 'Updating…' : 'Submitting…') : (props.formId ? 'Update' : 'Submit')}
-                  onClick={this.handleSubmit.bind(this, false)}
+                  onClick={() => handleSubmit(false)}
                   disabled={isSubmitting ||
                     (!canEditFormHeader && !canEditItems && !canChangeApprovalRows)}
                 />
