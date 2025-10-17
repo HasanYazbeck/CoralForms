@@ -17,11 +17,15 @@ export interface ILookupItem {
     orderRecord: number;
 }
 
-interface IAssetsDetails extends ILookupItem {
-    assetCategoryId?: number;
+export interface IAssetsDetails extends ILookupItem {
+    assetCategoryId: number;
 }
 
-interface IWorkCategory extends ILookupItem {
+export interface IAssetCategoryDetails extends ILookupItem {
+    assetsDetails?: IAssetsDetails[];
+}
+
+export interface IWorkCategory extends ILookupItem {
     priority?: string;
     renewalValidity?: number;
 }
@@ -54,9 +58,9 @@ export interface IPTWForm {
     precuationsItems?: ILookupItem[];
     protectiveSafetyEquipments?: ILookupItem[];
     attachmentsProvided?: string[];
-    gasTestRequired?: string;
-    fireWatchNeeded?: string;
-    overallRiskAssessment?: string;
+    gasTestRequired?: string[];
+    fireWatchNeeded?: string[];
+    overallRiskAssessment?: string[];
     initialRisk?: string[];
     residualRisk?: string[];
     personnalInvolved: IEmployeePeronellePassport[];

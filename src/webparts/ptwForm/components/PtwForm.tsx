@@ -1,14 +1,28 @@
 import * as React from 'react';
 import type { IPTWFormProps } from './IPTWFormProps';
+import PermitSchedule from './PermitSchedule';
+import { IPermitScheduleRow } from '../../../Interfaces/PtwForm/IPermitSchedule';
 
+// Styles
+import "bootstrap/dist/css/bootstrap.min.css";
 import styles from './PtwForm.module.scss';
-import { IPersonaProps, Spinner, SpinnerSize } from '@fluentui/react';
+import {
+  IPersonaProps, Spinner, SpinnerSize,
+  TextField,
+  Label,
+  IDropdownOption,
+  ComboBox,
+  Checkbox,
+  IComboBoxStyles,
+  IComboBox
+} from '@fluentui/react';
+import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
 import { MSGraphClientV3 } from '@microsoft/sp-http-msgraph';
 import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
-import { ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm } from '../../../Interfaces/PtwForm/IPTWForm';
+import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
 
 export default function PTWForm(props: IPTWFormProps) {
 
@@ -16,12 +30,50 @@ export default function PTWForm(props: IPTWFormProps) {
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [_users, setUsers] = React.useState<IUser[]>([]);
-  const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [_ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
   const [, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
+  const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
+  const [selectedPermitType, setSelectedPermitType] = React.useState<IWorkCategory | undefined>(undefined);
+  const [permitRows, setPermitRows] = React.useState<IPermitScheduleRow[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
+
+  // Form State
+  const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
+  const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
+  const [projectTitle, setProjectTitle] = React.useState<string>('');
+  const [assetId, setAssetId] = React.useState<string>('');
+  const [selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
+  const [selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
+  const [othersChecked, setOthersChecked] = React.useState(false);
+  const [othersValue, setOthersValue] = React.useState('');
+  const [gasTestValue, setGasTestValue] = React.useState('');
+  const [gasTestResult, setGasTestResult] = React.useState('');
+  const [fireWatchValue, setFireWatchValue] = React.useState('');
+  const [fireWatchAssigned, setFireWatchAssigned] = React.useState('');
+  // Styling Components
+  const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+    root: {
+      selectors: {
+        '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+        '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+        '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+      }
+    },
+    input: { color: '#000' } // supported in v8; safe no-op if ignored
+  };
+  const peoplePickerBlackStyles: Partial<IBasePickerStyles> = {
+    text: {
+      selectors: {
+        '.primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+        '.ms-Persona-primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+        '.ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', },
+        '&.is-disabled .ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', }
+      }
+    },
+    input: { color: '#000 !important', fontWeight: '500 !important', }
+  };
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -73,8 +125,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const ptwStructureSelect = React.useMemo(() => (
     `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,PersonnelInvolvedId,` +
     `CoralFormId/Title,CoralFormId/ArabicTitle,` +
-    `AssetCategory/Id,AssetCategory/Title,AssetCategory/OrderRecord,` +
-    `AssetDetails/Id,AssetDetails/Title,AssetDetails/OrderRecord,` +
     `CompanyRecord/Id,CompanyRecord/Title,CompanyRecord/RecordOrder,` +
     `WorkCategory/Id,WorkCategory/Title,WorkCategory/OrderRecord,WorkCategory/RenewalValidity,` +
     `HACWorkArea/Id,HACWorkArea/Title,HACWorkArea/OrderRecord,` +
@@ -82,7 +132,7 @@ export default function PTWForm(props: IPTWFormProps) {
     `Machinery/Id,Machinery/Title,Machinery/OrderRecord,` +
     `PrecuationItems/Id,PrecuationItems/Title,PrecuationItems/OrderRecord,` +
     `ProtectiveSafetyEquiment/Id,ProtectiveSafetyEquiment/Title,ProtectiveSafetyEquiment/OrderRecord` +
-    `&$expand=CoralFormId,AssetCategory,AssetDetails,CompanyRecord,` +
+    `&$expand=CoralFormId,CompanyRecord,` +
     `WorkCategory,HACWorkArea,WorkHazards,Machinery,PrecuationItems,` +
     `ProtectiveSafetyEquiment`
   ), []);
@@ -103,54 +153,101 @@ export default function PTWForm(props: IPTWFormProps) {
         } : '{}' as ICoralForm;
 
         const _companies: ILookupItem[] = [];
-        if (obj.CompanyRecord !== undefined && obj.CompanyRecord !== null) {
-          _companies.push({ id: obj.CompanyRecord.Id, title: obj.CompanyRecord.Title, orderRecord: obj.CompanyRecord.OrderRecord || 0 });
+        if (obj.CompanyRecord !== undefined && obj.CompanyRecord !== null && Array.isArray(obj.CompanyRecord)) {
+          obj.CompanyRecord.forEach((item: any) => {
+            if (item) {
+              _companies.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+              });
+            }
+          });
         }
 
-        const _assetsCategories: ILookupItem[] = [];
-        if (obj.AssetsCategories !== undefined && obj.AssetsCategories !== null) {
-          _assetsCategories.push({ id: obj.AssetsCategories.Id, title: obj.AssetsCategories.Title, orderRecord: obj.AssetsCategories.OrderRecord || 0 });
-        }
-
-        const _assetsDetails: ILookupItem[] = [];
-        if (obj.AssetsDetails !== undefined && obj.AssetsDetails !== null) {
-          _assetsDetails.push({ id: obj.AssetsDetails.Id, title: obj.AssetsDetails.Title, orderRecord: obj.AssetsDetails.OrderRecord || 0 });
-        }
-
-        const _workCategories: ILookupItem[] = [];
-        if (obj.WorkCategory !== undefined && obj.WorkCategory !== null) {
-          _workCategories.push({ id: obj.WorkCategory.Id, title: obj.WorkCategory.Title, orderRecord: obj.WorkCategory.OrderRecord || 0 });
+        const _workCategories: IWorkCategory[] = [];
+        if (obj.WorkCategory !== undefined && obj.WorkCategory !== null && Array.isArray(obj.WorkCategory)) {
+          obj.WorkCategory.forEach((item: any) => {
+            if (item) {
+              _workCategories.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+                renewalValidity: item.RenewalValidity || 0
+              });
+            }
+          });
         }
 
         const _hacWorkAreas: ILookupItem[] = [];
-        if (obj.HACWorkArea !== undefined && obj.HACWorkArea !== null) {
-          _hacWorkAreas.push({ id: obj.HACWorkArea.Id, title: obj.HACWorkArea.Title, orderRecord: obj.HACWorkArea.OrderRecord || 0 });
+        if (obj.HACWorkArea !== undefined && obj.HACWorkArea !== null && Array.isArray(obj.HACWorkArea)) {
+          obj.HACWorkArea.forEach((item: any) => {
+            if (item) {
+              _hacWorkAreas.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0
+              });
+            }
+          });
         }
 
         const _workHazardosList: ILookupItem[] = [];
-        if (obj.WorkHazards !== undefined && obj.WorkHazards !== null) {
-          _workHazardosList.push({ id: obj.WorkHazards.Id, title: obj.WorkHazards.Title, orderRecord: obj.WorkHazards.OrderRecord || 0 });
+        if (obj.WorkHazards !== undefined && obj.WorkHazards !== null && Array.isArray(obj.WorkHazards)) {
+          obj.WorkHazards.forEach((item: any) => {
+            if (item) {
+              _workHazardosList.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+              });
+            }
+          });
         }
 
         const _machineryList: ILookupItem[] = [];
-        if (obj.Machinery !== undefined && obj.Machinery !== null) {
-          _machineryList.push({ id: obj.Machinery.Id, title: obj.Machinery.Title, orderRecord: obj.Machinery.OrderRecord || 0 });
+        if (obj.Machinery !== undefined && obj.Machinery !== null && Array.isArray(obj.Machinery)) {
+          obj.Machinery.forEach((item: any) => {
+            if (item) {
+              _machineryList.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+              });
+            }
+          });
         }
 
         const _precuationsItemsList: ILookupItem[] = [];
-        if (obj.PrecuationItems !== undefined && obj.PrecuationItems !== null) {
-          _precuationsItemsList.push({ id: obj.PrecuationItems.Id, title: obj.PrecuationItems.Title, orderRecord: obj.PrecuationItems.OrderRecord || 0 });
+        if (obj.PrecuationItems !== undefined && obj.PrecuationItems !== null && Array.isArray(obj.PrecuationItems)) {
+          obj.PrecuationItems.forEach((item: any) => {
+            if (item) {
+              _precuationsItemsList.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+              });
+            }
+          });
         }
 
         const _protectiveSafetyEquipmentsList: ILookupItem[] = [];
-        if (obj.ProtectiveSafetyEquiment !== undefined && obj.ProtectiveSafetyEquiment !== null) {
-          _protectiveSafetyEquipmentsList.push({ id: obj.ProtectiveSafetyEquiment.Id, title: obj.ProtectiveSafetyEquiment.Title, orderRecord: obj.ProtectiveSafetyEquiment.OrderRecord || 0 });
+        if (obj.ProtectiveSafetyEquiment !== undefined && obj.ProtectiveSafetyEquiment !== null && Array.isArray(obj.ProtectiveSafetyEquiment)) {
+          obj.ProtectiveSafetyEquiment.forEach((item: any) => {
+            if (item) {
+              _protectiveSafetyEquipmentsList.push({
+                id: item.Id,
+                title: item.Title,
+                orderRecord: item.OrderRecord || 0,
+              });
+            }
+          });
         }
 
         result = {
           id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-          coralForm: coralForm, companies: _companies, assetsCategories: _assetsCategories,
-          assetsDetails: _assetsDetails, workCategories: _workCategories, hacWorkAreas: _hacWorkAreas,
+          coralForm: coralForm, companies: _companies,
+          workCategories: _workCategories, hacWorkAreas: _hacWorkAreas,
           workHazardosList: _workHazardosList, machinaries: _machineryList,
           precuationsItems: _precuationsItemsList,
           protectiveSafetyEquipments: _protectiveSafetyEquipmentsList,
@@ -162,6 +259,8 @@ export default function PTWForm(props: IPTWFormProps) {
           residualRisk: obj.ResidualRisk !== undefined && obj.ResidualRisk !== null ? obj.ResidualRisk : undefined,
           personnalInvolved: [],
           issuanceInstrunctions: [],
+          assetsCategories: [],
+          assetsDetails: []
         };
         setPTWFormStructure(result);
       }
@@ -203,9 +302,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const _getPersonnelInvolved = React.useCallback(async () => {
     try {
-      const query: string = `?$select=Id,EmployeeId/Id,EmployeeId/FullName,EmployeeId/EmailAddressRecord,IsHSEInductionCompleted,IsFireFightingTrained` +
+      const query: string = `?$select=Id,EmployeeId/Id,EmployeeId/FullName,IsHSEInductionCompleted,IsFireFightingTrained` +
         `&$expand=EmployeeId`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Item_Instructions_For_Use', query);
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee_Personelle_Passport', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeePeronellePassport[] = [];
       data.forEach((obj: any) => {
@@ -213,7 +312,6 @@ export default function PTWForm(props: IPTWFormProps) {
           const temp: IEmployeePeronellePassport = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             fullName: obj.EmployeeId?.FullName !== undefined && obj.EmployeeId?.FullName !== null ? obj.EmployeeId.FullName : undefined,
-            EMailAddress: obj.EmployeeId?.EmailAddressRecord !== undefined && obj.EmployeeId?.EmailAddressRecord !== null ? obj.EmployeeId.EmailAddressRecord : undefined,
             isHSEInductionCompleted: obj.IsHSEInductionCompleted !== undefined && obj.IsHSEInductionCompleted !== null ? obj.IsHSEInductionCompleted : undefined,
             isFireFightingTrained: obj.IsFireFightingTrained !== undefined && obj.IsFireFightingTrained !== null ? obj.IsFireFightingTrained : undefined,
           };
@@ -227,6 +325,109 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, [props.context, spHelpers]);
 
+  const _getAssetCategories = React.useCallback(async (): Promise<ILookupItem[]> => {
+    try {
+      const query: string = `?$select=Id,Title,OrderRecord&$orderby=OrderRecord asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Asset_Category', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: ILookupItem[] = [];
+      data.forEach((obj: any) => {
+        if (obj) {
+          const temp: ILookupItem = {
+            id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+            orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
+          };
+          result.push(temp);
+        }
+      });
+      return result;
+    } catch (error) {
+      return [];
+    }
+  }, [props.context]);
+
+  // Modified _getAssetDetails function
+  const _getAssetDetails = React.useCallback(async () => {
+    try {
+      const query: string = `?$select=Id,Title,OrderRecord,` +
+        `Manager/Id,Manager/EMail,` +
+        `HSEPartner/Id,HSEPartner/EMail,` +
+        `AssetCategoryRecord/Id,AssetCategoryRecord/Title` +
+        `&$expand=AssetCategoryRecord,Manager,HSEPartner`;
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Asset_Details', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+
+      // Get asset categories first
+      const categories = await _getAssetCategories();
+
+      // Group asset details by category
+      const categoriesWithDetails: IAssetCategoryDetails[] = [];
+      // Create a map to group details by category ID
+      const detailsByCategory = new Map<number, IAssetsDetails[]>();
+
+      // Process asset details and group them by category
+      data.forEach((obj: any) => {
+        if (obj && obj.AssetCategoryRecord?.Id) {
+          const categoryId = obj.AssetCategoryRecord.Id;
+
+          const assetDetail: IAssetsDetails = {
+            id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+            orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
+            assetCategoryId: categoryId,
+          };
+
+          if (!detailsByCategory.has(categoryId)) {
+            detailsByCategory.set(categoryId, []);
+          }
+          detailsByCategory.get(categoryId)!.push(assetDetail);
+        }
+      });
+
+      // Create the final structure with categories and their associated details
+      categories.forEach((category) => {
+        if (category.id) {
+          const categoryDetails = detailsByCategory.get(category.id as number) || [];
+
+          const categoryWithDetails: IAssetCategoryDetails = {
+            id: category.id,
+            title: category.title,
+            orderRecord: category.orderRecord,
+            assetsDetails: categoryDetails,
+          };
+
+          categoriesWithDetails.push(categoryWithDetails);
+        }
+      });
+
+      // Update the PTW form structure with both categories and all details
+      setPTWFormStructure(prev => ({
+        ...prev,
+        assetsCategories: categories,
+        assetsDetails: data.map((obj: any) => ({
+          id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+          title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+          orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
+          assetCategoryId: obj.AssetCategoryRecord?.Id !== undefined && obj.AssetCategoryRecord?.Id !== null ? obj.AssetCategoryRecord.Id : undefined,
+        }))
+      }));
+
+      // Set the categorized asset details
+      // setAssetDetails(categoriesWithDetails);
+
+    } catch (error) {
+      setAssetDetails([]);
+      setPTWFormStructure(prev => ({
+        ...prev,
+        assetsCategories: [],
+        assetsDetails: []
+      }));
+    }
+  }, [props.context, _getAssetCategories]);
+
+
   // Initial load of users
   React.useEffect(() => {
     let cancelled = false;
@@ -234,6 +435,8 @@ export default function PTWForm(props: IPTWFormProps) {
       setLoading(true);
       const fetchedUsers = await _getUsers();
       await _getPTWFormStructure();
+      await _getAssetCategories();
+      await _getAssetDetails();
       await _getPersonnelInvolved();
 
       if (_ptwFormStructure && _ptwFormStructure.id && _ptwFormStructure.coralForm?.hasInstructionsForUse) {
@@ -256,6 +459,131 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => { cancelled = true; };
   }, [props.context, props.formId]);
 
+  // People picker configuration
+  const suggestionProps: IBasePickerSuggestionsProps = {
+    suggestionsHeaderText: 'Suggested People',
+    mostRecentlyUsedHeaderText: 'Suggested Contacts',
+    noResultsFoundText: 'No results found',
+    loadingText: 'Loading',
+    showRemoveButtons: true,
+    suggestionsAvailableAlertText: 'People Picker Suggestions available',
+    suggestionsContainerAriaLabel: 'Suggested contacts'
+  };
+  const _onFilterChanged = (filterText: string, currentPersonas: IPersonaProps[]): IPersonaProps[] | Promise<IPersonaProps[]> => {
+    if (filterText) {
+      let filteredPersonas: IPersonaProps[] = [];
+      if (_users && _users.length > 0) {
+        filteredPersonas = _users
+          .filter(user =>
+            user.displayName?.toLowerCase().includes(filterText.toLowerCase()) ||
+            user.email?.toLowerCase().includes(filterText.toLowerCase())
+          )
+          .map(user => ({
+            text: user.displayName || '',
+            secondaryText: user.email || '',
+            id: user.id
+          }));
+      }
+      return filteredPersonas.filter(persona =>
+        !currentPersonas.some(currentPersona => currentPersona.id === persona.id)
+      );
+    } else {
+      return [];
+    }
+  };
+  // Asset category options
+  const assetCategoryOptions: IDropdownOption[] = React.useMemo(() => {
+    if (!_ptwFormStructure?.assetsCategories) return [];
+    return _ptwFormStructure.assetsCategories.map(item => ({
+      key: item.id,
+      text: item.title || ''
+    }));
+  }, [_ptwFormStructure?.assetsCategories]);
+
+  // Asset details options (filtered by selected category)
+  const assetDetailsOptions: IDropdownOption[] = React.useMemo(() => {
+    if (!_ptwFormStructure?.assetsDetails) return [];
+
+    // If no category is selected, return all asset details
+    if (!selectedAssetCategory) {
+      return _ptwFormStructure.assetsDetails.map(item => ({
+        key: item.id,
+        text: item.title || ''
+      }));
+    }
+
+    // / Filter asset details based on selected category
+    // Note: This assumes there's a relationship between asset category and details
+    // You may need to adjust this logic based on your data structure
+    return _ptwFormStructure.assetsDetails
+      .filter(item => item.assetCategoryId === selectedAssetCategory) // Adjust this condition based on your data structure
+      .map(item => ({
+        key: item.id,
+        text: item.title || ''
+      }));
+  }, [_ptwFormStructure?.assetsDetails, selectedAssetCategory]);
+
+  // Handle asset category change
+  const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
+    setSelectedAssetCategory(item ? item.key : undefined);
+    setSelectedAssetDetails(undefined);
+  };
+
+  // Handle asset details change
+  const onAssetDetailsChange = (event: React.FormEvent<HTMLDivElement>, item: IDropdownOption | undefined): void => {
+    setSelectedAssetDetails(item ? item.key : undefined);
+  };
+
+  // Handle permit originator change
+  const handlePermitOriginatorChange = React.useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
+    if (items && items.length) setPermitOriginator([items[0]]); else setPermitOriginator([]);
+  }, []);
+
+  // Add these handler functions
+  const handlePermitTypeChange = React.useCallback((workCategory: IWorkCategory | undefined) => {
+    setSelectedPermitType(workCategory);
+
+    if (!workCategory) {
+      setPermitRows([]);
+      return;
+    }
+
+    // Create rows based on renewal validity
+    const renewalValidity = workCategory.renewalValidity || 1;
+    const newRows: IPermitScheduleRow[] = [];
+
+    // First row is always "New Permit"
+    newRows.push({
+      id: `permit-row-0`,
+      type: 'new',
+      date: '',
+      startTime: '',
+      startAmPm: 'AM',
+      endTime: '',
+      endAmPm: 'PM',
+    });
+
+    // Add renewal rows based on renewal validity
+    for (let i = 1; i <= renewalValidity; i++) {
+      newRows.push({
+        id: `permit-row-${i}`,
+        type: 'renewal',
+        date: '',
+        startTime: '',
+        startAmPm: 'AM',
+        endTime: '',
+        endAmPm: 'PM',
+      });
+    }
+
+    setPermitRows(newRows);
+  }, []);
+
+  const updatePermitRow = React.useCallback((rowId: string, field: string, value: string) => {
+    setPermitRows(prev => prev.map(row =>
+      row.id === rowId ? { ...row, [field]: value } : row
+    ));
+  }, []);
 
   // const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
   //   setBannerText(text);
@@ -300,6 +628,8 @@ export default function PTWForm(props: IPTWFormProps) {
   //   });
   // }, [isSubmitting]);
 
+  // Handlers
+
 
   // ---------------------------
   // Render
@@ -317,10 +647,12 @@ export default function PTWForm(props: IPTWFormProps) {
   const logoUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/coral-logo.png`;
   // const logoPTWUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/ptw-logo.png`;
   // const peopleList: IPersonaProps[] = users.map(user => ({ text: user.displayName || '', secondaryText: user.email || '', id: user.id }));
+  function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
+
     <div style={{ position: 'relative' }}>
-      <div />
+
       {/* {isSubmitting && !exportMode && (
         <div
           ref={overlayRef}
@@ -345,7 +677,7 @@ export default function PTWForm(props: IPTWFormProps) {
       )} */}
 
       <form >
-        <div id="formHeader">
+        <div id="formTitleSection">
           <div className={styles.ptwformHeader} >
             <div>
               <img src={logoUrl} alt="Logo" className={styles.formLogo} />
@@ -361,14 +693,342 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
         </div>
-        <div>
-          {/* <BannerComponent text={bannerText} kind={bannerOpts?.kind || 'error'}
-            autoHideMs={bannerOpts?.autoHideMs} fade={bannerOpts?.fade} onDismiss={() => { setBannerText(undefined); setBannerOpts(undefined); }} /> */}
-          {/* Form body will go here */}
+
+        <div id="formHeaderInfo" className={styles.formBody}>
+          {/* Administrative Note */}
+          <div>
+            <div className={`form-group col-md-12 ${styles.adminNote}`}
+              style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Label>Grey areas are for administrative use only</Label>
+
+              <div className={`form-group col-md-4`}>
+
+                <TextField label="PTW Ref #" underlined disabled defaultValue={_coralReferenceNumber}
+                  styles={{ root: { color: '#000', fontWeight: 500, backgroundColor: '#f4f4f4' } }}
+                  onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')} />
+                {/* 
+                <TextField label="Ref#" value={_coralReferenceNumber}
+                  styles={{ root: { color: '#000', fontWeight: 500 } }}
+                  onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')} /> */}
+              </div>
+            </div>
+          </div>
+
+          <div className='row'>
+            <div className={`form-group col-md-6`}>
+              <Label>Permit Originator:</Label>
+              <NormalPeoplePicker label={"Permit Originator"} onResolveSuggestions={_onFilterChanged} itemLimit={1}
+                className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
+                onInputChange={onInputChange} resolveDelay={150}
+                styles={peoplePickerBlackStyles}
+                onChange={handlePermitOriginatorChange}
+                selectedItems={_PermitOriginator}
+                inputProps={{ placeholder: 'Enter name or email' }}
+                pickerSuggestionsProps={suggestionProps}
+              />
+            </div>
+
+            <div className={`form-group col-md-6`}>
+              <TextField
+                label="Asset ID"
+                value={assetId}
+                onChange={(_, newValue) => setAssetId(newValue || '')} />
+            </div>
+          </div>
+
+          <div className={`row`}>
+            <div className={`form-group col-md-6`}>
+              <ComboBox
+                label="Asset Category"
+                placeholder="Select an asset category"
+                options={assetCategoryOptions}
+                selectedKey={selectedAssetCategory}
+                onChange={(_e, ch) => onAssetCategoryChange(_e, ch)}
+                // onChange={() => onAssetCategoryChange}
+                styles={comboBoxBlackStyles}
+                useComboBoxAsMenuWidth={true}
+              />
+            </div>
+            <div className={`form-group col-md-6`}>
+              <ComboBox
+                label="Asset Details"
+                placeholder="Select asset details"
+                options={assetDetailsOptions}
+                selectedKey={selectedAssetDetails}
+                onChange={() => onAssetDetailsChange}
+                disabled={!selectedAssetCategory}
+                styles={comboBoxBlackStyles}
+                useComboBoxAsMenuWidth={true}
+              />
+            </div>
+          </div>
+
+          <div className={`row`}>
+            <div className={`form-group col-md-12`}>
+              <TextField
+                label="Project Title / Description"
+                value={projectTitle}
+                onChange={(_, newValue) => setProjectTitle(newValue || '')}
+                multiline
+                rows={2}
+                styles={{
+                  fieldGroup: { backgroundColor: '#f6f6f7ff' }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div id="formContentSection">
+          {/* <div className="row pb-3" id="workCategorySection" >
+            <div>
+              <Label className={styles.ptwLabel}>Type of Permit / Work Category</Label>
+            </div>
+            <div className="form-group col-md-12">
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.workCategories
+                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
+                  ?.map(category => (
+                    <div key={category.id} className={styles.checkboxItem}>
+                      <Checkbox
+                        label={category.title}
+                      // checked={values.includes(category)}
+                      // onChange={(_, checked) => toggle(category, !!checked)}
+                      />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div> */}
+          <div className='row pb-3' id="permitScheduleSection">
+            {/* Permit Schedule Component */}
+            <PermitSchedule
+              workCategories={_ptwFormStructure?.workCategories || []}
+              selectedPermitType={selectedPermitType}
+              permitRows={permitRows}
+              onPermitTypeChange={handlePermitTypeChange}
+              onPermitRowUpdate={updatePermitRow}
+              styles={styles}
+            />
+
+          </div>
+          <div className="row pb-3" id="hacClassificationWorkAreaSection">
+            <div>
+              <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
+            </div>
+            <div className="form-group col-md-12">
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.hacWorkAreas
+                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
+                  ?.map(category => (
+                    <div key={category.id} className={styles.checkboxItem}>
+                      <Checkbox
+                        label={category.title}
+                      // checked={values.includes(category)}
+                      // onChange={(_, checked) => toggle(category, !!checked)}
+                      />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="row pb-3" id="workHazardSection" >
+            <div>
+              <Label className={styles.ptwLabel}>Work Hazards</Label>
+              <div className="text-center pb-3">
+                <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
+                  if 3 or more working hazards, detailed job description/tasks shall be provided below.
+                </small>
+              </div>
+            </div>
+
+            <div className="form-group col-md-12">
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.workHazardosList
+                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
+                  ?.map(category => (
+                    <div key={category.id} className={styles.checkboxItem}>
+                      {category.title.toLowerCase() === "others" ? (
+                        <div className={styles.othersContainer}>
+                          <Checkbox
+                            label="Others"
+                            checked={othersChecked}
+                            onChange={(_, checked) => setOthersChecked(!!checked)}
+                          />
+                          <input
+                            type="text"
+                            className={styles.othersInput}
+                            placeholder="Specify"
+                            disabled={!othersChecked}
+                            value={othersValue}
+                            onChange={e => setOthersValue(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <Checkbox
+                          label={category.title}
+                        // checked={values.includes(category)}
+                        // onChange={(_, checked) => toggle(category, !!checked)}
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+
+          <div className="row pb-3" id="precautionsSection" >
+            <div>
+              <Label className={styles.ptwLabel}>Precautions Required</Label>
+            </div>
+
+            <div className="form-group col-md-12">
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.precuationsItems
+                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
+                  ?.map(category => (
+                    <div key={category.id} className={styles.checkboxItem}>
+                      {category.title.toLowerCase() === "others" ? (
+                        <div className={styles.othersContainer}>
+                          <Checkbox
+                            label="Others"
+                            checked={othersChecked}
+                            onChange={(_, checked) => setOthersChecked(!!checked)}
+                          />
+                          <input
+                            type="text"
+                            className={styles.othersInput}
+                            placeholder="Specify"
+                            disabled={!othersChecked}
+                            value={othersValue}
+                            onChange={e => setOthersValue(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <Checkbox
+                          label={category.title}
+                        // checked={values.includes(category)}
+                        // onChange={(_, checked) => toggle(category, !!checked)}
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          <div className='row pb-3' id="gasTestAndFireWatch">
+
+            {/* Gas Test Required Section */}
+            <div className="form-group col-md-12 d-flex align-items-center mb-2">
+              <Label className={`${styles.ptwLabel} me-3`} style={{ minWidth: '180px' }}>
+                Gas Test Required
+              </Label>
+
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.gasTestRequired?.map((gas, i) => (
+                  <div key={i} className={styles.checkboxItem}>
+                    <Checkbox
+                      label={gas}
+                      checked={gasTestValue === gas}
+                      onChange={() => setGasTestValue(gas)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className={`${styles.resultContainer} ms-4`}>
+                <Label className="me-2">Gas Test Result:</Label>
+                <input
+                  type="text"
+                  className={styles.resultInput}
+                  placeholder="Enter result"
+                  disabled={gasTestValue !== 'Yes'}
+                  value={gasTestResult}
+                  onChange={e => setGasTestResult(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Fire Watch Needed Section */}
+            <div className="form-group col-md-12 d-flex align-items-center">
+              <Label className={`${styles.ptwLabel} me-3`} style={{ minWidth: '180px' }}>
+                Fire Watch Needed
+              </Label>
+
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
+                  <div key={i} className={styles.checkboxItem}>
+                    <Checkbox
+                      label={item}
+                      checked={fireWatchValue === item}
+                      onChange={() => setFireWatchValue(item)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className={`${styles.resultContainer} ms-4`}>
+                <Label className="me-2">Firewatch Assigned:</Label>
+                <input
+                  type="text"
+                  className={styles.resultInput}
+                  placeholder="Enter name"
+                  disabled={fireWatchValue !== 'Yes'}
+                  value={fireWatchAssigned}
+                  onChange={e => setFireWatchAssigned(e.target.value)}
+                />
+              </div>
+            </div>
+
+          </div>
+
+          <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
+            <div>
+              <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
+            </div>
+
+            <div className="form-group col-md-12">
+              <div className={styles.checkboxContainer}>
+                {_ptwFormStructure?.protectiveSafetyEquipments
+                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
+                  ?.map(category => (
+                    <div key={category.id} className={styles.checkboxItem}>
+                      {category.title.toLowerCase() === "others" ? (
+                        <div className={styles.othersContainer}>
+                          <Checkbox
+                            label="Others"
+                            checked={othersChecked}
+                            onChange={(_, checked) => setOthersChecked(!!checked)}
+                          />
+                          <input
+                            type="text"
+                            className={styles.othersInput}
+                            placeholder="Specify"
+                            disabled={!othersChecked}
+                            value={othersValue}
+                            onChange={e => setOthersValue(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <Checkbox
+                          label={category.title}
+                        // checked={values.includes(category)}
+                        // onChange={(_, checked) => toggle(category, !!checked)}
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
 
         </div>
-      </form>
-    </div>
+
+      </form >
+    </div >
   );
 }
 

@@ -132,3 +132,91 @@
   flex-direction: column;
   align-items: flex-end;
 }
+
+.formBody {
+  padding: 7px;
+  background: white;
+  border: 1px solid #e1e1e1;
+  margin-bottom: 20px;
+}
+
+.adminNote {
+  background-color: #f3f2f1;
+  padding: 4px 8px;
+  border-left: 4px solid #605e5c;
+  margin-bottom: 5px;
+  font-style: italic;
+  color: #605e5c;
+  
+  label {
+    font-size: 12px;
+    margin: 0;
+    font-weight: 400;
+  }
+}
+
+.ptwLabel {
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+
+  background: #f1f1f1;
+  border-bottom: 1px solid #8a8a8a;
+  padding: 4px 8px;
+}
+
+// .checkboxContainer {
+//   display: flex;
+//   flex-wrap: wrap;
+//   border: 1px solid #000;
+//   padding: 6px 10px;
+//   border-radius: 2px;
+//   align-items: center;
+// }
+
+// .checkboxItem {
+//   flex: 1 1 25%; /* controls width distribution — around 4–5 per row */
+//   min-width: 170px; /* ensures they don’t get too narrow */
+//   margin-bottom: 6px;
+//   display: flex;
+//   align-items: center;
+// }
+
+.checkboxContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.checkboxItem {
+  flex: 1 1 220px;
+  display: flex;
+  align-items: center;
+}
+
+.othersContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.othersInput {
+  flex: 1;
+  min-width: 150px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.resultContainer {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.resultInput {
+  width: 200px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
