@@ -125,8 +125,8 @@ export class SPHelpers {
     return `${yyyy}${mm}${dd}`;
   }
 
-  public async generateCoralReferenceNumber(spHttpClient: SPHttpClient,webUrl: string,listTitle: string,
-    finalRecord: { Id: number; Created?: string | Date },companyTitle?: string): Promise<string> {
+  public async generateCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string,
+    finalRecord: { Id: number; Created?: string | Date }, companyTitle?: string): Promise<string> {
     const companyCode = this.getCompanyCode(companyTitle);
     const createdDate = finalRecord?.Created
       ? new Date(finalRecord.Created as any)
@@ -157,7 +157,7 @@ export class SPHelpers {
   }
 
   // Convenience: compute and immediately update the item’s CoralReferenceNumber
-  public async assignCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string,listTitle: string,finalRecord: { Id: number; Created?: string | Date },
+  public async assignCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string, finalRecord: { Id: number; Created?: string | Date },
     companyTitle?: string
   ): Promise<string> {
     const coralRef = await this.generateCoralReferenceNumber(
@@ -172,5 +172,16 @@ export class SPHelpers {
     await updater._updateItem(String(finalRecord.Id), { CoralReferenceNumber: coralRef });
     return coralRef;
   }
+
+  // Read formId from the page URL so the form can be deep-linked
+  public getQueryNumber(name: string): number | undefined 
+  {
+    try {
+      const href = (window.top?.location?.href) || window.location.href;
+      const v = new URL(href).searchParams.get(name) || undefined;
+      const n = v != null ? Number(v) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    } catch { return undefined; }
+  };
 
 }

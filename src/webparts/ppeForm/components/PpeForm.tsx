@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ISPHttpClientOptions, MSGraphClientV3, SPHttpClient } from "@microsoft/sp-http";
-import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse, ISPListItem } from "../../../Interfaces/ICommon";
+import { ICommon, IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse, ISPListItem } from "../../../Interfaces/Common/ICommon";
 
 // Components
 import type { IPpeFormWebPartProps } from "./IPpeFormProps";
@@ -29,12 +29,12 @@ import styles from "./PpeForm.module.scss";
 // Classes
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
-import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
-import { IUser } from "../../../Interfaces/IUser";
-import { IPPEItemDetails } from "../../../Interfaces/IPPEItemDetails";
-import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/IEmployeeProps";
-import { IFormsApprovalWorkflow } from "../../../Interfaces/IFormsApprovalWorkflow";
-import { IPPEItem } from "../../../Interfaces/IPPEItem";
+import { ICoralFormsList } from "../../../Interfaces/Common/ICoralFormsList";
+import { IUser } from "../../../Interfaces/Common/IUser";
+import { IPPEItemDetails } from "../../../Interfaces/PpeForm/IPPEItemDetails";
+import { IEmployeeProps, IEmployeesPPEItemsCriteria } from "../../../Interfaces/PpeForm/IEmployeeProps";
+import { IFormsApprovalWorkflow } from "../../../Interfaces/PpeForm/IFormsApprovalWorkflow";
+import { IPPEItem } from "../../../Interfaces/PpeForm/IPPEItem";
 import { DocumentMetaBanner } from "./DocumentMetaBanner";
 import BannerComponent, { BannerKind } from "./BannerComponent";
 
@@ -148,7 +148,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerOpts, setBannerOpts] = React.useState<{ autoHideMs?: number; fade?: boolean; kind?: BannerKind } | undefined>();
   const [exportMode, setExportMode] = React.useState(false);
   const [isExportingPdf, setIsExportingPdf] = React.useState(false); // NEW
-
   const webUrl = props.context.pageContext.web.absoluteUrl;
   interface ItemRowState {
     itemId: number | undefined;  // unique key per row
@@ -244,9 +243,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
   const _getEmployees = useCallback(async (usersArg?: IUser[], employeeFullName?: string): Promise<IEmployeeProps[]> => {
     try {
-      const query: string = `?$select=Id,CoralEmployeeID,FullName,EmailAddress,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
+      const query: string = `?$select=Id,CoralEmployeeID,FullName,EmailAddressRecord/EMail,Company/Id,Company/Title,EmploymentStatus,JobTitle/Id,JobTitle/Title,` +
         `Department/Id,Department/Title,Created,Author/EMail,DirectManager/Id,DirectManager/Title,DirectManager/EMail` +
-        `&$expand=Author,Company,JobTitle,Department,Author,DirectManager` +
+        `&$expand=Author,Company,JobTitle,Department,Author,DirectManager,EmailAddressRecord` +
         `&$filter=substringof('${employeeFullName}', FullName)&$orderby=Order asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee', query);
       const data = await spCrudRef.current._getItemsWithQuery();
@@ -271,7 +270,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
             employmentStatus: obj.EmploymentStatus !== undefined && obj.EmploymentStatus !== null ? obj.EmploymentStatus : undefined,
             Created: created !== undefined ? created : undefined,
             CreatedBy: createdBy !== undefined ? createdBy : undefined,
-            EMailAddress: obj.EmailAddress !== undefined && obj.EmailAddress !== null ? obj.EmailAddress : undefined,
+            EMailAddress: obj.EmailAddressRecord !== undefined && obj.EmailAddressRecord !== null ? obj.EmailAddressRecord.EMail : undefined,
           };
 
           result.push(temp);
@@ -2583,6 +2582,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       columns={[
                         {
                           key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 120, maxWidth: 130, isResizable: true,
+                          styles: { root: { color: 'black !important', fontWeight: "500 !important" } },
                           onRender: (r: ItemSummary) => <span style={{
                             display: 'block', whiteSpace: 'normal',
                             wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3,
@@ -2623,6 +2623,23 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       selectionMode={SelectionMode.none}
                       layoutMode={DetailsListLayoutMode.justified}
                       className={styles.detailsListHeaderCenter}
+                      styles={{
+                        root: { width: '100%' },
+                        // target cells and rows
+                        contentWrapper: {
+                          selectors: {
+                            '.ms-DetailsRow-fields': {
+                              alignItems: 'center'  // stretch to max height of tallest cell in the row
+                            },
+                            '.ms-DetailsRow-cell': {
+                              color: 'black !important',
+                              fontWeight: '600 !important',
+                              padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                            },
+                            '&': { overflowX: 'visible', overflowY: 'visible' }
+                          }
+                        }
+                      }}
                     />
                   </div>
                 </Stack>
@@ -2636,6 +2653,24 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                         selectionMode={SelectionMode.none}
                         layoutMode={DetailsListLayoutMode.justified}          // <-- responsive fill
                         constrainMode={ConstrainMode.horizontalConstrained}
+                        styles={{
+                          root: { width: '100%' },
+                          // target cells and rows
+                          contentWrapper: {
+                            selectors: {
+                              '.ms-DetailsRow-fields': {
+                                alignItems: 'center'  // stretch to max height of tallest cell in the row
+                              },
+                              '.ms-DetailsRow-cell': {
+                                color: 'black !important',
+                                fontWeight: '500 !important',
+                                padding: '8px 0px 8px 8px !important', // top-bottom left-right
+                              },
+                              '&': { overflowX: 'visible', overflowY: 'visible' }
+                            }
+                          }
+                        }}
+
                         columns={[
                           {
                             key: 'colItem', name: 'Item', fieldName: 'item', minWidth: 90, isResizable: true,
@@ -2941,19 +2976,11 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     items={formsApprovalWorkflow}
                     columns={[
                       {
-
-                        // <span style={{
-                        //     display: 'block', whiteSpace: 'normal',
-                        //     wordWrap: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3,
-                        //    
-                        //   }}>{r.item}</span>
-
-
                         key: 'colSignOff', name: 'Sign off', fieldName: 'SignOffName', minWidth: !!exportMode ? 130 : 160, isResizable: true,
                         onRender: (item: any) => (<div> <span style={{ color: "black !important", fontWeight: "400 !important" }}>{item.SignOffName}</span></div>)
                       },
                       {
-                        key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager', minWidth: !!exportMode ? 200 : 230, isResizable: true,
+                        key: 'colDepartmentManager', name: 'Name', fieldName: 'DepartmentManager', minWidth: !!exportMode ? 180 : 220, isResizable: true,
                         onRender: (item: any) => {
                           const grpName = resolveGroupUserForItemRow(item as IFormsApprovalWorkflow);
                           const key = (grpName || '').toLowerCase();
@@ -2971,7 +2998,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             selectedKey = item?.DepartmentManagerApprover?.text || '';
                             placeHolderDisplay = selectedKey;
                           }
-                    
+
                           if (!isMember && item?.Status?.title && (String(item.Status.title).toLowerCase() !== 'pending')) {
                             return (
                               <TextField value={item?.DepartmentManagerApprover?.text || ''} disabled={true} styles={textFieldBlackStyles} />
@@ -3049,13 +3076,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                               placeholder={canEditReason ? 'Enter rejection reason' : ''}
                               disabled={!canEditReason}
                               styles={textFieldBlackStyles} rows={1}
-                              multiline autoAdjustHeight 
+                              multiline autoAdjustHeight
                               onChange={(ev, newValue) => handleApprovalReasonChange(item.Id!, newValue || '')}
                             />);
                         }
                       },
                       {
-                        key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: !!exportMode ? 130 : 200, isResizable: true,
+                        key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: !!exportMode ? 180 : 200, isResizable: true,
                         onRender: (item: any, idx?: number) => (
                           <DatePicker value={item.Date ? new Date(item.Date) : undefined}
                             disabled={prefilledFormId ? true : false}
@@ -3071,7 +3098,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                     onShouldVirtualize={() => false}
                     styles={{
                       root: { width: '100%' },
-
                       // target cells and rows
                       contentWrapper: {
                         selectors: {
@@ -3079,6 +3105,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             alignItems: 'center'  // stretch to max height of tallest cell in the row
                           },
                           '.ms-DetailsRow-cell': {
+                            color: 'black !important',
+                            fontWeight: '500 !important',
                             padding: '8px 0px 8px 8px !important', // top-bottom left-right
                           },
                           '&': { overflowX: 'visible', overflowY: 'visible' }

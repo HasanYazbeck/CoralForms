@@ -1,15 +1,14 @@
-import { ICommon, ISPListItem } from "./ICommon";
+import { ICommon, ISPListItem } from "./../Common/ICommon";
 
-export interface IEmployeeProps extends ISPListItem{
+export interface IEmployeeProps extends ISPListItem {
   coralEmployeeID?: number | undefined;
   fullName?: string;
   jobTitle?: ICommon | undefined;
   company?: ICommon | undefined;
-  // division: ICommon | undefined;
   department?: ICommon | undefined;
   employmentStatus?: string | undefined;
-  manager: IEmployeeProps | undefined;
-  EMailAddress: string | undefined;
+  manager?: IEmployeeProps | undefined;
+  EMailAddress?: string | undefined;
   directManager?: IEmployeeProps | undefined;
 }
 
@@ -18,8 +17,8 @@ export interface IEmployeesPPEItemsCriteria extends ISPListItem {
   employeeID?: number | undefined;
   fullName?: string | undefined;
   safetyHelmet?: string | undefined;
-  reflectiveVest?: string  | undefined;
-  safetyShoes?: string  | undefined;
+  reflectiveVest?: string | undefined;
+  safetyShoes?: string | undefined;
   rainSuit?: string | undefined;
   uniformCoveralls?: string | undefined;
   uniformTop?: string | undefined;

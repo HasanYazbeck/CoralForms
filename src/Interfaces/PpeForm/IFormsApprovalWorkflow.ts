@@ -1,6 +1,6 @@
 
 import { IPersonaProps } from '@fluentui/react';
-import { ICommon, ISPListItem } from './ICommon';
+import { ICommon, ISPListItem } from './../Common/ICommon';
 
 export interface IFormsApprovalWorkflow extends ISPListItem {
   FormName?: ICommon | undefined;

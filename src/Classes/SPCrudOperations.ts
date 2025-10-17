@@ -3,8 +3,8 @@ import {
   SPHttpClientResponse,
   ISPHttpClientOptions,
 } from "@microsoft/sp-http";
-import { ISPItem } from "../Interfaces/ISPItem";
-import { IUser } from "../Interfaces/IUser";
+import { ISPItem } from "../Interfaces/Common/ISPItem";
+import { IUser } from "../Interfaces/Common/IUser";
 import { FieldTypeKind } from "../Enums/enums";
 
 export class SPCrudOperations {
@@ -291,7 +291,6 @@ export class SPCrudOperations {
       throw error;
     }
   }
-
 
   // Get Items List
   public async _getItemsWithQuery(): Promise<any[]> {

@@ -1,0 +1,134 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.ptwForm {
+  overflow: hidden;
+  padding: 1em;
+  color: "[theme:bodyText, default: #323130]";
+  color: var(--bodyText);
+
+  &.teams {
+    font-family: $ms-font-family-fallbacks;
+  }
+}
+
+.welcome {
+  text-align: center;
+}
+
+.welcomeImage {
+  width: 100%;
+  max-width: 420px;
+}
+
+.links {
+  a {
+    text-decoration: none;
+    color: "[theme:link, default:#03787c]";
+    color: var(--link); // note: CSS Custom Properties support is limited to modern browsers only
+
+    &:hover {
+      text-decoration: underline;
+      color: "[theme:linkHovered, default: #014446]";
+      color: var(--linkHovered); // note: CSS Custom Properties support is limited to modern browsers only
+    }
+  }
+}
+
+.loadingContainer {
+  text-align: center;
+  padding: 20px;
+}
+
+.loadingExtras {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.utensilIcon {
+  width: 40px;
+  height: 40px;
+  fill: var(--themePrimary, #0078d4);
+  animation: utensil-rotate 1.6s linear infinite;
+}
+
+.loadingSubtext {
+  font-size: 0.95rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+@keyframes utensil-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.formHeader {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+
+.ptwformHeader {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-wrap: nowrap;
+  margin-bottom: 24px;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.formLogo {
+  height: 48px;
+  width: auto;
+}
+
+.formTitle {
+  font-size: 1.5rem;
+  font-weight: 450;
+  color: var(--bodyText);
+  text-align: center;
+  margin: 0;
+}
+
+.formArTitle {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--bodyText);
+  text-align: center;
+  margin: 0;
+}
+
+.formTitles {
+  display: flex;
+  align-items: flex-end;
+}
+
+.ptwFormTitleLogo {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+.ptwformLogo {
+  height: 80px;
+  width: auto;
+}
+
+.ptwTitles {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
+}

@@ -8,7 +8,7 @@ type DocMetaProps = {
     page?: string | number;
 };
 
-export const DocumentMetaBanner: React.FC<DocMetaProps> = ({docCode = 'COR-HSE-01-FOR-001',version = 'V03',
+export const DocumentMetaBanner: React.FC<DocMetaProps> = ({ docCode = 'COR-HSE-01-FOR-001', version = 'V03',
     effectiveDate = '16-SEP-2020', page = 1
 }) => {
     const grid: React.CSSProperties = {
@@ -35,14 +35,17 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({docCode = 'COR-HSE-0
     };
     return (
         <div style={grid}>
-            <div style={{ ...cell, flexDirection: 'column', gap: 6, minWidth: '20%' }}>
+            <div style={{ ...cell, flexDirection: 'column', gap: 6, minWidth: '20%', fontWeight: '500' }}>
                 <div>{docCode}</div>
                 <div>Version: {version}</div>
             </div>
-            <div style={{ ...cell, paddingTop: '17px !important', justifyContent: 'center !important', alignItems: 'center !important' }}>
+            <div style={{ ...cell, paddingTop: '17px !important', fontWeight: '500',justifyContent: 'center !important', alignItems: 'center !important' }}>
                 This document is confidential and property of The Coral Oil Co.
             </div>
-            <div style={{ ...cell, paddingTop: '17px !important', justifyContent: 'center', alignItems: 'center !important' }}>
+            <div style={{
+                ...cell, paddingTop: '17px !important',
+                color: 'black !important', fontWeight: '600', justifyContent: 'center', alignItems: 'center !important'
+            }}>
                 Effective Date: {effectiveDate}
             </div>
             <div style={{ ...cell, borderRight: 0, justifyContent: 'center', fontWeight: 600 }}>

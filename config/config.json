@@ -9,12 +9,21 @@
           "manifest": "./src/webparts/ppeForm/PpeFormWebPart.manifest.json"
         }
       ]
+    },
+    "ptw-form-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/ptwForm/PtwFormWebPart.js",
+          "manifest": "./src/webparts/ptwForm/PtwFormWebPart.manifest.json"
+        }
+      ]
     }
   },
   "externals": {},
   "localizedResources": {
     "PpeFormWebPartStrings": "lib/webparts/ppeForm/loc/{locale}.js",
     "ControlStrings": "node_modules/@pnp/spfx-controls-react/lib/loc/{locale}.js",
-    "PropertyControlStrings": "node_modules/@pnp/spfx-property-controls/lib/loc/{locale}.js"
+    "PropertyControlStrings": "node_modules/@pnp/spfx-property-controls/lib/loc/{locale}.js",
+    "PtwFormWebPartStrings": "lib/webparts/ptwForm/loc/{locale}.js"
   }
 }

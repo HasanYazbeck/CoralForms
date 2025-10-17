@@ -1,17 +1,3 @@
-// export interface IUser {
-//   Department?: string;
-//   DisplayName: string;
-//   Name?: string;
-//   Id: string;
-//   JobTitle?: string;
-//   OfficeLocation?: string;
-//   Email?: string;
-//   MobilePhone?: string | undefined;
-//   ProfileImageUrl?: string;
-//   IsSelected?: boolean;
-//   Manager?: { DisplayName: string, Id: string}
-// }
-
 export interface IUser {
   id: string;
   displayName: string;

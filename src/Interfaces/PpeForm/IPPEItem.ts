@@ -1,4 +1,4 @@
-import { ISPListItem } from './ICommon';
+import { ISPListItem } from './../Common/ICommon';
 import { IPPEItemDetails } from './IPPEItemDetails';
 
 export interface IPPEItem extends ISPListItem {

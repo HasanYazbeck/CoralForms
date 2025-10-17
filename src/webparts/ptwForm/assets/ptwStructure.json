@@ -1,0 +1,1213 @@
+{
+    "@odata.type": "#SP.Data.PTWItemsListItem",
+    "@odata.id": "69a3611d-eee7-4e4c-a637-3543833b65ce",
+    "@odata.etag": "\"23\"",
+    "@odata.editLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)",
+    "Id": 3,
+    "PersonnelInvolvedId": [],
+    "AttachmentsProvided": [
+        "Yes",
+        "No"
+    ],
+    "GasTestRequired": [
+        "Yes",
+        "No"
+    ],
+    "FireWatchNeeded": [
+        "No",
+        "Yes"
+    ],
+    "OverallRiskAssessment": [
+        "Low",
+        "Medium",
+        "High"
+    ],
+    "InitialRisk": [
+        "Low",
+        "Medium",
+        "High"
+    ],
+    "ResidualRisk": [
+        "Low",
+        "Medium",
+        "Choice 3"
+    ],
+    "ID": 3,
+    "CoralFormId@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/CoralFormId",
+    "CoralFormId": {
+        "@odata.type": "#SP.Data.CoralFormsListListItem",
+        "@odata.id": "59795921-f582-47b5-9ddb-a046b6482915",
+        "Title": "Permit To Work (PTW) Form ",
+        "ArabicTitle": "إستمارة تصريح عمل"
+    },
+    "AssetCategory@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/AssetCategory",
+    "AssetCategory": [
+        {
+            "@odata.type": "#SP.Data.LKPAssetCategoryListItem",
+            "@odata.id": "b8ed90e8-7337-44cc-b2cf-da77d35ab7c2",
+            "Id": 1,
+            "Title": "Coral",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetCategoryListItem",
+            "@odata.id": "e564b507-8ee2-4d67-842d-fef045682236",
+            "Id": 4,
+            "Title": "Fleet",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetCategoryListItem",
+            "@odata.id": "34067e4f-4330-484c-8313-5032a2dcb268",
+            "Id": 3,
+            "Title": "Liquigas",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetCategoryListItem",
+            "@odata.id": "eaad3668-4a4e-405b-a859-a77b0a00bc8b",
+            "Id": 2,
+            "Title": "SMS",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetCategoryListItem",
+            "@odata.id": "d650502e-3ead-4004-beb4-14a1c861ad73",
+            "Id": 5,
+            "Title": "Stations",
+            "OrderRecord": 5
+        }
+    ],
+    "AssetDetails@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/AssetDetails",
+    "AssetDetails": [
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "29fe862d-c821-4367-b4b8-942c22399d2f",
+            "Id": 13,
+            "Title": "Batroun Mountain",
+            "OrderRecord": 13
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "53d24d6a-b8f2-4515-8a87-84631ab23058",
+            "Id": 14,
+            "Title": "Batroun Sea Side",
+            "OrderRecord": 14
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "f68da37f-1a4c-4d8a-adcf-47720b58f548",
+            "Id": 8,
+            "Title": "COR Dispatch",
+            "OrderRecord": 8
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "e6e9c43c-4b1e-479a-aaf2-4b52a9307fb9",
+            "Id": 1,
+            "Title": "COR Operations",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "5eece781-7c99-4681-a159-d607aff297cf",
+            "Id": 10,
+            "Title": "COR PON Fleet",
+            "OrderRecord": 10
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "12f55a9c-64a1-4188-915f-d12bd0fa95e7",
+            "Id": 17,
+            "Title": "Daher al Baydar",
+            "OrderRecord": 17
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "8991af21-549f-4f29-8377-8f682e85a788",
+            "Id": 18,
+            "Title": "Damour",
+            "OrderRecord": 18
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "e09ffddd-f592-427c-bce1-52b5af19840a",
+            "Id": 19,
+            "Title": "Dbayeh",
+            "OrderRecord": 19
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "c1f4be64-d5c2-4a6c-a572-ba100803b2bb",
+            "Id": 2,
+            "Title": "D-Beirut",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "947c0c3d-8b45-4865-bbe2-6e5076608e7d",
+            "Id": 20,
+            "Title": "Doures",
+            "OrderRecord": 20
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "1c5eae15-47c0-44af-a7ba-0d278d88d839",
+            "Id": 21,
+            "Title": "Ettihad",
+            "OrderRecord": 21
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "32b65093-0049-4164-a487-8ba71afcb8c3",
+            "Id": 15,
+            "Title": "Hreicheh",
+            "OrderRecord": 15
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "446d82d5-a218-4706-a8f8-98e60c354891",
+            "Id": 22,
+            "Title": "Jounieh Highway",
+            "OrderRecord": 22
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "fb91e9a4-abbf-4b2e-b580-84f8a5927c1e",
+            "Id": 23,
+            "Title": "Kfarhbab",
+            "OrderRecord": 23
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "70705f61-0009-4c0b-b124-95a1189940c0",
+            "Id": 24,
+            "Title": "Kfayassine-Tabarja",
+            "OrderRecord": 24
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "0e40c9d0-207b-4d74-bacd-495a47f397f4",
+            "Id": 7,
+            "Title": "LIQ Admin Building",
+            "OrderRecord": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "fa426fdb-3c56-4948-9044-04fd702ceaa2",
+            "Id": 9,
+            "Title": "LIQ Dispatch",
+            "OrderRecord": 9
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "3b1f4af5-67cd-4305-879a-25ff7df894b5",
+            "Id": 6,
+            "Title": "LIQ Operations",
+            "OrderRecord": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "4ad5043e-a50f-45d2-b9fb-0b55fa36f0e0",
+            "Id": 11,
+            "Title": "LIQ PON Fleet",
+            "OrderRecord": 11
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "425e65a1-3cdd-4c5e-bf8f-146bec5f495a",
+            "Id": 25,
+            "Title": "Mar Chaaya",
+            "OrderRecord": 25
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "2fe8c949-f5c7-4128-b1f9-1e4e64a2f24b",
+            "Id": 5,
+            "Title": "Need A Title for Asset Detail with category (SMS)",
+            "OrderRecord": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "ca11a359-3b8f-43f8-b371-99da4abef026",
+            "Id": 4,
+            "Title": "Projects & Engineering",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "353cda8e-5c7d-4101-acfd-7de29fee3ffc",
+            "Id": 3,
+            "Title": "Raoushe",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "82395737-6c8a-4e97-8960-140792965d72",
+            "Id": 12,
+            "Title": "Sedan",
+            "OrderRecord": 12
+        },
+        {
+            "@odata.type": "#SP.Data.LKPAssetDetailsListItem",
+            "@odata.id": "a3c2fbfe-2af7-45b0-a7ea-109ec9e52051",
+            "Id": 16,
+            "Title": "Serhel",
+            "OrderRecord": 16
+        }
+    ],
+    "WorkCategory@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/WorkCategory",
+    "WorkCategory": [
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "76ed907d-3e51-4b75-8151-c3e286452d1c",
+            "Id": 8,
+            "Title": "Lifting Operations",
+            "OrderRecord": 8,
+            "RenewalValidity": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "a7922a68-560a-41d9-9362-b160853dacac",
+            "Id": 9,
+            "Title": "Impairment of Safety Systems",
+            "OrderRecord": 9,
+            "RenewalValidity": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "004cac45-efdc-485a-9cbe-48985467a7cb",
+            "Id": 2,
+            "Title": "Hot Work; Group B ",
+            "OrderRecord": 2,
+            "RenewalValidity": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "6c98a509-6a91-4cbd-8bba-287fcad6f5b5",
+            "Id": 4,
+            "Title": "Confined Space Entry",
+            "OrderRecord": 4,
+            "RenewalValidity": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "f6eeb947-afbf-4708-a529-40170151a2b2",
+            "Id": 6,
+            "Title": "Breaking Containment",
+            "OrderRecord": 6,
+            "RenewalValidity": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "b282a3f9-3d69-4186-bd8f-0e7e99f3fade",
+            "Id": 7,
+            "Title": "Cold works",
+            "OrderRecord": 7,
+            "RenewalValidity": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "cad50c9d-7145-457e-8fd1-38a06549769a",
+            "Id": 1,
+            "Title": "Hot Work; Group A ",
+            "OrderRecord": 1,
+            "RenewalValidity": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "836a9e7e-aeb9-40ad-b49d-cf96e895d815",
+            "Id": 5,
+            "Title": "Marine Operations",
+            "OrderRecord": 5,
+            "RenewalValidity": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkCategoryListItem",
+            "@odata.id": "d8584b54-da3d-48bd-9968-b2bdf980b146",
+            "Id": 3,
+            "Title": "Work at Height",
+            "OrderRecord": 3,
+            "RenewalValidity": 3
+        }
+    ],
+    "HACWorkArea@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/HACWorkArea",
+    "HACWorkArea": [
+        {
+            "@odata.type": "#SP.Data.LKPHACClassificationOfWorkAreaListItem",
+            "@odata.id": "e5c710fb-2ea8-42bf-8af1-5a600c79d5ba",
+            "Id": 1,
+            "Title": "Non-Hazardous",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPHACClassificationOfWorkAreaListItem",
+            "@odata.id": "1808b521-d414-460e-9417-11bac5a5470d",
+            "Id": 5,
+            "Title": "Unclassified",
+            "OrderRecord": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPHACClassificationOfWorkAreaListItem",
+            "@odata.id": "4ee8b4ac-92c6-4bf4-b176-48039d18e35c",
+            "Id": 2,
+            "Title": "Zone 0",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPHACClassificationOfWorkAreaListItem",
+            "@odata.id": "4164b5a5-8316-40e8-a3a7-2161ab6cc372",
+            "Id": 3,
+            "Title": "Zone 1",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPHACClassificationOfWorkAreaListItem",
+            "@odata.id": "90a74c52-edca-4b8f-9173-4f866aac987d",
+            "Id": 4,
+            "Title": "Zone 2",
+            "OrderRecord": 4
+        }
+    ],
+    "WorkHazards@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/WorkHazards",
+    "WorkHazards": [
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "3d029879-991e-4b58-a9ee-fdfdc70c456f",
+            "Id": 29,
+            "Title": "Active Fire Protection Impairment",
+            "OrderRecord": 28
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "c1514655-0bd6-4625-84bb-e58ede1e8f80",
+            "Id": 31,
+            "Title": "Adjacent Operations",
+            "OrderRecord": 30
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "c00b752e-71e8-4677-a24a-4b6ccad8a5d0",
+            "Id": 27,
+            "Title": "Bad Lighting / Visibility",
+            "OrderRecord": 25
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "21415c05-60fc-43c6-a0c4-61ed2fde6720",
+            "Id": 36,
+            "Title": "Blocked Drains / Vents",
+            "OrderRecord": 35
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "5340c8d7-8578-45ea-8e57-654764b7734e",
+            "Id": 4,
+            "Title": "Confined Space",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "e508b132-1834-4715-8070-2c195c1b4b54",
+            "Id": 2,
+            "Title": "Conflicting Jobs",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "f8927b27-de49-4911-9e26-f4368138a1a0",
+            "Id": 15,
+            "Title": "Corrosive Materials",
+            "OrderRecord": 13
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "7a554af0-de10-4403-a095-bf5b3dbfb37c",
+            "Id": 19,
+            "Title": "Diving",
+            "OrderRecord": 17
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "9e1c17f0-ab45-4dbb-81c7-9aecaf2acc34",
+            "Id": 14,
+            "Title": "Electrical Equipment",
+            "OrderRecord": 12
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "92e83752-e1ed-42d9-82b6-7846995ac813",
+            "Id": 26,
+            "Title": "HAZMAT",
+            "OrderRecord": 24
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "dc0195fb-d11f-4b83-9945-ab429a619e28",
+            "Id": 9,
+            "Title": "Heavy Lifting / Manual Handling",
+            "OrderRecord": 9
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "47495dbf-d018-40a7-a9a7-c408590f5211",
+            "Id": 6,
+            "Title": "Hot / Cold Surface",
+            "OrderRecord": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "a731d0a3-6f58-41d0-bfe3-550842a1f933",
+            "Id": 37,
+            "Title": "Grinding",
+            "OrderRecord": 36
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "56748154-2da8-4a5e-a2a8-945bc2e4e387",
+            "Id": 35,
+            "Title": "Ignition Source",
+            "OrderRecord": 34
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "119c56d6-b893-45a0-8376-3b6abe6e196f",
+            "Id": 22,
+            "Title": "Leak & Spills",
+            "OrderRecord": 20
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "9b9d48a8-8cb9-4383-986b-1972e3e8e377",
+            "Id": 16,
+            "Title": "Mechanical Equipment",
+            "OrderRecord": 14
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "89263a3d-038f-4d1a-9182-83dbd3ddce70",
+            "Id": 33,
+            "Title": "Noise / Vibrations",
+            "OrderRecord": 32
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "fb385c77-a71e-4509-8c49-e728bc222dfd",
+            "Id": 25,
+            "Title": "Open Trench/Pit",
+            "OrderRecord": 23
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "5a176652-0e3c-47e7-a20d-e15550542ec9",
+            "Id": 1,
+            "Title": "New Employee",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "33b87aa3-b20a-43d0-9240-7f78ab500f74",
+            "Id": 38,
+            "Title": "Others",
+            "OrderRecord": 37
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "3fe07719-478f-4b59-8f8e-3c473093822e",
+            "Id": 32,
+            "Title": "Oxygen Deficiency",
+            "OrderRecord": 31
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "78564186-d878-4a9e-b7cf-6868a06da5bc",
+            "Id": 5,
+            "Title": "Pressurised Equipment",
+            "OrderRecord": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "2b5d0acf-daaa-4c5d-87fc-5703b3c07135",
+            "Id": 34,
+            "Title": "Radiation",
+            "OrderRecord": 33
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "b48d25c2-bb78-4068-8602-f7b7c4a08759",
+            "Id": 30,
+            "Title": "Restricted Access",
+            "OrderRecord": 29
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "ae957f8c-0c90-4b6d-88ef-11072f6bdae0",
+            "Id": 24,
+            "Title": "Ship Collision",
+            "OrderRecord": 22
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "f08ae278-1257-49dd-a6dc-6a99de8b6673",
+            "Id": 13,
+            "Title": "Flammable Gas / Liquid",
+            "OrderRecord": 11
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "bd333a8e-9894-460b-86fe-859e5c64ea92",
+            "Id": 3,
+            "Title": "Toxic Gas / Liquid",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "b081526e-cffc-4cb2-b0b6-038337b5661a",
+            "Id": 7,
+            "Title": "Spontaneous Ignition",
+            "OrderRecord": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "c0b647e0-520c-49db-9812-ddf7e18b06fb",
+            "Id": 28,
+            "Title": "Welding",
+            "OrderRecord": 27
+        },
+        {
+            "@odata.type": "#SP.Data.LKPWorkHazardsListItem",
+            "@odata.id": "a3bdcaff-bd39-4db2-a8cf-7d4f88e666d0",
+            "Id": 21,
+            "Title": "Work on Live Systems",
+            "OrderRecord": 19
+        }
+    ],
+    "Machinery@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/Machinery",
+    "Machinery": [
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "a48f1b76-b575-4c95-828c-d4680bdcac46",
+            "Id": 22,
+            "Title": "Automatic Welding Machine",
+            "OrderRecord": 16
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "ee0a191c-6441-4eb9-a18b-4479fcad893e",
+            "Id": 10,
+            "Title": "Battery Drill",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "fc875454-ae92-4353-b6a9-428784ce5ef8",
+            "Id": 11,
+            "Title": "Battery torque",
+            "OrderRecord": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "c815d86f-063d-463c-9bcb-7cc4486d919f",
+            "Id": 24,
+            "Title": "Bending machine",
+            "OrderRecord": 18
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "f2c4bfcd-2b52-41e6-8a10-ef8a3ccf2b76",
+            "Id": 25,
+            "Title": "Bobcat",
+            "OrderRecord": 19
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "afabac58-d5b3-4014-bdc6-98d924141df4",
+            "Id": 12,
+            "Title": "Compactor",
+            "OrderRecord": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "289814d7-dd03-4376-a3c5-374d432c90d6",
+            "Id": 37,
+            "Title": "Concrete Helicopter",
+            "OrderRecord": 34
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "8b947b5a-a6ce-4735-8028-3ffde7e24eaa",
+            "Id": 19,
+            "Title": "Compressor",
+            "OrderRecord": 13
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "8f9f1bf9-da6e-4a78-b43b-632188a34c29",
+            "Id": 33,
+            "Title": "Concrete mixer",
+            "OrderRecord": 27
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "b7bd130f-57eb-4238-bff3-2a3771c6d990",
+            "Id": 34,
+            "Title": "Concrete pump",
+            "OrderRecord": 28
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "4e4092ff-1010-438f-a9b1-c0aa4b6aaa36",
+            "Id": 27,
+            "Title": "Concrete vibrator",
+            "OrderRecord": 21
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "0ca46aa0-9937-44c4-a8f9-3e6f1b90d5a9",
+            "Id": 9,
+            "Title": "Cordless Drill",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "c4f9c98c-f691-4847-a36f-a0b371dae625",
+            "Id": 16,
+            "Title": "Cutter",
+            "OrderRecord": 10
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "0aa45d76-ac3c-4afe-9cc0-45cc204be89d",
+            "Id": 28,
+            "Title": "Dummy Load",
+            "OrderRecord": 22
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "e5a4431f-ad1a-4011-8f8d-3ef158fd9014",
+            "Id": 13,
+            "Title": "Excavator",
+            "OrderRecord": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "8242ece7-119b-4cd7-939c-d81beaa9e98b",
+            "Id": 18,
+            "Title": "Forklift",
+            "OrderRecord": 12
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "c035b40f-a936-47d2-a8d5-1eeda945dc3d",
+            "Id": 31,
+            "Title": "Pneumatic grinding tool",
+            "OrderRecord": 25
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "10ddfd58-0251-4423-a3e9-c4fd3b84bed5",
+            "Id": 23,
+            "Title": "Spectacle blind",
+            "OrderRecord": 17
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "3e7e9357-493e-4b43-98c9-9bb060a89d16",
+            "Id": 8,
+            "Title": "Tower Crane",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "58f01a48-5bca-43a4-953c-99d706179666",
+            "Id": 30,
+            "Title": "Truck",
+            "OrderRecord": 24
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "7cc14baa-19e9-446e-ac89-be1d313138b7",
+            "Id": 26,
+            "Title": "Pipe Threading Machine",
+            "OrderRecord": 20
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "ccf84221-abf5-4bfe-b7bb-66e24708cbed",
+            "Id": 21,
+            "Title": "Vacuum Pump",
+            "OrderRecord": 15
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "3b8b1273-b423-4f83-ba8d-b0c737bfa09c",
+            "Id": 17,
+            "Title": "Welding machine",
+            "OrderRecord": 11
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "be9dcc0e-491d-4771-9bb2-42cc02d8b884",
+            "Id": 35,
+            "Title": "Woodworking tools",
+            "OrderRecord": 29
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "d0367f71-c80b-4cfc-a7a2-85ff45c94b37",
+            "Id": 7,
+            "Title": "Mobile Crane",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "57eaa2d1-eb58-4a63-a1a4-b70a7497a54f",
+            "Id": 36,
+            "Title": "Loader Tanker",
+            "OrderRecord": 32
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "a85fa57f-8c4a-4f72-8edd-9b7bb9302e00",
+            "Id": 15,
+            "Title": "Grinder",
+            "OrderRecord": 9
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "08dd7de3-a5f6-4945-8b48-758a1f50e89f",
+            "Id": 32,
+            "Title": "Hand tools",
+            "OrderRecord": 26
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "eb4fa97e-d128-4b82-9c84-32d0859deaa2",
+            "Id": 20,
+            "Title": "Hydraulic Pump",
+            "OrderRecord": 14
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "ff706e28-1e56-4667-ae86-7b3d7440f62c",
+            "Id": 14,
+            "Title": "Jack Hammer",
+            "OrderRecord": 8
+        },
+        {
+            "@odata.type": "#SP.Data.LKPMachineryListItem",
+            "@odata.id": "7a79e395-68c2-445d-98d6-8dd0c60c1a59",
+            "Id": 29,
+            "Title": "X-Ray Machine",
+            "OrderRecord": 23
+        }
+    ],
+    "PrecuationItems@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/PrecuationItems",
+    "PrecuationItems": [
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "07f95c85-07c0-4832-9553-c736ca416ece",
+            "Id": 14,
+            "Title": "Blowers",
+            "OrderRecord": 14
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "8615cca9-4fc0-4280-a25b-0a3b754e8e0a",
+            "Id": 16,
+            "Title": "CCTV Coverage",
+            "OrderRecord": 16
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "296498c8-e907-4d01-9405-1d64c75d260a",
+            "Id": 29,
+            "Title": "Buddy System",
+            "OrderRecord": 29
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "6c05bb2b-9fea-437d-ac25-d4a16a067aac",
+            "Id": 7,
+            "Title": "Certified Electric Equipment",
+            "OrderRecord": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "acbf7d34-4be4-4b04-b52c-5c0963970853",
+            "Id": 26,
+            "Title": "Depressurizing",
+            "OrderRecord": 26
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "191f7184-5bc8-4f95-a182-2fd4ed0d3c5d",
+            "Id": 21,
+            "Title": "Job Specific Signs",
+            "OrderRecord": 21
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "08ac1971-d907-4245-a14d-5dc9d0b1c301",
+            "Id": 1,
+            "Title": "Lockout / Tagout",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "df9debcf-b029-46c7-bbf3-49277ff6a332",
+            "Id": 3,
+            "Title": "Mechanical Isolation",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "0e027fd1-830e-4fb6-8c7e-6d19cd83c4c2",
+            "Id": 12,
+            "Title": "Job Site Inspection",
+            "OrderRecord": 12
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "5fca06c8-1999-4f7f-9fdc-2ced4b4cf54b",
+            "Id": 13,
+            "Title": "MSDS",
+            "OrderRecord": 13
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "5b6a7761-b531-45ca-a0f2-1e5d303161d2",
+            "Id": 31,
+            "Title": "Other(s)",
+            "OrderRecord": 31
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "dec043bf-1176-4d30-a177-666b696835c2",
+            "Id": 2,
+            "Title": "Pipework disconnection",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "b6e37af6-de95-4904-94a5-7867029c130d",
+            "Id": 11,
+            "Title": "Purging",
+            "OrderRecord": 11
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "eea2df6a-b1cf-4e65-986b-7cfd45009be9",
+            "Id": 4,
+            "Title": "Instrument Isolation",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "530b23a6-482f-48b9-953e-063eb41c69f4",
+            "Id": 17,
+            "Title": "Safety & ERT",
+            "OrderRecord": 17
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "09d7f026-2709-418e-a9d8-bed2bc182eab",
+            "Id": 28,
+            "Title": "Referral to Lifting Plan",
+            "OrderRecord": 28
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "7f71ab2a-7df1-444e-910f-669b88d30c11",
+            "Id": 8,
+            "Title": "Security coverage",
+            "OrderRecord": 8
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "0a02f124-4338-419f-9cc5-933629dc4c54",
+            "Id": 6,
+            "Title": "Signs and Barricading",
+            "OrderRecord": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "c9860089-cfff-4de7-87b7-7a571654eb54",
+            "Id": 18,
+            "Title": "SIMOPS coordination",
+            "OrderRecord": 18
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "a3f38b6f-ac29-439b-91dd-3bef86c06b17",
+            "Id": 23,
+            "Title": "Safety Notice",
+            "OrderRecord": 23
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "26095b00-d5a7-4c6a-adc9-0ef617fdf127",
+            "Id": 22,
+            "Title": "Spill kit",
+            "OrderRecord": 22
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "9251ded4-37a1-4369-94f6-c1e659990dfe",
+            "Id": 30,
+            "Title": "Standby Person",
+            "OrderRecord": 30
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "1d302a9b-4efd-4631-b91a-93c0900c4a7b",
+            "Id": 20,
+            "Title": "Toolbox Talk",
+            "OrderRecord": 20
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "440b5c16-d642-47cd-9dd2-f62eee263d4d",
+            "Id": 9,
+            "Title": "Specific Checklist",
+            "OrderRecord": 9
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "9c897b8c-6cec-41d7-af41-d4d0644814df",
+            "Id": 10,
+            "Title": "Water Flushing",
+            "OrderRecord": 10
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "4a2dfce2-d205-4433-8f1c-9bf432d44424",
+            "Id": 25,
+            "Title": "Ventilation",
+            "OrderRecord": 25
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "999a5891-fda3-4b8d-86ef-708a6aebec6b",
+            "Id": 24,
+            "Title": "Safety Egress Plan",
+            "OrderRecord": 24
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "cb3f8d53-b6a4-4aad-8b8e-c392d68b8c4a",
+            "Id": 19,
+            "Title": "Emergency Shutdown",
+            "OrderRecord": 19
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "1502b11b-dccb-4611-8213-e4cf45a40e8a",
+            "Id": 27,
+            "Title": "Draining",
+            "OrderRecord": 27
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "2e2fb78b-9ad0-4e83-bceb-aefcad91b44e",
+            "Id": 15,
+            "Title": "Continuous Gas Monitoring",
+            "OrderRecord": 15
+        },
+        {
+            "@odata.type": "#SP.Data.LKPPrecautionsListItem",
+            "@odata.id": "dc1b65ef-a9c8-4d30-bdf3-6ca11238489d",
+            "Id": 5,
+            "Title": "Electrical Isolation",
+            "OrderRecord": 5
+        }
+    ],
+    "ProtectiveSafetyEquiment@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/ProtectiveSafetyEquiment",
+    "ProtectiveSafetyEquiment": [
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "801d77a3-d7ab-43ee-8197-b94f897b5742",
+            "Id": 2,
+            "Title": "Fall Arrest Equipment",
+            "OrderRecord": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "e89a1447-09df-4779-b13d-cc240e883fa4",
+            "Id": 13,
+            "Title": "Fire Extinguisher(s)",
+            "OrderRecord": 13
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "eda03a11-59dc-495e-94fc-6058bb7bfbff",
+            "Id": 6,
+            "Title": "Hand Protection",
+            "OrderRecord": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "a83f3202-64b5-4390-92e5-7e3e3d58712f",
+            "Id": 9,
+            "Title": "Face Protection",
+            "OrderRecord": 9
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "d4e3bca3-2821-4e60-b947-40cab7238d3f",
+            "Id": 5,
+            "Title": "Hearing Protection",
+            "OrderRecord": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "72d5c0e8-3243-4d85-a418-01b0133386a9",
+            "Id": 1,
+            "Title": "Mandatory PPE",
+            "OrderRecord": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "6f7e1e2b-4265-4712-848e-e729c837199e",
+            "Id": 4,
+            "Title": "Life Jacket",
+            "OrderRecord": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "7cc1f768-e3ae-4a70-bcdd-9a002374da92",
+            "Id": 16,
+            "Title": "Other(s)",
+            "OrderRecord": 16
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "d7eb4a9d-26f8-4f44-9637-f5b1b912707f",
+            "Id": 7,
+            "Title": "Eye Protection",
+            "OrderRecord": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "d7144397-8972-4e11-bbc2-26bf9c612c06",
+            "Id": 15,
+            "Title": "Respiratory Protection",
+            "OrderRecord": 15
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "c75c44e6-0e07-4742-959f-f5adaba55919",
+            "Id": 3,
+            "Title": "Escape Sets",
+            "OrderRecord": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "15b8ba01-d727-4c2b-ab99-a90a8ae25789",
+            "Id": 14,
+            "Title": "Portable Gas Detector",
+            "OrderRecord": 14
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "7db8a6a8-75cd-4524-8358-90ee6e231a8e",
+            "Id": 11,
+            "Title": "Dust Mask",
+            "OrderRecord": 11
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "9ea0fdea-e6c4-4701-b79f-96288cd9b196",
+            "Id": 12,
+            "Title": "Welding PPE",
+            "OrderRecord": 12
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "5cbe93ac-08ad-4c69-ba59-d5e5e2b8bdcd",
+            "Id": 8,
+            "Title": "Additional Light",
+            "OrderRecord": 8
+        },
+        {
+            "@odata.type": "#SP.Data.LKPProtectiveSafetyEquipmentListItem",
+            "@odata.id": "e2e344d6-4258-452c-a3ed-70e2a0c42e13",
+            "Id": 10,
+            "Title": "Chemical Suit/Coveralls",
+            "OrderRecord": 10
+        }
+    ],
+    "CompanyRecord@odata.navigationLink": "Web/Lists(guid'4b94603c-a1ee-49fd-89dc-72cceb97bf2a')/Items(3)/CompanyRecord",
+    "CompanyRecord": [
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "a51234dc-71f0-452d-8404-5a7d455a46ed",
+            "Id": 16,
+            "Title": "Medroc",
+            "RecordOrder": 7
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "fb267c6a-fc2e-4c7a-93b2-5afb8d792842",
+            "Id": 10,
+            "Title": "Contractor",
+            "RecordOrder": 1
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "ce5963cd-b246-45e4-8665-9d3c5fa6747d",
+            "Id": 11,
+            "Title": "COR",
+            "RecordOrder": 2
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "bd0f9a49-a74e-4886-babb-49bbe2bc65f3",
+            "Id": 12,
+            "Title": "INF8",
+            "RecordOrder": 3
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "a5db9feb-7ce5-491d-a11a-c93fb7818fa1",
+            "Id": 13,
+            "Title": "KRIPP",
+            "RecordOrder": 4
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "ab5f3b01-70da-4ee4-b042-67fc67f6f908",
+            "Id": 14,
+            "Title": "LGH",
+            "RecordOrder": 5
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "61ec0a43-d3a9-4b90-a94f-3a2204731268",
+            "Id": 15,
+            "Title": "LIQ",
+            "RecordOrder": 6
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "dd2671ff-7fca-43c0-9ea6-65a539c541ed",
+            "Id": 19,
+            "Title": "Not Available",
+            "RecordOrder": 10
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "13c897f6-851b-4fa3-a0f6-0ab9c03575ae",
+            "Id": 17,
+            "Title": "PON",
+            "RecordOrder": 8
+        },
+        {
+            "@odata.type": "#SP.Data.LKPCompanyListItem",
+            "@odata.id": "6c0756e4-caab-443e-8dfe-0d7a1e4adace",
+            "Id": 18,
+            "Title": "SMS",
+            "RecordOrder": 9
+        }
+    ]
+}

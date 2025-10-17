@@ -1,0 +1,22 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "d5ff7bad-69fd-4ac1-a306-46e14196ae1a",
+  "alias": "PtwFormWebPart",
+  "componentType": "WebPart",
+  "version": "*",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "TeamsPersonalApp", "TeamsTab", "SharePointFullPage"],
+  "supportsThemeVariants": true,
+
+  "preconfiguredEntries": [{
+    "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+    "group": { "default": "Advanced" },
+    "title": { "default": "PTW Form" },
+    "description": { "default": "The PTW system is a formal recorded process aiming to identify hazards resulting from a potentially hazardous task or activity.The process involves identifying the necessary safeguards required to control the work." },
+    "officeFabricIconFontName": "Page",
+    "properties": {
+      "description": "PTW Form"
+    }
+  }]
+}

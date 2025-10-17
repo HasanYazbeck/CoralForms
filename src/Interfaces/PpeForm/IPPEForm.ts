@@ -1,8 +1,8 @@
 import { IPersonaProps } from '@fluentui/react';
-import { IEmployeeProps } from './IEmployeeProps';
+import { IEmployeeProps } from './../PpeForm/IEmployeeProps';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { IUser } from './IUser';
-import { IPPEItemDetails } from './IPPEItemDetails';
+import { IUser } from './../Common/IUser';
+import { IPPEItemDetails } from './../PpeForm/IPPEItemDetails';
 
 // export interface IPPEForm extends ISPListItem {
 //     EmployeeID?: number;

@@ -1,8 +1,8 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IPersonaProps } from "@fluentui/react";
-import { IPPEItem } from "../../../Interfaces/IPPEItem";
-import { ICoralFormsList } from "../../../Interfaces/ICoralFormsList";
-import { IPPEItemDetails } from "../../../Interfaces/IPPEItemDetails";
+import { IPPEItem } from "../../../Interfaces/PpeForm/IPPEItem";
+import { ICoralFormsList } from "../../../Interfaces/Common/ICoralFormsList";
+import { IPPEItemDetails } from "../../../Interfaces/PpeForm/IPPEItemDetails";
 import { IPropertyFieldGroupOrPerson } from "@pnp/spfx-property-controls";
 
 export interface IPpeFormWebPartProps {

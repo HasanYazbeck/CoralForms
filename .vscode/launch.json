@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Hosted workbench",
-      "type": "msedge",
+      "type": "chrome",
       "request": "launch",
       "url": "https://softflowcloud.sharepoint.com/sites/DEMO/DanielTest/_layouts/15/workbench.aspx",
       "webRoot": "${workspaceRoot}",
@@ -16,7 +16,7 @@
       },
       "runtimeArgs": [
         "--remote-debugging-port=9222",
-        "-incognito"
+        // "-incognito"
       ]
     }
   ]
