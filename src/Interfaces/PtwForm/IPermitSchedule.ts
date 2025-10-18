@@ -5,9 +5,8 @@ export interface IPermitScheduleRow {
   type: 'new' | 'renewal';
   date: string;
   startTime: string;
-  startAmPm: 'AM' | 'PM';
   endTime: string;
-  endAmPm: 'AM' | 'PM';
+  isChecked: boolean;
 }
 
 export interface IPermitScheduleProps {
@@ -15,6 +14,6 @@ export interface IPermitScheduleProps {
   selectedPermitType?: IWorkCategory;
   permitRows: IPermitScheduleRow[];
   onPermitTypeChange: (workCategory: IWorkCategory | undefined) => void;
-  onPermitRowUpdate: (rowId: string, field: string, value: string) => void;
+  onPermitRowUpdate: (rowId: string, field: string, value: string , checked :boolean) => void;
   styles?: any;
 }

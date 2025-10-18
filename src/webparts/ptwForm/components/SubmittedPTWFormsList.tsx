@@ -70,21 +70,6 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     `AssetDetails/Id,AssetDetails/Title,` +
     `CompanyRecord/Id,CompanyRecord/Title` +
     `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord`
-    // `IsDetailedRiskAssessmentRequired,RiskAssessmentRefNumber,WorkHazardsOthers,` +
-    // `OverallRiskAssessment,GasTestRequired,GasTestResult,FireWatchNeeded,AttachmentsProvided,`+
-    // `AttachmentsProvidedDetails,ToolboxTalk,` +
-    // `ToolboxTalkHSEReference,ToolBoxTalkDate,` +
-    // `WorkCategory/Id,WorkCategory/Title,` +
-    // `HACClassificationWorkArea/Id,HACClassificationWorkArea/Title,` +
-    // `WorkHazards/Id,WorkHazards/Title,` +
-    // `MachineryInvolved/Id,MachineryInvolved/Title,` +
-    // `Precuations/Id,Precuations/Title,` +
-    // `FireWatchAssigned/Id,FireWatchAssigned/Title,` +
-    // `ProtectiveSafetyEquipments/Id,ProtectiveSafetyEquipments/Title,` +
-    // `PersonnelInvolved/Id,PersonnelInvolved/Title` +
-
-    // +`,WorkCategory,HACClassificationWorkArea,WorkHazards,MachineryInvolved,Precuations,` +
-    // `FireWatchAssigned,ProtectiveSafetyEquipments,PersonnelInvolved`
   ), []);
 
   const mapRows = React.useCallback((data: any[]): Row[] => {

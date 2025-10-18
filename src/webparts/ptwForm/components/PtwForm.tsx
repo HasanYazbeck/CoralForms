@@ -14,7 +14,9 @@ import {
   ComboBox,
   Checkbox,
   IComboBoxStyles,
-  IComboBox
+  IComboBox,
+  Stack,
+  MessageBar
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
@@ -23,6 +25,8 @@ import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
 import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
+import { CheckBoxDistributerComponent } from './CheckBoxDistributerComponent';
+import RiskAssessmentList from './RiskAssessmentList';
 
 export default function PTWForm(props: IPTWFormProps) {
 
@@ -32,11 +36,11 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_users, setUsers] = React.useState<IUser[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [_ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
-  const [, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
+  const [_itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
   const [selectedPermitType, setSelectedPermitType] = React.useState<IWorkCategory | undefined>(undefined);
-  const [permitRows, setPermitRows] = React.useState<IPermitScheduleRow[]>([]);
+  const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
 
   // Form State
@@ -46,12 +50,11 @@ export default function PTWForm(props: IPTWFormProps) {
   const [assetId, setAssetId] = React.useState<string>('');
   const [selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
   const [selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
-  const [othersChecked, setOthersChecked] = React.useState(false);
-  const [othersValue, setOthersValue] = React.useState('');
   const [gasTestValue, setGasTestValue] = React.useState('');
   const [gasTestResult, setGasTestResult] = React.useState('');
   const [fireWatchValue, setFireWatchValue] = React.useState('');
   const [fireWatchAssigned, setFireWatchAssigned] = React.useState('');
+  const [selectedWorkHazardIds, ] = React.useState<Set<number>>(new Set());
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -544,7 +547,7 @@ export default function PTWForm(props: IPTWFormProps) {
     setSelectedPermitType(workCategory);
 
     if (!workCategory) {
-      setPermitRows([]);
+      setPermitPayload([]);
       return;
     }
 
@@ -553,36 +556,24 @@ export default function PTWForm(props: IPTWFormProps) {
     const newRows: IPermitScheduleRow[] = [];
 
     // First row is always "New Permit"
-    newRows.push({
-      id: `permit-row-0`,
-      type: 'new',
-      date: '',
-      startTime: '',
-      startAmPm: 'AM',
-      endTime: '',
-      endAmPm: 'PM',
-    });
+    newRows.push({ id: `permit-row-0`, type: 'new', date: '', startTime: '', endTime: '', isChecked: false });
 
     // Add renewal rows based on renewal validity
     for (let i = 1; i <= renewalValidity; i++) {
       newRows.push({
-        id: `permit-row-${i}`,
-        type: 'renewal',
-        date: '',
-        startTime: '',
-        startAmPm: 'AM',
-        endTime: '',
-        endAmPm: 'PM',
+        id: `permit-row-${i}`, type: 'renewal', date: '', startTime: '', endTime: '', isChecked: false,
       });
     }
 
-    setPermitRows(newRows);
+    setPermitPayload(newRows);
   }, []);
 
-  const updatePermitRow = React.useCallback((rowId: string, field: string, value: string) => {
-    setPermitRows(prev => prev.map(row =>
-      row.id === rowId ? { ...row, [field]: value } : row
-    ));
+  const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
+    setPermitPayload((prevItems) =>
+      prevItems.map((item) =>
+        item.id === rowId ? { ...item, [field]: value, isChecked: checked } : item
+      )
+    );
   }, []);
 
   // const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
@@ -716,7 +707,6 @@ export default function PTWForm(props: IPTWFormProps) {
 
           <div className='row'>
             <div className={`form-group col-md-6`}>
-              <Label>Permit Originator:</Label>
               <NormalPeoplePicker label={"Permit Originator"} onResolveSuggestions={_onFilterChanged} itemLimit={1}
                 className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
                 onInputChange={onInputChange} resolveDelay={150}
@@ -780,32 +770,11 @@ export default function PTWForm(props: IPTWFormProps) {
         </div>
 
         <div id="formContentSection">
-          {/* <div className="row pb-3" id="workCategorySection" >
-            <div>
-              <Label className={styles.ptwLabel}>Type of Permit / Work Category</Label>
-            </div>
-            <div className="form-group col-md-12">
-              <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.workCategories
-                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
-                  ?.map(category => (
-                    <div key={category.id} className={styles.checkboxItem}>
-                      <Checkbox
-                        label={category.title}
-                      // checked={values.includes(category)}
-                      // onChange={(_, checked) => toggle(category, !!checked)}
-                      />
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div> */}
           <div className='row pb-3' id="permitScheduleSection">
-            {/* Permit Schedule Component */}
             <PermitSchedule
               workCategories={_ptwFormStructure?.workCategories || []}
               selectedPermitType={selectedPermitType}
-              permitRows={permitRows}
+              permitRows={_permitPayload}
               onPermitTypeChange={handlePermitTypeChange}
               onPermitRowUpdate={updatePermitRow}
               styles={styles}
@@ -816,21 +785,9 @@ export default function PTWForm(props: IPTWFormProps) {
             <div>
               <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
             </div>
-            <div className="form-group col-md-12">
-              <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.hacWorkAreas
-                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
-                  ?.map(category => (
-                    <div key={category.id} className={styles.checkboxItem}>
-                      <Checkbox
-                        label={category.title}
-                      // checked={values.includes(category)}
-                      // onChange={(_, checked) => toggle(category, !!checked)}
-                      />
-                    </div>
-                  ))}
-              </div>
-            </div>
+            <CheckBoxDistributerComponent id="hacClassificationWorkAreaComponent"
+              optionList={_ptwFormStructure?.hacWorkAreas || []}
+              colSpacing='col-2' />
           </div>
 
           <div className="row pb-3" id="workHazardSection" >
@@ -843,40 +800,28 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
             </div>
 
-            <div className="form-group col-md-12">
-              <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.workHazardosList
-                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
-                  ?.map(category => (
-                    <div key={category.id} className={styles.checkboxItem}>
-                      {category.title.toLowerCase() === "others" ? (
-                        <div className={styles.othersContainer}>
-                          <Checkbox
-                            label="Others"
-                            checked={othersChecked}
-                            onChange={(_, checked) => setOthersChecked(!!checked)}
-                          />
-                          <input
-                            type="text"
-                            className={styles.othersInput}
-                            placeholder="Specify"
-                            disabled={!othersChecked}
-                            value={othersValue}
-                            onChange={e => setOthersValue(e.target.value)}
-                          />
-                        </div>
-                      ) : (
-                        <Checkbox
-                          label={category.title}
-                        // checked={values.includes(category)}
-                        // onChange={(_, checked) => toggle(category, !!checked)}
-                        />
-                      )}
-                    </div>
-                  ))}
+            <CheckBoxDistributerComponent id="workHazardsComponent"
+              optionList={_ptwFormStructure?.workHazardosList || []} />
+          </div>
+
+          {selectedWorkHazardIds.size >= 3 && (
+            <div className="row pb-2" id="riskAssessmentListSection">
+              <div className="form-group col-md-12">
+                <RiskAssessmentList
+                  initialRiskOptions={_ptwFormStructure?.initialRisk || []}
+                  residualRiskOptions={_ptwFormStructure?.residualRisk || []}
+                  safeguards={_ptwFormStructure?.precuationsItems || []}  // or any ILookupItem[] list you prefer
+                  overallRiskOptions={_ptwFormStructure?.overallRiskAssessment || []}
+                  onChange={(state) => {
+                    // TODO: store this in your form state for submit
+                    // Example: setRiskAssessmentState(state);
+                    // state.rows, state.overallRisk, state.l2Required, state.l2Ref
+                    console.log('RiskAssessmentList change', state);
+                  }}
+                />
               </div>
             </div>
-          </div>
+          )}
 
 
           <div className="row pb-3" id="precautionsSection" >
@@ -886,35 +831,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className="form-group col-md-12">
               <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.precuationsItems
-                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
-                  ?.map(category => (
-                    <div key={category.id} className={styles.checkboxItem}>
-                      {category.title.toLowerCase() === "others" ? (
-                        <div className={styles.othersContainer}>
-                          <Checkbox
-                            label="Others"
-                            checked={othersChecked}
-                            onChange={(_, checked) => setOthersChecked(!!checked)}
-                          />
-                          <input
-                            type="text"
-                            className={styles.othersInput}
-                            placeholder="Specify"
-                            disabled={!othersChecked}
-                            value={othersValue}
-                            onChange={e => setOthersValue(e.target.value)}
-                          />
-                        </div>
-                      ) : (
-                        <Checkbox
-                          label={category.title}
-                        // checked={values.includes(category)}
-                        // onChange={(_, checked) => toggle(category, !!checked)}
-                        />
-                      )}
-                    </div>
-                  ))}
+                <CheckBoxDistributerComponent id="precautionsComponent" optionList={_ptwFormStructure?.precuationsItems || []} />
               </div>
             </div>
           </div>
@@ -954,7 +871,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             {/* Fire Watch Needed Section */}
             <div className="form-group col-md-12 d-flex align-items-center">
-              <Label className={`${styles.ptwLabel} me-3`} style={{ minWidth: '180px' }}>
+              <Label className={`me-3`} style={{ minWidth: '180px' }}>
                 Fire Watch Needed
               </Label>
 
@@ -982,7 +899,6 @@ export default function PTWForm(props: IPTWFormProps) {
                 />
               </div>
             </div>
-
           </div>
 
           <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
@@ -992,43 +908,35 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className="form-group col-md-12">
               <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.protectiveSafetyEquipments
-                  ?.sort((a, b) => a.orderRecord - b.orderRecord)
-                  ?.map(category => (
-                    <div key={category.id} className={styles.checkboxItem}>
-                      {category.title.toLowerCase() === "others" ? (
-                        <div className={styles.othersContainer}>
-                          <Checkbox
-                            label="Others"
-                            checked={othersChecked}
-                            onChange={(_, checked) => setOthersChecked(!!checked)}
-                          />
-                          <input
-                            type="text"
-                            className={styles.othersInput}
-                            placeholder="Specify"
-                            disabled={!othersChecked}
-                            value={othersValue}
-                            onChange={e => setOthersValue(e.target.value)}
-                          />
-                        </div>
-                      ) : (
-                        <Checkbox
-                          label={category.title}
-                        // checked={values.includes(category)}
-                        // onChange={(_, checked) => toggle(category, !!checked)}
-                        />
-                      )}
-                    </div>
-                  ))}
+                <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent" optionList={_ptwFormStructure?.protectiveSafetyEquipments || []} />
               </div>
             </div>
           </div>
 
-        </div>
 
+          <div id="PdfInstructionsSegment">
+            {/* <Separator /> */}
+            {/* Instructions For Use */}
+            <Stack horizontal id="InstructionsStack">
+              {_itemInstructionsForUse && _itemInstructionsForUse.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <Label>Instructions for Use:</Label>
+                  <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                    {_itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                      <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                        <strong>{`${idx + 1}. `}</strong>
+                        {instr.Description}
+                      </MessageBar>
+                    )
+                    )}
+                  </div>
+                </div>
+              )}
+            </Stack>
+          </div>
+
+        </div>
       </form >
     </div >
   );
 }
-

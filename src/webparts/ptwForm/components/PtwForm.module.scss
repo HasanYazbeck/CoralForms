@@ -1,5 +1,7 @@
 @import '~@fluentui/react/dist/sass/References.scss';
 
+.test :global(.ms-Label) { font-size: 12px; }
+
 .ptwForm {
   overflow: hidden;
   padding: 1em;
@@ -184,7 +186,7 @@
 
 .checkboxContainer {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
 }
 
@@ -219,4 +221,21 @@
   padding: 4px 6px;
   border: 1px solid #ccc;
   border-radius: 4px;
+}
+
+.othersRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px; /* separates from the first row */
+  width: 100%;      /* ensure it breaks onto its own row */
+}
+
+.othersTextWrapper {
+  flex: 1; /* let the textbox take remaining width */
+  min-width: 150px;
+}
+
+.othersText {
+  width: 100%;
 }
