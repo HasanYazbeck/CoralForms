@@ -7,8 +7,6 @@ import {
     TextField,
     ComboBox,
     IComboBoxOption,
-    Dropdown,
-    IDropdownOption,
     IconButton,
     Stack,
     Label,
@@ -24,6 +22,7 @@ export interface IRiskTaskRow {
     initialRisk?: string;       // from _ptwFormStructure.initialRisk[]
     safeguardIds: number[];     // multi-select ILookupItem[]
     residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
+    safeguardsNote?: string;    // custom text entered in the safeguards combobox
 }
 
 export interface IRiskAssessmentListProps {
@@ -43,8 +42,7 @@ export interface IRiskAssessmentListProps {
 const toComboOptions = (values: string[]): IComboBoxOption[] =>
     (values || []).map(v => ({ key: v, text: v }));
 
-const toDropdownOptions = (items: ILookupItem[]): IDropdownOption[] =>
-    (items || []).map(i => ({ key: i.id, text: i.title }));
+// (Dropdown implementation removed)
 
 const newRow = (): IRiskTaskRow => ({
     id: `riskrow-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -80,9 +78,28 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         setRows(prev => prev.map(r => (r.id === id ? { ...r, initialRisk: option?.key as string | undefined } : r)));
     };
 
-    const handleSafeguardsChange = (id: string, options?: IDropdownOption[]) => {
-        const selectedIds = (options || []).filter(o => !!o.selected).map(o => Number(o.key));
-        setRows(prev => prev.map(r => (r.id === id ? { ...r, safeguardIds: selectedIds } : r)));
+    // (Dropdown change handler removed)
+
+    // Build multi-select ComboBox options with selected state based on row.safeguardIds
+    const buildSafeguardComboOptions = React.useCallback((row: IRiskTaskRow): IComboBoxOption[] => {
+        const base = (safeguards || []).map(i => ({ key: i.id, text: i.title } as IComboBoxOption));
+        return base.map(opt => ({ ...opt, selected: row.safeguardIds?.includes(Number(opt.key)) }));
+    }, [safeguards]);
+
+    // Toggle selection for a single option in multi-select ComboBox
+    const handleSafeguardComboChange = (row: IRiskTaskRow, option?: IComboBoxOption, _index?: number, _value?: string) => {
+        if (!option) return;
+        const idNum = Number(option.key);
+        setRows(prev => prev.map(r => {
+            if (r.id !== row.id) return r;
+            const current = new Set(r.safeguardIds || []);
+            if (option.selected) {
+                current.add(idNum);
+            } else {
+                current.delete(idNum);
+            }
+            return { ...r, safeguardIds: Array.from(current) };
+        }));
     };
 
     const handleResidualRiskChange = (id: string, option?: IComboBoxOption) => {
@@ -108,7 +125,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         {
             key: 'col-ir',
             name: 'Initial Risk (IR)',
-            minWidth: 180,
+            minWidth: 120,
             onRender: (row: IRiskTaskRow) => (
                 <ComboBox
                     placeholder="Select"
@@ -122,22 +139,32 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         {
             key: 'col-safe',
             name: 'Safeguards',
-            minWidth: 260,
+            minWidth: 320,
             onRender: (row: IRiskTaskRow) => (
-                <Dropdown
+                <ComboBox
                     placeholder="Select"
-                    options={toDropdownOptions(safeguards || [])}
-                    selectedKeys={row.safeguardIds}
-                    onChange={() => handleSafeguardsChange(row.id, [])}
-                    //   onChange={(_, __, ___, selectedOptions) => handleSafeguardsChange(row.id, selectedOptions)}
                     multiSelect
+                    options={buildSafeguardComboOptions(row)}
+                    onChange={(_, option, index, value) => handleSafeguardComboChange(row, option, index, value)}
+                    useComboBoxAsMenuWidth
+                    onRenderList={(props: any, defaultRender?: (props?: any) => JSX.Element | null) => (
+                        <div style={{ padding: 8 }}>
+                            <TextField
+                                placeholder="Additional notes"
+                                value={row.safeguardsNote || ''}
+                                onChange={(_, v) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, safeguardsNote: v || '' } : r))}
+                                styles={{ root: { marginBottom: 6 } }}
+                            />
+                            {defaultRender ? defaultRender(props) : null}
+                        </div>
+                    )}
                 />
             )
         },
         {
             key: 'col-rr',
             name: 'Residual Risk (RR)',
-            minWidth: 180,
+            minWidth: 120,
             onRender: (row: IRiskTaskRow) => (
                 <ComboBox
                     placeholder="Select"
@@ -193,15 +220,18 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             {/* Overall Risk Assessment */}
             {overallOptions.length > 0 && (
                 <div className='row' >
-                    <Label>Overall Risk Assessment</Label>
-                    <ChoiceGroup
-                        selectedKey={overallRisk}
-                        options={overallOptions}
-                        onChange={(_, option) => setOverallRisk(option?.key)}
-                    />
-                    <Label styles={{ root: { fontStyle: 'italic', fontSize: 12, color: '#6b6b6b' } as any }}>
-                        If the Overall Risk Assessment is ranked as High (as per COR-HSE-01-MTX-001), HSE & terminal management approval is required.
-                    </Label>
+                    <div className='form-group'>
+                        <Label>Overall Risk Assessment</Label>
+                        <ChoiceGroup
+                            selectedKey={overallRisk}
+                            options={overallOptions}
+                            onChange={(_, option) => setOverallRisk(option?.key)}
+                        />
+                        <Label styles={{ root: { fontStyle: 'italic', fontSize: 12, color: '#6b6b6b' } as any }}>
+                            If the Overall Risk Assessment is ranked as High (as per COR-HSE-03-MTX-001), HSE & terminal management approval is required.
+                        </Label>
+                    </div>
+
                 </div>
             )}
 
