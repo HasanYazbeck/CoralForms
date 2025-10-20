@@ -41,6 +41,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
   const [_safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
+  const [_filteredSafeguards, setFilteredSafeguards] = React.useState<ISagefaurdsItem[]>([]);
   const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
@@ -57,13 +58,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const [fireWatchValue, setFireWatchValue] = React.useState('');
   const [fireWatchAssigned, setFireWatchAssigned] = React.useState('');
   const [selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
-
-  //   const [, setRiskAssessmentState] = React.useState<{
-  //   rows: IRiskTaskRow[];
-  //   overallRisk?: string;
-  //   l2Required: boolean;
-  //   l2Ref?: string;
-  // }>({ rows: [], l2Required: false });
 
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
@@ -462,16 +456,14 @@ export default function PTWForm(props: IPTWFormProps) {
         }
       });
       setSafeguards(result);
+      setFilteredSafeguards(result);
       return result;
     } catch (error) {
       setSafeguards([]);
+      setFilteredSafeguards([]);
       return [];
     }
   }, [props.context]);
-
-  React.useEffect(() => {
-    applySafeguardsFilter();
-  }, [_safeguards, _ptwFormStructure?.workCategories]);
 
   // Initial load of users
   React.useEffect(() => {
@@ -569,16 +561,6 @@ export default function PTWForm(props: IPTWFormProps) {
       }));
   }, [_ptwFormStructure?.assetsDetails, selectedAssetCategory]);
 
-  // Helper to filter safeguards based on selected work categories
-  const applySafeguardsFilter = React.useCallback(() => {
-
-    if (_ptwFormStructure?.workCategories && _selectedPermitTypeList.length > 0) {
-      setSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && _selectedPermitTypeList.some(cat => cat.id === s.workCategoryId)));
-    } else {
-      setSafeguards(_safeguards || []);
-    }
-  }, [_ptwFormStructure?.workCategories, _safeguards, _selectedPermitTypeList]);
-
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
     setSelectedAssetCategory(item ? item.key : undefined);
@@ -607,6 +589,13 @@ export default function PTWForm(props: IPTWFormProps) {
       // Compute selected list after this toggle
       const selectedItems = nextWorkCategories.filter(cat => cat.isChecked);
       setSelectedPermitTypeList(selectedItems);
+      // Filter safeguards list based on selected work categories
+      if (selectedItems.length > 0) {
+        const selectedIds = new Set(selectedItems.map(s => s.id));
+        setFilteredSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && selectedIds.has(s.workCategoryId)));
+      } else {
+        setFilteredSafeguards([]);
+      }
 
       if (selectedItems.length === 0) {
         setPermitPayload([]);
@@ -640,8 +629,17 @@ export default function PTWForm(props: IPTWFormProps) {
 
       return { ...prev, workCategories: nextWorkCategories } as IPTWForm;
     });
-    applySafeguardsFilter();
   }, [_permitPayload, setPTWFormStructure]);
+
+  // Keep filtered safeguards in sync if safeguards or selected categories change elsewhere
+  React.useEffect(() => {
+    if (_selectedPermitTypeList.length > 0) {
+      const ids = new Set(_selectedPermitTypeList.map(s => s.id));
+      setFilteredSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && ids.has(s.workCategoryId)));
+    } else {
+      setFilteredSafeguards(_safeguards || []);
+    }
+  }, [_safeguards, _selectedPermitTypeList]);
 
   const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
     setPermitPayload((prevItems) =>
@@ -889,7 +887,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 <RiskAssessmentList
                   initialRiskOptions={_ptwFormStructure?.initialRisk || []}
                   residualRiskOptions={_ptwFormStructure?.residualRisk || []}
-                  safeguards={_safeguards || []}
+                  safeguards={_filteredSafeguards || []}
                   overallRiskOptions={_ptwFormStructure?.overallRiskAssessment || []}
                 // onChange={(state) => {
                 //   setRiskAssessmentState(state);  
