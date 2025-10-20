@@ -36,29 +36,29 @@ export default function PTWForm(props: IPTWFormProps) {
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [_users, setUsers] = React.useState<IUser[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
-  const [_ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
-  const [_itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
+  const [ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
+  const [itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
-  const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
-  const [_safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
-  const [_filteredSafeguards, setFilteredSafeguards] = React.useState<ISagefaurdsItem[]>([]);
-  const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
-  const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
+  const [, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
+  const [safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
+  const [filteredSafeguards, setFilteredSafeguards] = React.useState<ISagefaurdsItem[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
 
-  // Form State
+  // Form State to used on update or submit
   const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
   const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
-  const [projectTitle, setProjectTitle] = React.useState<string>('');
-  const [assetId, setAssetId] = React.useState<string>('');
-  const [selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
-  const [selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
-  const [gasTestValue, setGasTestValue] = React.useState('');
-  const [gasTestResult, setGasTestResult] = React.useState('');
-  const [fireWatchValue, setFireWatchValue] = React.useState('');
-  const [fireWatchAssigned, setFireWatchAssigned] = React.useState('');
-  const [selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
-
+  const [_projectTitle, setProjectTitle] = React.useState<string>('');
+  const [_assetId, setAssetId] = React.useState<string>('');
+  const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
+  const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
+  const [_gasTestValue, setGasTestValue] = React.useState('');
+  const [_gasTestResult, setGasTestResult] = React.useState('');
+  const [_fireWatchValue, setFireWatchValue] = React.useState('');
+  const [_fireWatchAssigned, setFireWatchAssigned] = React.useState('');
+  const [_selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
+  const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
+  const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
+  const [_selectedHacWorkAreaId, setSelectedHacWorkAreaId] = React.useState<number | undefined>(undefined);
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -477,7 +477,7 @@ export default function PTWForm(props: IPTWFormProps) {
       await _getPersonnelInvolved();
       await _getWorkSafeguards();
 
-      if (_ptwFormStructure && _ptwFormStructure.id && _ptwFormStructure.coralForm?.hasInstructionsForUse) {
+      if (ptwFormStructure && ptwFormStructure.id && ptwFormStructure.coralForm?.hasInstructionsForUse) {
         await _getLKPItemInstructionsForUse('PTW');
       }
 
@@ -531,20 +531,20 @@ export default function PTWForm(props: IPTWFormProps) {
   };
   // Asset category options
   const assetCategoryOptions: IDropdownOption[] = React.useMemo(() => {
-    if (!_ptwFormStructure?.assetsCategories) return [];
-    return _ptwFormStructure.assetsCategories.map(item => ({
+    if (!ptwFormStructure?.assetsCategories) return [];
+    return ptwFormStructure.assetsCategories.map(item => ({
       key: item.id,
       text: item.title || ''
     }));
-  }, [_ptwFormStructure?.assetsCategories]);
+  }, [ptwFormStructure?.assetsCategories]);
 
   // Asset details options (filtered by selected category)
   const assetDetailsOptions: IDropdownOption[] = React.useMemo(() => {
-    if (!_ptwFormStructure?.assetsDetails) return [];
+    if (!ptwFormStructure?.assetsDetails) return [];
 
     // If no category is selected, return all asset details
-    if (!selectedAssetCategory) {
-      return _ptwFormStructure.assetsDetails.map(item => ({
+    if (!_selectedAssetCategory) {
+      return ptwFormStructure.assetsDetails.map(item => ({
         key: item.id,
         text: item.title || ''
       }));
@@ -553,13 +553,13 @@ export default function PTWForm(props: IPTWFormProps) {
     // / Filter asset details based on selected category
     // Note: This assumes there's a relationship between asset category and details
     // You may need to adjust this logic based on your data structure
-    return _ptwFormStructure.assetsDetails
-      .filter(item => item.assetCategoryId === selectedAssetCategory) // Adjust this condition based on your data structure
+    return ptwFormStructure.assetsDetails
+      .filter(item => item.assetCategoryId === _selectedAssetCategory) // Adjust this condition based on your data structure
       .map(item => ({
         key: item.id,
         text: item.title || ''
       }));
-  }, [_ptwFormStructure?.assetsDetails, selectedAssetCategory]);
+  }, [ptwFormStructure?.assetsDetails, _selectedAssetCategory]);
 
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
@@ -592,7 +592,7 @@ export default function PTWForm(props: IPTWFormProps) {
       // Filter safeguards list based on selected work categories
       if (selectedItems.length > 0) {
         const selectedIds = new Set(selectedItems.map(s => s.id));
-        setFilteredSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && selectedIds.has(s.workCategoryId)));
+        setFilteredSafeguards((safeguards || []).filter(s => s.workCategoryId !== undefined && selectedIds.has(s.workCategoryId)));
       } else {
         setFilteredSafeguards([]);
       }
@@ -635,18 +635,38 @@ export default function PTWForm(props: IPTWFormProps) {
   React.useEffect(() => {
     if (_selectedPermitTypeList.length > 0) {
       const ids = new Set(_selectedPermitTypeList.map(s => s.id));
-      setFilteredSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && ids.has(s.workCategoryId)));
+      setFilteredSafeguards((safeguards || []).filter(s => s.workCategoryId !== undefined && ids.has(s.workCategoryId)));
     } else {
-      setFilteredSafeguards(_safeguards || []);
+      setFilteredSafeguards(safeguards || []);
     }
-  }, [_safeguards, _selectedPermitTypeList]);
+  }, [safeguards, _selectedPermitTypeList]);
 
   const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
-    setPermitPayload((prevItems) =>
-      prevItems.map((item) =>
-        item.id === rowId ? { ...item, [field]: value, isChecked: checked } : item
-      )
+    setPermitPayload(prevItems =>
+      prevItems.map(item => {
+        if (item.id !== rowId) return item;
+        // Base update for the edited field and selection state
+        const next = { ...item, [field]: value, isChecked: !!checked } as IPermitScheduleRow;
+        // If the row was just deselected via the checkbox, clear the other inputs
+        if (field === 'type' && !checked) {
+          return { ...next, date: '', startTime: '', endTime: '' };
+        }
+        return next;
+      })
     );
+  }, []);
+
+  
+
+  const handleHACChange = React.useCallback((checked?: boolean, hacArea?: ILookupItem) => {
+    if (!hacArea || hacArea.id === undefined || hacArea.id === null) return;
+    if (checked) {
+      // Single selection: pick this id and deselect others
+      setSelectedHacWorkAreaId(hacArea.id);
+    } else {
+      // If the same item is being unchecked, clear selection
+      setSelectedHacWorkAreaId(prev => (prev === hacArea.id ? undefined : prev));
+    }
   }, []);
 
   // const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
@@ -751,8 +771,8 @@ export default function PTWForm(props: IPTWFormProps) {
                 <img src={logoPTWUrl} alt="PTWLogo" className={styles.ptwformLogo} />
               </div> */}
               <div className={styles.ptwTitles}>
-                <span className={styles.formArTitle}>{_ptwFormStructure?.coralForm?.arTitle}</span>
-                <span className={styles.formTitle}>{_ptwFormStructure?.coralForm?.title}</span>
+                <span className={styles.formArTitle}>{ptwFormStructure?.coralForm?.arTitle}</span>
+                <span className={styles.formTitle}>{ptwFormStructure?.coralForm?.title}</span>
               </div>
             </div>
           </div>
@@ -770,10 +790,6 @@ export default function PTWForm(props: IPTWFormProps) {
                 <TextField label="PTW Ref #" underlined disabled defaultValue={_coralReferenceNumber}
                   styles={{ root: { color: '#000', fontWeight: 500, backgroundColor: '#f4f4f4' } }}
                   onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')} />
-                {/* 
-                <TextField label="Ref#" value={_coralReferenceNumber}
-                  styles={{ root: { color: '#000', fontWeight: 500 } }}
-                  onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')} /> */}
               </div>
             </div>
           </div>
@@ -784,7 +800,6 @@ export default function PTWForm(props: IPTWFormProps) {
                 className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
                 onInputChange={onInputChange} resolveDelay={150}
                 styles={peoplePickerBlackStyles}
-                // onChange={handlePermitOriginatorChange}
                 selectedItems={_PermitOriginator}
                 inputProps={{ placeholder: 'Enter name or email' }}
                 pickerSuggestionsProps={suggestionProps}
@@ -795,7 +810,7 @@ export default function PTWForm(props: IPTWFormProps) {
             <div className={`form-group col-md-6`}>
               <TextField
                 label="Asset ID"
-                value={assetId}
+                value={_assetId}
                 onChange={(_, newValue) => setAssetId(newValue || '')} />
             </div>
           </div>
@@ -806,9 +821,8 @@ export default function PTWForm(props: IPTWFormProps) {
                 label="Asset Category"
                 placeholder="Select an asset category"
                 options={assetCategoryOptions}
-                selectedKey={selectedAssetCategory}
+                selectedKey={_selectedAssetCategory}
                 onChange={(_e, ch) => onAssetCategoryChange(_e, ch)}
-                // onChange={() => onAssetCategoryChange}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
@@ -818,9 +832,9 @@ export default function PTWForm(props: IPTWFormProps) {
                 label="Asset Details"
                 placeholder="Select asset details"
                 options={assetDetailsOptions}
-                selectedKey={selectedAssetDetails}
+                selectedKey={_selectedAssetDetails}
                 onChange={() => onAssetDetailsChange}
-                disabled={!selectedAssetCategory}
+                disabled={!_selectedAssetCategory}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
@@ -831,7 +845,7 @@ export default function PTWForm(props: IPTWFormProps) {
             <div className={`form-group col-md-12`}>
               <TextField
                 label="Project Title / Description"
-                value={projectTitle}
+                value={_projectTitle}
                 onChange={(_, newValue) => setProjectTitle(newValue || '')}
                 multiline
                 rows={2}
@@ -846,7 +860,7 @@ export default function PTWForm(props: IPTWFormProps) {
         <div id="formContentSection">
           <div className='row pb-3' id="permitScheduleSection">
             <PermitSchedule
-              workCategories={_ptwFormStructure?.workCategories || []}
+              workCategories={ptwFormStructure?.workCategories || []}
               selectedPermitTypeList={_selectedPermitTypeList}
               permitRows={_permitPayload}
               onPermitTypeChange={handlePermitTypeChange}
@@ -860,8 +874,11 @@ export default function PTWForm(props: IPTWFormProps) {
               <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
             </div>
             <CheckBoxDistributerOnlyComponent id="hacClassificationWorkAreaComponent"
-              optionList={_ptwFormStructure?.hacWorkAreas || []}
-              colSpacing='col-2' />
+              optionList={ptwFormStructure?.hacWorkAreas || []}
+              colSpacing='col-2'
+              onChange={(checked, item) => handleHACChange(checked, item)}
+              selectedIds={_selectedHacWorkAreaId !== undefined ? [_selectedHacWorkAreaId] : []}
+            />
           </div>
 
           <div className="row pb-3" id="workHazardSection" >
@@ -875,20 +892,20 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
 
             <CheckBoxDistributerComponent id="workHazardsComponent"
-              optionList={_ptwFormStructure?.workHazardosList || []}
-              selectedIds={Array.from(selectedWorkHazardIds)}
+              optionList={ptwFormStructure?.workHazardosList || []}
+              selectedIds={Array.from(_selectedWorkHazardIds)}
               onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
             />
           </div>
 
-          {selectedWorkHazardIds.size >= 3 && (
+          {_selectedWorkHazardIds.size >= 3 && (
             <div className="row pb-2" id="riskAssessmentListSection">
               <div className="form-group col-md-12">
                 <RiskAssessmentList
-                  initialRiskOptions={_ptwFormStructure?.initialRisk || []}
-                  residualRiskOptions={_ptwFormStructure?.residualRisk || []}
-                  safeguards={_filteredSafeguards || []}
-                  overallRiskOptions={_ptwFormStructure?.overallRiskAssessment || []}
+                  initialRiskOptions={ptwFormStructure?.initialRisk || []}
+                  residualRiskOptions={ptwFormStructure?.residualRisk || []}
+                  safeguards={filteredSafeguards || []}
+                  overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
                 // onChange={(state) => {
                 //   setRiskAssessmentState(state);  
                 //   // TODO: store this in your form state for submit
@@ -909,7 +926,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className="form-group col-md-12">
               <div className={styles.checkboxContainer}>
-                <CheckBoxDistributerOnlyComponent id="precautionsComponent" optionList={_ptwFormStructure?.precuationsItems || []} />
+                <CheckBoxDistributerOnlyComponent id="precautionsComponent" optionList={ptwFormStructure?.precuationsItems || []} />
               </div>
             </div>
           </div>
@@ -923,11 +940,11 @@ export default function PTWForm(props: IPTWFormProps) {
               </Label>
 
               <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.gasTestRequired?.map((gas, i) => (
+                {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
                   <div key={i} className={styles.checkboxItem}>
                     <Checkbox
                       label={gas}
-                      checked={gasTestValue === gas}
+                      checked={_gasTestValue === gas}
                       onChange={() => setGasTestValue(gas)}
                     />
                   </div>
@@ -940,8 +957,8 @@ export default function PTWForm(props: IPTWFormProps) {
                   type="text"
                   className={styles.resultInput}
                   placeholder="Enter result"
-                  disabled={gasTestValue !== 'Yes'}
-                  value={gasTestResult}
+                  disabled={_gasTestValue !== 'Yes'}
+                  value={_gasTestResult}
                   onChange={e => setGasTestResult(e.target.value)}
                 />
               </div>
@@ -957,11 +974,11 @@ export default function PTWForm(props: IPTWFormProps) {
               </Label>
 
               <div className={styles.checkboxContainer}>
-                {_ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
+                {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
                   <div key={i} className={styles.checkboxItem}>
                     <Checkbox
                       label={item}
-                      checked={fireWatchValue === item}
+                      checked={_fireWatchValue === item}
                       onChange={() => setFireWatchValue(item)}
                     />
                   </div>
@@ -974,8 +991,8 @@ export default function PTWForm(props: IPTWFormProps) {
                   type="text"
                   className={styles.resultInput}
                   placeholder="Enter name"
-                  disabled={fireWatchValue !== 'Yes'}
-                  value={fireWatchAssigned}
+                  disabled={_fireWatchValue !== 'Yes'}
+                  value={_fireWatchAssigned}
                   onChange={e => setFireWatchAssigned(e.target.value)}
                 />
               </div>
@@ -989,7 +1006,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className="form-group col-md-12">
               <div className={styles.checkboxContainer}>
-                <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent" optionList={_ptwFormStructure?.protectiveSafetyEquipments || []} />
+                <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent" optionList={ptwFormStructure?.protectiveSafetyEquipments || []} />
               </div>
             </div>
           </div>
@@ -998,11 +1015,11 @@ export default function PTWForm(props: IPTWFormProps) {
             <div id="PdfInstructionsSegment">
               {/* Instructions For Use */}
               <Stack horizontal id="InstructionsStack">
-                {_itemInstructionsForUse && _itemInstructionsForUse.length > 0 && (
+                {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <Label>Instructions for Use:</Label>
                     <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
-                      {_itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                      {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
                         <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
                           <strong>{`${idx + 1}. `}</strong>
                           {instr.Description}

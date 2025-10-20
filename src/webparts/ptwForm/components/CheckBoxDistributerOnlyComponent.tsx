@@ -8,6 +8,8 @@ interface ICheckBoxDistributerOnlyComponentProps {
     optionList: ILookupItem[];
     className?: string;
     colSpacing?: 'col-1' | 'col-2' | 'col-3' | 'col-4' | 'col-6';
+    onChange?: (checked: boolean | undefined, selectedItem: ILookupItem | undefined) => void;
+    selectedIds?: number[]; // controlled selection support
 }
 
 export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnlyComponentProps): JSX.Element {
@@ -25,12 +27,12 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
         <div className="form-group col-md-12" id={props.id}>
             <div className="row">
                 {regularCategories.map(category => (
-                    <div className={props.colSpacing ? props.colSpacing : 'col-3'}>
-                        <div key={category.id} className="my-2">
+                    <div key={category.id} className={props.colSpacing ? props.colSpacing : 'col-3'}>
+                        <div className="my-2">
                             <Checkbox
                                 label={category.title}
-                            // checked={values.includes(category)}
-                            // onChange={(_, checked) => toggle(category, !!checked)}
+                                checked={props.selectedIds ? props.selectedIds.includes(category.id) : undefined}
+                                onChange={(_, checked) => props.onChange?.(checked, category)}
                             />
                         </div>
                     </div>
@@ -41,11 +43,12 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
                 <div className="row mt-1">
                     <div className={styles.checkboxItem}>
                         <Checkbox label={othersCategory.title}
-                            checked={othersChecked}
+                            checked={props.selectedIds ? props.selectedIds.includes(othersCategory.id) : othersChecked}
                             onChange={(_, checked) => {
                                 const isChecked = !!checked;
                                 setOthersChecked(isChecked);
                                 if (!isChecked) setOthersText('');
+                                props.onChange?.(isChecked, othersCategory);
                             }}
                         />
                     </div>

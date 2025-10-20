@@ -40,7 +40,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-type', name: 'Type', minWidth: 165, maxWidth: 175,
       onRender: (row) => (
         <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'} checked={row.isChecked}
-          onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', row.isChecked == !!checked)}
+          onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked )}
         />
       )
     },
@@ -48,7 +48,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-date', name: 'Date', minWidth: 160, maxWidth: 170,
       onRender: (row) => (
         <DatePicker value={row.date ? new Date(row.date) : undefined} style={{ maxWidth: '100%' }} strings={defaultDatePickerStrings}
-          onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '', row.isChecked)}
+          onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '',  row.isChecked)}
+          disabled={!row.isChecked}
           styles={datePickerBlackStyles}
         />
       )
@@ -57,7 +58,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-start', name: 'Starting Time', minWidth: 130, maxWidth: 140,
       onRender: (row) => (
         <TextField type="time" value={row.startTime} style={{ width: '100%' }}
-          onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '', row.isChecked)}
+          onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '',  row.isChecked)}
+          disabled={!row.isChecked}
         />
       )
     },
@@ -66,6 +68,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       onRender: (row) => (
         <TextField type="time" value={row.endTime} style={{ width: '100%' }}
           onChange={(_, newValue) => onPermitRowUpdate(row.id, 'endTime', newValue || '', row.isChecked)}
+          disabled={!row.isChecked}
         />
       )
     }
