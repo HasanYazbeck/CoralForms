@@ -41,7 +41,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
   const [_safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
-  // const [selectedPermitType, setSelectedPermitType] = React.useState<IWorkCategory | undefined>(undefined);
   const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
@@ -456,8 +455,8 @@ export default function PTWForm(props: IPTWFormProps) {
             id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
             title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
             orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
-            workCategoryId: obj.AssetCategoryRecord?.Id !== undefined && obj.AssetCategoryRecord?.Id !== null ? obj.AssetCategoryRecord.Id : undefined,
-            workCategoryTitle: obj.AssetCategoryRecord?.Title !== undefined && obj.AssetCategoryRecord?.Title !== null ? obj.AssetCategoryRecord.Title : undefined,
+            workCategoryId: obj.WorkCatetegoryRecord?.Id !== undefined && obj.WorkCatetegoryRecord?.Id !== null ? obj.WorkCatetegoryRecord.Id : undefined,
+            workCategoryTitle: obj.WorkCatetegoryRecord?.Title !== undefined && obj.WorkCatetegoryRecord?.Title !== null ? obj.WorkCatetegoryRecord.Title : undefined,
           };
           result.push(temp);
         }
@@ -469,6 +468,10 @@ export default function PTWForm(props: IPTWFormProps) {
       return [];
     }
   }, [props.context]);
+
+  React.useEffect(() => {
+    applySafeguardsFilter();
+  }, [_safeguards, _ptwFormStructure?.workCategories]);
 
   // Initial load of users
   React.useEffect(() => {
@@ -566,6 +569,16 @@ export default function PTWForm(props: IPTWFormProps) {
       }));
   }, [_ptwFormStructure?.assetsDetails, selectedAssetCategory]);
 
+  // Helper to filter safeguards based on selected work categories
+  const applySafeguardsFilter = React.useCallback(() => {
+
+    if (_ptwFormStructure?.workCategories && _selectedPermitTypeList.length > 0) {
+      setSafeguards((_safeguards || []).filter(s => s.workCategoryId !== undefined && _selectedPermitTypeList.some(cat => cat.id === s.workCategoryId)));
+    } else {
+      setSafeguards(_safeguards || []);
+    }
+  }, [_ptwFormStructure?.workCategories, _safeguards, _selectedPermitTypeList]);
+
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
     setSelectedAssetCategory(item ? item.key : undefined);
@@ -579,39 +592,56 @@ export default function PTWForm(props: IPTWFormProps) {
 
   // Add these handler functions
   const handlePermitTypeChange = React.useCallback((checked?: boolean, workCategory?: IWorkCategory) => {
-    // setSelectedPermitType(workCategory);
-
+    // Support multi-select and derive permit rows by the minimum renewal validity across selected categories
     if (!workCategory) {
+      setSelectedPermitTypeList([]);
       setPermitPayload([]);
       return;
     }
 
-    const updatedList = _ptwFormStructure?.workCategories?.map(category =>
-      category.id === workCategory.id ? { ...category, isChecked: !!checked } : category
-    );
+    setPTWFormStructure(prev => {
+      const nextWorkCategories: IWorkCategory[] = (prev.workCategories || []).map(cat =>
+        cat.id === workCategory.id ? { ...cat, isChecked: !!checked } : cat
+      );
 
-    
+      // Compute selected list after this toggle
+      const selectedItems = nextWorkCategories.filter(cat => cat.isChecked);
+      setSelectedPermitTypeList(selectedItems);
 
-    // 2️⃣ Filter selected items into _selectedPermitTypeList
-    const selectedItems = updatedList?.filter(cat => cat.isChecked);
-    setSelectedPermitTypeList(selectedItems || []);
+      if (selectedItems.length === 0) {
+        setPermitPayload([]);
+      } else {
+        // Minimum number of renewals among selected categories
+        const minRenewals = Math.min(...selectedItems.map(cat => (cat.renewalValidity ?? 0)));
 
-    // Create rows based on renewal validity
-    const renewalValidity = workCategory.renewalValidity || 1;
-    const newRows: IPermitScheduleRow[] = [];
+        // Preserve any existing row values when possible
+        const existingById = new Map(_permitPayload.map(r => [r.id, r] as const));
 
-    // First row is always "New Permit"
-    newRows.push({ id: `permit-row-0`, type: 'new', date: '', startTime: '', endTime: '', isChecked: false });
+        const rows: IPermitScheduleRow[] = [];
+        // Always include the New Permit row
+        rows.push(
+          existingById.get('permit-row-0') ?? {
+            id: 'permit-row-0', type: 'new', date: '', startTime: '', endTime: '', isChecked: false
+          }
+        );
 
-    // Add renewal rows based on renewal validity
-    for (let i = 1; i < renewalValidity; i++) {
-      newRows.push({
-        id: `permit-row-${i}`, type: 'renewal', date: '', startTime: '', endTime: '', isChecked: false,
-      });
-    }
+        // If renewalValidity indicates "renewable N times", render N renewal rows (1..N)
+        for (let i = 1; i < minRenewals; i++) {
+          const id = `permit-row-${i}`;
+          rows.push(
+            existingById.get(id) ?? {
+              id, type: 'renewal', date: '', startTime: '', endTime: '', isChecked: false
+            }
+          );
+        }
 
-    setPermitPayload(newRows);
-  }, [_ptwFormStructure, _ptwFormStructure?.workCategories]);
+        setPermitPayload(rows);
+      }
+
+      return { ...prev, workCategories: nextWorkCategories } as IPTWForm;
+    });
+    applySafeguardsFilter();
+  }, [_permitPayload, setPTWFormStructure]);
 
   const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
     setPermitPayload((prevItems) =>
@@ -833,7 +863,7 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
             <CheckBoxDistributerOnlyComponent id="hacClassificationWorkAreaComponent"
               optionList={_ptwFormStructure?.hacWorkAreas || []}
-              colSpacing='col-3' />
+              colSpacing='col-2' />
           </div>
 
           <div className="row pb-3" id="workHazardSection" >
@@ -920,6 +950,9 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
 
             {/* Fire Watch Needed Section */}
+            <div className='row'>
+
+            </div>
             <div className="form-group col-md-12 d-flex align-items-center">
               <Label className={`me-3`} style={{ minWidth: '180px' }}>
                 Fire Watch Needed
