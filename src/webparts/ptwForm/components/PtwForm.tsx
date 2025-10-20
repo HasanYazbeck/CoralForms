@@ -24,9 +24,10 @@ import { MSGraphClientV3 } from '@microsoft/sp-http-msgraph';
 import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
-import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
+import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, ISagefaurdsItem, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
 import { CheckBoxDistributerComponent } from './CheckBoxDistributerComponent';
 import RiskAssessmentList from './RiskAssessmentList';
+import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
 
 export default function PTWForm(props: IPTWFormProps) {
 
@@ -39,7 +40,9 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [_assetDetails, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
-  const [selectedPermitType, setSelectedPermitType] = React.useState<IWorkCategory | undefined>(undefined);
+  const [_safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
+  // const [selectedPermitType, setSelectedPermitType] = React.useState<IWorkCategory | undefined>(undefined);
+  const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
   // const webUrl = props.context.pageContext.web.absoluteUrl;
 
@@ -54,7 +57,15 @@ export default function PTWForm(props: IPTWFormProps) {
   const [gasTestResult, setGasTestResult] = React.useState('');
   const [fireWatchValue, setFireWatchValue] = React.useState('');
   const [fireWatchAssigned, setFireWatchAssigned] = React.useState('');
-  const [selectedWorkHazardIds, ] = React.useState<Set<number>>(new Set());
+  const [selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
+
+  //   const [, setRiskAssessmentState] = React.useState<{
+  //   rows: IRiskTaskRow[];
+  //   overallRisk?: string;
+  //   l2Required: boolean;
+  //   l2Ref?: string;
+  // }>({ rows: [], l2Required: false });
+
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -126,7 +137,7 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [props.context]);
 
   const ptwStructureSelect = React.useMemo(() => (
-    `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,PersonnelInvolvedId,` +
+    `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,` +
     `CoralFormId/Title,CoralFormId/ArabicTitle,` +
     `CompanyRecord/Id,CompanyRecord/Title,CompanyRecord/RecordOrder,` +
     `WorkCategory/Id,WorkCategory/Title,WorkCategory/OrderRecord,WorkCategory/RenewalValidity,` +
@@ -176,7 +187,8 @@ export default function PTWForm(props: IPTWFormProps) {
                 id: item.Id,
                 title: item.Title,
                 orderRecord: item.OrderRecord || 0,
-                renewalValidity: item.RenewalValidity || 0
+                renewalValidity: item.RenewalValidity || 0,
+                isChecked: false,
               });
             }
           });
@@ -275,7 +287,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const _getLKPItemInstructionsForUse = React.useCallback(async (formName?: string) => {
     try {
-      const query: string = `?$select=Id,FormName,RecordOrder,Description&$expand=Author&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,FormName,RecordOrder,Description&$filter=substringof('${formName}', FormName)&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Item_Instructions_For_Use', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ILKPItemInstructionsForUse[] = [];
@@ -305,8 +317,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const _getPersonnelInvolved = React.useCallback(async () => {
     try {
-      const query: string = `?$select=Id,EmployeeId/Id,EmployeeId/FullName,IsHSEInductionCompleted,IsFireFightingTrained` +
-        `&$expand=EmployeeId`;
+      const query: string = `?$select=Id,EmployeeRecord/Id,EmployeeRecord/FullName,IsHSEInductionCompleted,IsFireFightingTrained` +
+        `&$expand=EmployeeRecord`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee_Personelle_Passport', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeePeronellePassport[] = [];
@@ -430,6 +442,33 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, [props.context, _getAssetCategories]);
 
+  const _getWorkSafeguards = React.useCallback(async (): Promise<ISagefaurdsItem[]> => {
+    try {
+      const query: string = `?$select=Id,Title,OrderRecord,WorkCatetegoryRecord/Id,WorkCatetegoryRecord/Title` +
+        `&$expand=WorkCatetegoryRecord` +
+        `&$orderby=OrderRecord asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Safegaurds', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: ISagefaurdsItem[] = [];
+      data.forEach((obj: any) => {
+        if (obj) {
+          const temp: ISagefaurdsItem = {
+            id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+            orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
+            workCategoryId: obj.AssetCategoryRecord?.Id !== undefined && obj.AssetCategoryRecord?.Id !== null ? obj.AssetCategoryRecord.Id : undefined,
+            workCategoryTitle: obj.AssetCategoryRecord?.Title !== undefined && obj.AssetCategoryRecord?.Title !== null ? obj.AssetCategoryRecord.Title : undefined,
+          };
+          result.push(temp);
+        }
+      });
+      setSafeguards(result);
+      return result;
+    } catch (error) {
+      setSafeguards([]);
+      return [];
+    }
+  }, [props.context]);
 
   // Initial load of users
   React.useEffect(() => {
@@ -441,6 +480,7 @@ export default function PTWForm(props: IPTWFormProps) {
       await _getAssetCategories();
       await _getAssetDetails();
       await _getPersonnelInvolved();
+      await _getWorkSafeguards();
 
       if (_ptwFormStructure && _ptwFormStructure.id && _ptwFormStructure.coralForm?.hasInstructionsForUse) {
         await _getLKPItemInstructionsForUse('PTW');
@@ -537,19 +577,24 @@ export default function PTWForm(props: IPTWFormProps) {
     setSelectedAssetDetails(item ? item.key : undefined);
   };
 
-  // Handle permit originator change
-  const handlePermitOriginatorChange = React.useCallback(async (items?: IPersonaProps[], selectedOption?: string) => {
-    if (items && items.length) setPermitOriginator([items[0]]); else setPermitOriginator([]);
-  }, []);
-
   // Add these handler functions
-  const handlePermitTypeChange = React.useCallback((workCategory: IWorkCategory | undefined) => {
-    setSelectedPermitType(workCategory);
+  const handlePermitTypeChange = React.useCallback((checked?: boolean, workCategory?: IWorkCategory) => {
+    // setSelectedPermitType(workCategory);
 
     if (!workCategory) {
       setPermitPayload([]);
       return;
     }
+
+    const updatedList = _ptwFormStructure?.workCategories?.map(category =>
+      category.id === workCategory.id ? { ...category, isChecked: !!checked } : category
+    );
+
+    
+
+    // 2️⃣ Filter selected items into _selectedPermitTypeList
+    const selectedItems = updatedList?.filter(cat => cat.isChecked);
+    setSelectedPermitTypeList(selectedItems || []);
 
     // Create rows based on renewal validity
     const renewalValidity = workCategory.renewalValidity || 1;
@@ -559,14 +604,14 @@ export default function PTWForm(props: IPTWFormProps) {
     newRows.push({ id: `permit-row-0`, type: 'new', date: '', startTime: '', endTime: '', isChecked: false });
 
     // Add renewal rows based on renewal validity
-    for (let i = 1; i <= renewalValidity; i++) {
+    for (let i = 1; i < renewalValidity; i++) {
       newRows.push({
         id: `permit-row-${i}`, type: 'renewal', date: '', startTime: '', endTime: '', isChecked: false,
       });
     }
 
     setPermitPayload(newRows);
-  }, []);
+  }, [_ptwFormStructure, _ptwFormStructure?.workCategories]);
 
   const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
     setPermitPayload((prevItems) =>
@@ -711,10 +756,11 @@ export default function PTWForm(props: IPTWFormProps) {
                 className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
                 onInputChange={onInputChange} resolveDelay={150}
                 styles={peoplePickerBlackStyles}
-                onChange={handlePermitOriginatorChange}
+                // onChange={handlePermitOriginatorChange}
                 selectedItems={_PermitOriginator}
                 inputProps={{ placeholder: 'Enter name or email' }}
                 pickerSuggestionsProps={suggestionProps}
+                disabled={true}
               />
             </div>
 
@@ -773,7 +819,7 @@ export default function PTWForm(props: IPTWFormProps) {
           <div className='row pb-3' id="permitScheduleSection">
             <PermitSchedule
               workCategories={_ptwFormStructure?.workCategories || []}
-              selectedPermitType={selectedPermitType}
+              selectedPermitTypeList={_selectedPermitTypeList}
               permitRows={_permitPayload}
               onPermitTypeChange={handlePermitTypeChange}
               onPermitRowUpdate={updatePermitRow}
@@ -785,9 +831,9 @@ export default function PTWForm(props: IPTWFormProps) {
             <div>
               <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
             </div>
-            <CheckBoxDistributerComponent id="hacClassificationWorkAreaComponent"
+            <CheckBoxDistributerOnlyComponent id="hacClassificationWorkAreaComponent"
               optionList={_ptwFormStructure?.hacWorkAreas || []}
-              colSpacing='col-2' />
+              colSpacing='col-3' />
           </div>
 
           <div className="row pb-3" id="workHazardSection" >
@@ -801,7 +847,10 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
 
             <CheckBoxDistributerComponent id="workHazardsComponent"
-              optionList={_ptwFormStructure?.workHazardosList || []} />
+              optionList={_ptwFormStructure?.workHazardosList || []}
+              selectedIds={Array.from(selectedWorkHazardIds)}
+              onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
+            />
           </div>
 
           {selectedWorkHazardIds.size >= 3 && (
@@ -810,14 +859,15 @@ export default function PTWForm(props: IPTWFormProps) {
                 <RiskAssessmentList
                   initialRiskOptions={_ptwFormStructure?.initialRisk || []}
                   residualRiskOptions={_ptwFormStructure?.residualRisk || []}
-                  safeguards={_ptwFormStructure?.precuationsItems || []}  // or any ILookupItem[] list you prefer
+                  safeguards={_safeguards || []}
                   overallRiskOptions={_ptwFormStructure?.overallRiskAssessment || []}
-                  onChange={(state) => {
-                    // TODO: store this in your form state for submit
-                    // Example: setRiskAssessmentState(state);
-                    // state.rows, state.overallRisk, state.l2Required, state.l2Ref
-                    console.log('RiskAssessmentList change', state);
-                  }}
+                // onChange={(state) => {
+                //   setRiskAssessmentState(state);  
+                //   // TODO: store this in your form state for submit
+                //   // Example: setRiskAssessmentState(state);
+                //   // state.rows, state.overallRisk, state.l2Required, state.l2Ref
+                //   // console.log('RiskAssessmentList change', state);
+                // }}
                 />
               </div>
             </div>
@@ -831,7 +881,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className="form-group col-md-12">
               <div className={styles.checkboxContainer}>
-                <CheckBoxDistributerComponent id="precautionsComponent" optionList={_ptwFormStructure?.precuationsItems || []} />
+                <CheckBoxDistributerOnlyComponent id="precautionsComponent" optionList={_ptwFormStructure?.precuationsItems || []} />
               </div>
             </div>
           </div>
@@ -913,28 +963,27 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-
-          <div id="PdfInstructionsSegment">
-            {/* <Separator /> */}
-            {/* Instructions For Use */}
-            <Stack horizontal id="InstructionsStack">
-              {_itemInstructionsForUse && _itemInstructionsForUse.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <Label>Instructions for Use:</Label>
-                  <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
-                    {_itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
-                      <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
-                        <strong>{`${idx + 1}. `}</strong>
-                        {instr.Description}
-                      </MessageBar>
-                    )
-                    )}
+          <div className="row pb-3" id="attachmentsProvidedSection">
+            <div id="PdfInstructionsSegment">
+              {/* Instructions For Use */}
+              <Stack horizontal id="InstructionsStack">
+                {_itemInstructionsForUse && _itemInstructionsForUse.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <Label>Instructions for Use:</Label>
+                    <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                      {_itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                        <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                          <strong>{`${idx + 1}. `}</strong>
+                          {instr.Description}
+                        </MessageBar>
+                      )
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </Stack>
+                )}
+              </Stack>
+            </div>
           </div>
-
         </div>
       </form >
     </div >

@@ -28,6 +28,13 @@ export interface IAssetCategoryDetails extends ILookupItem {
 export interface IWorkCategory extends ILookupItem {
     priority?: string;
     renewalValidity?: number;
+    isChecked: boolean;
+}
+
+
+export interface ISagefaurdsItem extends ILookupItem {
+    workCategoryId: number;
+    workCategoryTitle: string;
 }
 
 export interface IEmployeePeronellePassport extends IEmployeeProps {

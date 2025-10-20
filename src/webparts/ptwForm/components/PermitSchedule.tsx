@@ -27,21 +27,12 @@ const datePickerBlackStyles: Partial<IDatePickerStyles> = {
   icon: { color: '#000  !important' }
 };
 const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
-  selectedPermitType,
   permitRows,
+  selectedPermitTypeList,
   onPermitTypeChange,
   onPermitRowUpdate,
   styles
 }) => {
-
-  // const handleOnPermitChange = (row: IPermitScheduleRow, checked?: boolean) => {
-  //   // Example: toggle in your state array
-  //   setPermitPayload((prevItems) =>
-  //     prevItems.map((item) =>
-  //       item.id === row.id ? { ...item, isChecked: checked ?? false } : item
-  //     )
-  //   );
-  // };
 
   // Define DetailsList columns
   const columns: IColumn[] = React.useMemo(() => [
@@ -49,7 +40,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-type', name: 'Type', minWidth: 165, maxWidth: 175,
       onRender: (row) => (
         <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'} checked={row.isChecked}
-          onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', row.isChecked == !!checked )}
+          onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', row.isChecked == !!checked)}
         />
       )
     },
@@ -57,7 +48,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-date', name: 'Date', minWidth: 160, maxWidth: 170,
       onRender: (row) => (
         <DatePicker value={row.date ? new Date(row.date) : undefined} style={{ maxWidth: '100%' }} strings={defaultDatePickerStrings}
-          onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '' , row.isChecked)}
+          onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '', row.isChecked)}
           styles={datePickerBlackStyles}
         />
       )
@@ -66,7 +57,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       key: 'col-start', name: 'Starting Time', minWidth: 130, maxWidth: 140,
       onRender: (row) => (
         <TextField type="time" value={row.startTime} style={{ width: '100%' }}
-          onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '' , row.isChecked)}
+          onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '', row.isChecked)}
         />
       )
     },
@@ -95,27 +86,25 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
                 const bOrder = b.orderRecord !== undefined && b.orderRecord !== null ? Number(b.orderRecord) : Number.POSITIVE_INFINITY;
                 return aOrder - bOrder;
               })
-              ?.map(category => (
-                <div key={category.id} className="col-xl-2 col-lg-3 col-3 col-md-3 col-sm-6 col-12" style={{ marginBottom: '10px' }}>
-                  <Checkbox
-                    label={category.title}
-                    checked={selectedPermitType?.id === category.id}
-                    onChange={(_, checked) => {
-                      if (checked) {
-                        onPermitTypeChange(category);
-                      } else {
-                        onPermitTypeChange(undefined);
-                      }
-                    }}
-                  />
-                </div>
-              ))}
+              ?.map(category => {
+                // const checked = selectedPermitTypeList.some(p => p.id === category.id);
+                return (
+                  <div key={category.id} className="col-xl-2 col-lg-3 col-3 col-md-3 col-sm-6 col-12" style={{ marginBottom: '10px' }}>
+                    <Checkbox
+                      label={category.title}
+                      checked={category.isChecked}
+                      onChange={(e, checked) => onPermitTypeChange(checked, category)}
+                    />
+                  </div>
+                );
+              }
+              )}
           </div>
         </div>
       </div>
 
       {/* Permit Schedule Table */}
-      {selectedPermitType && permitRows.length > 0 && (
+      {workCategories && permitRows.length > 0 && (
         <div className="row pb-3">
           {/* <div>
             <Label className={styles?.ptwLabel}>Permit Schedule - {selectedPermitType.title} {selectedPermitType.renewalValidity && selectedPermitType.renewalValidity > 0 &&

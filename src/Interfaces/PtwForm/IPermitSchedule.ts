@@ -11,9 +11,9 @@ export interface IPermitScheduleRow {
 
 export interface IPermitScheduleProps {
   workCategories: IWorkCategory[];
-  selectedPermitType?: IWorkCategory;
+  selectedPermitTypeList: IWorkCategory[];
   permitRows: IPermitScheduleRow[];
-  onPermitTypeChange: (workCategory: IWorkCategory | undefined) => void;
+  onPermitTypeChange: (checked: boolean | undefined, workCategory: IWorkCategory | undefined) => void;
   onPermitRowUpdate: (rowId: string, field: string, value: string , checked :boolean) => void;
   styles?: any;
 }
