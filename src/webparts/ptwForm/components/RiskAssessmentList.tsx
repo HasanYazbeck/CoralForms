@@ -87,7 +87,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     }, [safeguards]);
 
     // Toggle selection for a single option in multi-select ComboBox
-    const handleSafeguardComboChange = (row: IRiskTaskRow, option?: IComboBoxOption, _index?: number, _value?: string) => {
+    const handleSafeguardComboChange = React.useCallback((row: IRiskTaskRow, option?: IComboBoxOption, _index?: number, _value?: string) => {
         if (!option) return;
         const idNum = Number(option.key);
         setRows(prev => prev.map(r => {
@@ -100,7 +100,16 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             }
             return { ...r, safeguardIds: Array.from(current) };
         }));
-    };
+    }, [setRows]);
+
+    // Remove safeguard from chips
+    const removeSafeguard = React.useCallback((rowId: string, id: number) => {
+        setRows(prev => prev.map(r => (
+            r.id === rowId
+                ? { ...r, safeguardIds: (r.safeguardIds || []).filter(x => Number(x) !== Number(id)) }
+                : r
+        )));
+    }, [setRows]);
 
     const handleResidualRiskChange = (id: string, option?: IComboBoxOption) => {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, residualRisk: option?.key as string | undefined } : r)));
@@ -139,31 +148,69 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         {
             key: 'col-safe',
             name: 'Safeguards',
-            minWidth: 320,
-            onRender: (row: IRiskTaskRow) => (
-                <ComboBox
-                    placeholder="Select"
-                    multiSelect
-                    options={buildSafeguardComboOptions(row)}
-                    onChange={(_, option, index, value) => handleSafeguardComboChange(row, option, index, value)}
-                    useComboBoxAsMenuWidth
-                    onRenderList={(props: any, defaultRender?: (props?: any) => JSX.Element | null) => (
-                        <div style={{ padding: 8 }}>
-                            <TextField
-                                placeholder="Add your safeguard note"
-                                value={row.safeguardsNote || ''}
-                                onChange={(_, v) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, safeguardsNote: v || '' } : r))}
-                                styles={{ root: { marginBottom: 6 } }}
-                                onKeyDown={(e) => e.stopPropagation()}
-                                onKeyUp={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                            />
-                            {defaultRender ? defaultRender(props) : null}
+            minWidth: 400,
+            resizable: true,
+            onRender: (row: IRiskTaskRow) => {
+                const selectedItems = (row.safeguardIds || [])
+                    .map(id => (safeguards || []).find(s => Number(s.id) === Number(id)))
+                    .filter(Boolean) as ILookupItem[];
+
+                return (
+                    <div>
+                        <ComboBox
+                            key={`saf-${row.id}-${(row.safeguardIds || []).slice().sort((a, b) => Number(a) - Number(b)).join('_')}`}
+                            placeholder="Select safeguards"
+                            multiSelect
+                            options={buildSafeguardComboOptions(row)}
+                            onChange={(_, option, index, value) => handleSafeguardComboChange(row, option, index, value)}
+                            useComboBoxAsMenuWidth
+                            onRenderList={(props: any, defaultRender?: (props?: any) => JSX.Element | null) => (
+                                <div style={{ padding: 8 }}>
+                                    <TextField
+                                        placeholder="Add your safeguard note"
+                                        value={row.safeguardsNote || ''}
+                                        // onChange={(_, v) => setRows(prev => 
+                                        //     prev.map(r => r.id === row.id ? { ...r, safeguardsNote: v || '' } : r))}
+                                        styles={{ root: { marginBottom: 6 } }}
+                                        // onKeyDown={(e) => e.stopPropagation()}
+                                        // onKeyUp={(e) => e.stopPropagation()}
+                                        // onClick={(e) => e.stopPropagation()}
+                                        // onMouseDown={(e) => e.stopPropagation()}
+                                    />
+                                    {defaultRender ? defaultRender(props) : null}
+                                </div>
+                            )}
+                        />
+
+                        <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
+                            {selectedItems.length === 0 ? (
+                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No safeguards selected</span>
+                            ) : (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {selectedItems.map(s => (
+
+                                        <span key={s.id}
+                                            style={{
+                                                background: '#f3f2f1', border: '1px solid #c8c6c4', lineHeight: 1.4,
+                                                whiteSpace: 'break-spaces', borderRadius: 2, padding: '2px 6px', 
+                                                display: 'inline-flex', alignItems: 'center', gap: 6
+                                            }}>
+                                            <IconButton
+                                                iconProps={{ iconName: 'Cancel' }}
+                                                ariaLabel={`Remove ${s.title}`}
+                                                title={`Remove ${s.title}`}
+                                                onClick={() => removeSafeguard(row.id, Number(s.id))}
+                                                styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                                            />
+                                            <span style={{ color: '#323130' }}>{s.title}</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
-                />
-            )
+                    </div>
+                );
+            }
         },
         {
             key: 'col-rr',
