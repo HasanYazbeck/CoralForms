@@ -64,6 +64,16 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     const [overallRisk, setOverallRisk] = React.useState<string | undefined>(undefined);
     const [l2Required, setL2Required] = React.useState<boolean>(false);
     const [l2Ref, setL2Ref] = React.useState<string>('');
+    const [safeFilterByRow, setSafeFilterByRow] = React.useState<Record<string, string>>({});
+    const allSafeguardsById = React.useRef<Map<number, ILookupItem>>(new Map());
+
+    React.useEffect(() => {
+        (safeguards || []).forEach(s => {
+            if (s?.id !== undefined && !allSafeguardsById.current.has(Number(s.id))) {
+                allSafeguardsById.current.set(Number(s.id), s);
+            }
+        });
+    }, [safeguards]);
 
     // Notify parent
     React.useEffect(() => {
@@ -82,13 +92,21 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
 
     // Build multi-select ComboBox options with selected state based on row.safeguardIds
     const buildSafeguardComboOptions = React.useCallback((row: IRiskTaskRow): IComboBoxOption[] => {
-        const base = (safeguards || []).map(i => ({ key: i.id, text: i.title } as IComboBoxOption));
+        const filterText = (safeFilterByRow[row.id] || '').trim().toLowerCase();
+        const list = (safeguards || []).filter(i => !filterText || (i.title || '').toLowerCase().includes(filterText));
+        const base = list.map(i => ({ key: i.id, text: i.title } as IComboBoxOption));
         return base.map(opt => ({ ...opt, selected: row.safeguardIds?.includes(Number(opt.key)) }));
-    }, [safeguards]);
+    }, [safeguards, safeFilterByRow]);
 
     // Toggle selection for a single option in multi-select ComboBox
     const handleSafeguardComboChange = React.useCallback((row: IRiskTaskRow, option?: IComboBoxOption, _index?: number, _value?: string) => {
-        if (!option) return;
+        // When typing in the ComboBox, option is undefined and _value has the current input text
+        if (!option) {
+            if (typeof _value === 'string') {
+                setSafeFilterByRow(prev => ({ ...prev, [row.id]: _value }));
+            }
+            return;
+        }
         const idNum = Number(option.key);
         setRows(prev => prev.map(r => {
             if (r.id !== row.id) return r;
@@ -114,6 +132,14 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     const handleResidualRiskChange = (id: string, option?: IComboBoxOption) => {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, residualRisk: option?.key as string | undefined } : r)));
     };
+
+    const getRiskColors = React.useCallback((key: string) => {
+        const k = (key || '').toLowerCase();
+        if (k.includes('low')) return { bg: '#22B14C', fg: '#ffffff' };      // green
+        if (k.includes('medium') || k.includes('med')) return { bg: '#FFF200', fg: '#323130' }; // yellow
+        if (k.includes('high')) return { bg: '#ED1C24', fg: '#ffffff' };     // red
+        return { bg: '#rgb(241 241 241)', fg: '#323130' }; // fallback
+    }, []);
 
     const addRow = () => setRows(prev => [...prev, newRow()]);
     const deleteRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
@@ -152,7 +178,8 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             resizable: true,
             onRender: (row: IRiskTaskRow) => {
                 const selectedItems = (row.safeguardIds || [])
-                    .map(id => (safeguards || []).find(s => Number(s.id) === Number(id)))
+                    // .map(id => (safeguards || []).find(s => Number(s.id) === Number(id)))
+                    .map(id => allSafeguardsById.current.get(Number(id)))
                     .filter(Boolean) as ILookupItem[];
 
                 return (
@@ -163,23 +190,10 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             multiSelect
                             options={buildSafeguardComboOptions(row)}
                             onChange={(_, option, index, value) => handleSafeguardComboChange(row, option, index, value)}
+                            // Control input text to implement search filtering
+                            text={safeFilterByRow[row.id] || ''}
+                            allowFreeform
                             useComboBoxAsMenuWidth
-                            onRenderList={(props: any, defaultRender?: (props?: any) => JSX.Element | null) => (
-                                <div style={{ padding: 8 }}>
-                                    <TextField
-                                        placeholder="Add your safeguard note"
-                                        value={row.safeguardsNote || ''}
-                                        // onChange={(_, v) => setRows(prev => 
-                                        //     prev.map(r => r.id === row.id ? { ...r, safeguardsNote: v || '' } : r))}
-                                        styles={{ root: { marginBottom: 6 } }}
-                                        // onKeyDown={(e) => e.stopPropagation()}
-                                        // onKeyUp={(e) => e.stopPropagation()}
-                                        // onClick={(e) => e.stopPropagation()}
-                                        // onMouseDown={(e) => e.stopPropagation()}
-                                    />
-                                    {defaultRender ? defaultRender(props) : null}
-                                </div>
-                            )}
                         />
 
                         <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
@@ -188,11 +202,10 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {selectedItems.map(s => (
-
                                         <span key={s.id}
                                             style={{
                                                 background: '#f3f2f1', border: '1px solid #c8c6c4', lineHeight: 1.4,
-                                                whiteSpace: 'break-spaces', borderRadius: 2, padding: '2px 6px', 
+                                                whiteSpace: 'break-spaces', borderRadius: 2, padding: '2px 6px',
                                                 display: 'inline-flex', alignItems: 'center', gap: 6
                                             }}>
                                             <IconButton
@@ -240,12 +253,35 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                 />
             )
         }
-    ], [initialRiskOptions, residualRiskOptions, safeguards]);
+    ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow]);
 
-    const overallOptions: IChoiceGroupOption[] = (overallRiskOptions || []).map(o => ({
-        key: o,
-        text: o
-    }));
+    const overallOptions: IChoiceGroupOption[] = (overallRiskOptions || []).map(o => {
+        const { bg, fg } = getRiskColors(o);
+        return {
+            key: o,
+            text: o,
+            onRenderField: (props, defaultRender) => {
+                // Wrap the default radio+label inside a colored tile
+                return (
+                    <div
+                        style={{
+                            backgroundColor: bg,
+                            color: fg,
+                            padding: '8px 10px',
+                            borderRadius: 4,
+                            border: '1px solid transparent',
+                            minWidth: 100,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        {defaultRender ? defaultRender(props) : null}
+                    </div>
+                );
+            }
+        };
+    });
 
     return (
         <Stack tokens={{ childrenGap: 12 }}>
@@ -270,39 +306,76 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
 
             {/* Overall Risk Assessment */}
             {overallOptions.length > 0 && (
-                <div className='row' >
-                    <div className='form-group'>
-                        <Label>Overall Risk Assessment</Label>
+                <div className='row'>
+                    <div className='form-group' style={{
+                        display: 'flex',
+                        flexWrap: 'wrap', alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        border: '1px solid #BFBFBF',
+                        backgroundColor: '#f1f1f1'
+                    }}>
+                        <Label style={{ marginRight: "10px", paddingTop: "10px" }}>Overall Risk Assessment</Label>
                         <ChoiceGroup
                             selectedKey={overallRisk}
                             options={overallOptions}
                             onChange={(_, option) => setOverallRisk(option?.key)}
+                            styles={{
+                                flexContainer: {
+                                    display: 'flex',
+                                    flexDirection: 'row',
+                                    flexWrap: 'nowrap', // keep on one line
+                                    columnGap: "12px"
+                                },
+                                root: {
+                                    selectors: {
+                                        '.ms-ChoiceFieldGroup-flexContainer': {
+                                            display: 'flex !important',
+                                            flexDirection: 'row !important',
+                                            flexWrap: 'nowrap !important',
+                                            columnGap: "12px"
+                                        }
+                                    }
+                                }
+                            }}
                         />
                         <Label styles={{ root: { fontStyle: 'italic', fontSize: 12, color: '#6b6b6b' } as any }}>
                             If the Overall Risk Assessment is ranked as High (as per COR-HSE-03-MTX-001), HSE & terminal management approval is required.
                         </Label>
                     </div>
-
                 </div>
-            )}
+            )
+            }
 
             {/* Detailed (L2) Risk Assessment */}
-            <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 10 }}>
-                <Checkbox
-                    label="Detailed (L2) Risk Assessment required"
-                    checked={l2Required}
-                    onChange={(_, chk) => setL2Required(!!chk)}
-                />
-                {l2Required && (
-                    <TextField
-                        label="Risk Assessment Ref. Nbr."
-                        value={l2Ref}
-                        onChange={(_, v) => setL2Ref(v || '')}
-                        styles={{ root: { maxWidth: 360 } }}
-                    />
-                )}
-            </Stack>
-        </Stack>
+            <div className="row pt-2">
+                <div className="form-group" style={{ display: "flex", alignItems: "center" }}>
+                    <div className='col-md-12' style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                    }}>
+                        <div className='col-md-4'>
+                            <Checkbox
+                                label="Detailed (L2) Risk Assessment required"
+                                checked={l2Required}
+                                onChange={(_, chk) => setL2Required(!!chk)}
+                            />
+                        </div>
+
+                        <div className='col-md-8' style={{ display: 'flex', flexWrap: "nowrap", gap: "10px" }}>
+                            <Label style={{ fontStyle: 'italic' }}>Risk Assessment Ref. Nbr.</Label>
+                            <TextField
+                                value={l2Ref}
+                                disabled={!l2Required}
+                                onChange={(_, v) => setL2Ref(v || '')}
+                                styles={{ root: { maxWidth: 360 } }}
+                            />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </Stack >
     );
 };
 
