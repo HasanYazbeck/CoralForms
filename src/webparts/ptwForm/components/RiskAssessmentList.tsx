@@ -354,7 +354,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                         justifyContent: "space-between",
                         alignItems: "center"
                     }}>
-                        <div className='col-md-4'>
+                        <div className='col-md-5'>
                             <Checkbox
                                 label="Detailed (L2) Risk Assessment required"
                                 checked={l2Required}
@@ -362,13 +362,13 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             />
                         </div>
 
-                        <div className='col-md-8' style={{ display: 'flex', flexWrap: "nowrap", gap: "10px" }}>
+                        <div className='col-md-7' style={{ display: 'flex', flexWrap: "nowrap", gap: "10px" }}>
                             <Label style={{ fontStyle: 'italic' }}>Risk Assessment Ref. Nbr.</Label>
                             <TextField
                                 value={l2Ref}
                                 disabled={!l2Required}
                                 onChange={(_, v) => setL2Ref(v || '')}
-                                styles={{ root: { maxWidth: 360 } }}
+                                styles={{ root: { maxWidth: 360 , width: '58%' } }}
                             />
                         </div>
 
