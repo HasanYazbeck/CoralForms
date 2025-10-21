@@ -150,10 +150,14 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     onRenderList={(props: any, defaultRender?: (props?: any) => JSX.Element | null) => (
                         <div style={{ padding: 8 }}>
                             <TextField
-                                placeholder="Additional notes"
+                                placeholder="Add your safeguard note"
                                 value={row.safeguardsNote || ''}
                                 onChange={(_, v) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, safeguardsNote: v || '' } : r))}
                                 styles={{ root: { marginBottom: 6 } }}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                onKeyUp={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                             />
                             {defaultRender ? defaultRender(props) : null}
                         </div>

@@ -16,7 +16,8 @@ import {
   IComboBoxStyles,
   IComboBox,
   Stack,
-  MessageBar
+  MessageBar,
+  IconButton
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
@@ -28,17 +29,22 @@ import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePa
 import { CheckBoxDistributerComponent } from './CheckBoxDistributerComponent';
 import RiskAssessmentList from './RiskAssessmentList';
 import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
+import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
+import { ICoralFormsList } from '../../../Interfaces/Common/ICoralFormsList';
 
 export default function PTWForm(props: IPTWFormProps) {
 
   // Helpers and refs
+  const formName = "Permit To Work";
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [_users, setUsers] = React.useState<IUser[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
+  const [, setCoralFormsList] = React.useState<ICoralFormsList>({ Id: "" });
+
   const [ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
   const [itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
-  const [, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
+  const [personnelInvolved, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
   const [safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
   const [filteredSafeguards, setFilteredSafeguards] = React.useState<ISagefaurdsItem[]>([]);
@@ -55,10 +61,14 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_gasTestResult, setGasTestResult] = React.useState('');
   const [_fireWatchValue, setFireWatchValue] = React.useState('');
   const [_fireWatchAssigned, setFireWatchAssigned] = React.useState('');
+  const [_attachmentsValue, setAttachmentsValue] = React.useState('');
+  const [_attachmentsResult, setAttachmentsResult] = React.useState('');
   const [_selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
   const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
   const [_selectedHacWorkAreaId, setSelectedHacWorkAreaId] = React.useState<number | undefined>(undefined);
+  const [_selectedMachineryIds, setSelectedMachineryIds] = React.useState<number[]>([]);
+  const [_selectedPersonnelIds, setSelectedPersonnelIds] = React.useState<number[]>([]);
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -144,6 +154,36 @@ export default function PTWForm(props: IPTWFormProps) {
     `ProtectiveSafetyEquiment`
   ), []);
 
+  const _getCoralFormsList = React.useCallback(async (): Promise<ICoralFormsList | undefined> => {
+    try {
+
+      const searchEscaped = formName.replace(/'/g, "''");
+      const query: string = `?$select=Id,Title,hasInstructionForUse,hasWorkflow,SubmissionRangeInterval&$filter=substringof('${searchEscaped}', Title)`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Coral_Forms_List', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+
+      const ppeform = data.find((obj: any) => obj !== null);
+      let result: ICoralFormsList = { Id: "" };
+
+      if (ppeform) {
+
+        result = {
+          Id: ppeform.Id ?? undefined,
+          Title: ppeform.Title ?? undefined,
+          hasInstructionForUse: ppeform.hasInstructionForUse ?? undefined,
+          hasWorkflow: ppeform.hasWorkflow ?? undefined,
+          SubmissionRangeInterval: ppeform.SubmissionRangeInterval ?? undefined,
+        };
+      }
+      setCoralFormsList(result);
+      return result;
+    } catch (error) {
+      // console.error('An error has occurred!', error);
+      setCoralFormsList({ Id: '' });
+      return undefined;
+    }
+  }, [props.context, spHelpers]);
+
   const _getPTWFormStructure = React.useCallback(async () => {
     try {
       const query: string = ptwStructureSelect;
@@ -157,6 +197,7 @@ export default function PTWForm(props: IPTWFormProps) {
           id: obj.CoralFormId.Id !== undefined && obj.CoralFormId.Id !== null ? obj.CoralFormId.Id : undefined,
           title: obj.CoralFormId.Title !== undefined && obj.CoralFormId.Title !== null ? obj.CoralFormId.Title : undefined,
           arTitle: obj.CoralFormId.ArabicTitle !== undefined && obj.CoralFormId.ArabicTitle !== null ? obj.CoralFormId.ArabicTitle : undefined,
+          hasInstructionsForUse: obj.CoralFormId.hasInstructionsForUse !== undefined && obj.CoralFormId.hasInstructionsForUse !== null ? obj.CoralFormId.hasInstructionsForUse : undefined,
         } : '{}' as ICoralForm;
 
         const _companies: ILookupItem[] = [];
@@ -311,7 +352,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const _getPersonnelInvolved = React.useCallback(async () => {
     try {
       const query: string = `?$select=Id,EmployeeRecord/Id,EmployeeRecord/FullName,IsHSEInductionCompleted,IsFireFightingTrained` +
-        `&$expand=EmployeeRecord`;
+        `&$expand=EmployeeRecord` +
+        `&$filter=IsHSEInductionCompleted eq 1`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Employee_Personelle_Passport', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: IEmployeePeronellePassport[] = [];
@@ -319,7 +361,7 @@ export default function PTWForm(props: IPTWFormProps) {
         if (obj) {
           const temp: IEmployeePeronellePassport = {
             Id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-            fullName: obj.EmployeeId?.FullName !== undefined && obj.EmployeeId?.FullName !== null ? obj.EmployeeId.FullName : undefined,
+            fullName: obj.EmployeeRecord?.FullName !== undefined && obj.EmployeeRecord?.FullName !== null ? obj.EmployeeRecord.FullName : undefined,
             isHSEInductionCompleted: obj.IsHSEInductionCompleted !== undefined && obj.IsHSEInductionCompleted !== null ? obj.IsHSEInductionCompleted : undefined,
             isFireFightingTrained: obj.IsFireFightingTrained !== undefined && obj.IsFireFightingTrained !== null ? obj.IsFireFightingTrained : undefined,
           };
@@ -471,14 +513,17 @@ export default function PTWForm(props: IPTWFormProps) {
     const load = async () => {
       setLoading(true);
       const fetchedUsers = await _getUsers();
-      await _getPTWFormStructure();
-      await _getAssetCategories();
-      await _getAssetDetails();
-      await _getPersonnelInvolved();
-      await _getWorkSafeguards();
+      const coralListResult = await _getCoralFormsList();
+      await Promise.all([
+        _getPTWFormStructure(),
+        _getAssetCategories(),
+        _getAssetDetails(),
+        _getPersonnelInvolved(),
+        _getWorkSafeguards(),
+      ]);
 
-      if (ptwFormStructure && ptwFormStructure.id && ptwFormStructure.coralForm?.hasInstructionsForUse) {
-        await _getLKPItemInstructionsForUse('PTW');
+      if (coralListResult && coralListResult?.hasInstructionForUse) {
+        await _getLKPItemInstructionsForUse(formName);
       }
 
       console.log('Fetched users:', _users?.length > 0 ? _users[0].displayName : 'none');
@@ -572,6 +617,64 @@ export default function PTWForm(props: IPTWFormProps) {
     setSelectedAssetDetails(item ? item.key : undefined);
   };
 
+  // Machinery/Tools - multi-select ComboBox wiring
+  const machineryOptions = React.useMemo(() => {
+    const items = ptwFormStructure?.machinaries || [];
+    return items.map(m => ({ key: m.id, text: m.title, selected: _selectedMachineryIds.includes(Number(m.id)) }));
+  }, [ptwFormStructure?.machinaries, _selectedMachineryIds]);
+
+  const onMachineryChange = React.useCallback((_: React.FormEvent<IComboBox>, option?: any) => {
+    if (!option) return;
+    const idNum = Number(option.key);
+    setSelectedMachineryIds(prev => {
+      const set = new Set(prev);
+      if (option.selected) set.add(idNum); else set.delete(idNum);
+      return Array.from(set);
+    });
+  }, []);
+
+  const selectedMachinery = React.useMemo(() => {
+    const list = ptwFormStructure?.machinaries || [];
+    const byId = new Map<number, ILookupItem>(list.map(m => [m.id, m]));
+    return _selectedMachineryIds
+      .map(id => byId.get(Number(id)))
+      .filter((m): m is ILookupItem => !!m);
+  }, [ptwFormStructure?.machinaries, _selectedMachineryIds]);
+
+  const removeMachinery = React.useCallback((id: number) => {
+    setSelectedMachineryIds(prev => prev.filter(x => x !== id));
+  }, []);
+
+  // Personnel Involved - multi-select ComboBox wiring
+  const personnelOptions = React.useMemo(() => {
+    return (personnelInvolved || []).map(p => ({
+      key: p.Id,
+      text: p.fullName || '',
+      selected: _selectedPersonnelIds.includes(Number(p.Id))
+    }));
+  }, [personnelInvolved, _selectedPersonnelIds]);
+
+  const onPersonnelChange = React.useCallback((_: React.FormEvent<IComboBox>, option?: any) => {
+    if (!option) return;
+    const idNum = Number(option.key);
+    setSelectedPersonnelIds(prev => {
+      const set = new Set(prev);
+      if (option.selected) set.add(idNum); else set.delete(idNum);
+      return Array.from(set);
+    });
+  }, []);
+
+  const selectedPersonnel = React.useMemo(() => {
+    const byId = new Map<number, IEmployeePeronellePassport>((personnelInvolved || []).map(p => [Number(p.Id), p]));
+    return _selectedPersonnelIds
+      .map(id => byId.get(Number(id)))
+      .filter((p): p is IEmployeePeronellePassport => !!p);
+  }, [personnelInvolved, _selectedPersonnelIds]);
+
+  const removePersonnel = React.useCallback((id: number) => {
+    setSelectedPersonnelIds(prev => prev.filter(x => x !== id));
+  }, []);
+
   // Add these handler functions
   const handlePermitTypeChange = React.useCallback((checked?: boolean, workCategory?: IWorkCategory) => {
     // Support multi-select and derive permit rows by the minimum renewal validity across selected categories
@@ -655,8 +758,6 @@ export default function PTWForm(props: IPTWFormProps) {
       })
     );
   }, []);
-
-  
 
   const handleHACChange = React.useCallback((checked?: boolean, hacArea?: ILookupItem) => {
     if (!hacArea || hacArea.id === undefined || hacArea.id === null) return;
@@ -869,6 +970,7 @@ export default function PTWForm(props: IPTWFormProps) {
             />
 
           </div>
+
           <div className="row pb-3" id="hacClassificationWorkAreaSection">
             <div>
               <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
@@ -906,18 +1008,10 @@ export default function PTWForm(props: IPTWFormProps) {
                   residualRiskOptions={ptwFormStructure?.residualRisk || []}
                   safeguards={filteredSafeguards || []}
                   overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
-                // onChange={(state) => {
-                //   setRiskAssessmentState(state);  
-                //   // TODO: store this in your form state for submit
-                //   // Example: setRiskAssessmentState(state);
-                //   // state.rows, state.overallRisk, state.l2Required, state.l2Ref
-                //   // console.log('RiskAssessmentList change', state);
-                // }}
                 />
               </div>
             </div>
           )}
-
 
           <div className="row pb-3" id="precautionsSection" >
             <div>
@@ -931,15 +1025,13 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className='row pb-3' id="gasTestAndFireWatch">
-
+          <div className='pb-3' id="gasTestAndFireWatch">
+            <Label className={`${styles.ptwLabel} me-3`}>
+              Gas Test Required
+            </Label>
             {/* Gas Test Required Section */}
-            <div className="form-group col-md-12 d-flex align-items-center mb-2">
-              <Label className={`${styles.ptwLabel} me-3`} style={{ minWidth: '180px' }}>
-                Gas Test Required
-              </Label>
-
-              <div className={styles.checkboxContainer}>
+            <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
+              <div className={`col-md-3 ${styles.checkboxContainer}`}>
                 {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
                   <div key={i} className={styles.checkboxItem}>
                     <Checkbox
@@ -951,50 +1043,44 @@ export default function PTWForm(props: IPTWFormProps) {
                 ))}
               </div>
 
-              <div className={`${styles.resultContainer} ms-4`}>
-                <Label className="me-2">Gas Test Result:</Label>
-                <input
+              <div className={`ms-4`} style={{ display: 'flex', alignItems: 'center', flex: '1', justifyContent: 'flex-end', paddingRight: '20px' }}>
+                <Label style={{ paddingRight: ' 10px' }}>Gas Test Result:</Label>
+                <TextField
                   type="text"
                   className={styles.resultInput}
                   placeholder="Enter result"
                   disabled={_gasTestValue !== 'Yes'}
                   value={_gasTestResult}
-                  onChange={e => setGasTestResult(e.target.value)}
+                  onChange={(e, newValue) => setGasTestResult(newValue || '')}
                 />
               </div>
             </div>
 
             {/* Fire Watch Needed Section */}
-            <div className='row'>
+            <div className=''>
+              <Label className={`${styles.ptwLabel} me-3`}>Fire Watch Needed</Label>
+              <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
+                <div className={`col-md-3 ${styles.checkboxContainer}`}>
+                  {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
+                    <div key={i} className={styles.checkboxItem}>
+                      <Checkbox
+                        label={item}
+                        checked={_fireWatchValue === item}
+                        onChange={() => setFireWatchValue(item)}
+                      />
+                    </div>
+                  ))}
+                </div>
 
-            </div>
-            <div className="form-group col-md-12 d-flex align-items-center">
-              <Label className={`me-3`} style={{ minWidth: '180px' }}>
-                Fire Watch Needed
-              </Label>
-
-              <div className={styles.checkboxContainer}>
-                {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
-                  <div key={i} className={styles.checkboxItem}>
-                    <Checkbox
-                      label={item}
-                      checked={_fireWatchValue === item}
-                      onChange={() => setFireWatchValue(item)}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className={`${styles.resultContainer} ms-4`}>
-                <Label className="me-2">Firewatch Assigned:</Label>
-                <input
-                  type="text"
-                  className={styles.resultInput}
-                  placeholder="Enter name"
-                  disabled={_fireWatchValue !== 'Yes'}
-                  value={_fireWatchAssigned}
-                  onChange={e => setFireWatchAssigned(e.target.value)}
-                />
+                <div className={`ms-4`} style={{ display: 'flex', alignItems: 'center', flex: '1', justifyContent: 'flex-end', paddingRight: '20px' }}>
+                  <Label style={{ paddingRight: ' 10px' }}>Firewatch Assigned:</Label>
+                  <TextField className={styles.resultInput}
+                    placeholder="Enter name"
+                    disabled={_fireWatchValue !== 'Yes'}
+                    value={_fireWatchAssigned}
+                    onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1011,29 +1097,149 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className="row pb-3" id="attachmentsProvidedSection">
-            <div id="PdfInstructionsSegment">
-              {/* Instructions For Use */}
-              <Stack horizontal id="InstructionsStack">
-                {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <Label>Instructions for Use:</Label>
-                    <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
-                      {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
-                        <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
-                          <strong>{`${idx + 1}. `}</strong>
-                          {instr.Description}
-                        </MessageBar>
-                      )
-                      )}
-                    </div>
-                  </div>
-                )}
-              </Stack>
+          <div className='row pb-3' id="machineryToolsSection">
+            <div>
+              <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
+            </div>
+            <div className="form-group col-md-12">
+              <ComboBox
+                key={`machinery-${_selectedMachineryIds.slice().sort((a, b) => a - b).join('_')}`}
+                placeholder="Select machinery/tools"
+                options={machineryOptions as any}
+                onChange={onMachineryChange}
+                multiSelect
+                useComboBoxAsMenuWidth
+                styles={comboBoxBlackStyles}
+              />
+            </div>
+
+            <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
+              {selectedMachinery.length === 0 ? (
+                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {selectedMachinery.map(m => (
+                    <span key={m.id}
+                      style={{
+                        background: '#f3f2f1',
+                        border: '1px solid #c8c6c4',
+                        borderRadius: 12,
+                        padding: '2px 6px',
+                        display: 'inline-flex', alignItems: 'center', gap: 6
+                      }}>
+                      <span style={{ color: '#323130' }}>{m.title}</span>
+                      <IconButton
+                        iconProps={{ iconName: 'Cancel' }}
+                        ariaLabel={`Remove ${m.title}`}
+                        title={`Remove ${m.title}`}
+                        onClick={() => removeMachinery(m.id)}
+                        styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+
+          <div className="row pb-3" id="attachmentsProvidedSection">
+            <Label className={`${styles.ptwLabel} me-3`}>
+              Attachment(s) provided
+            </Label>
+            {/* Gas Test Required Section */}
+            <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
+              <div className={`col-md-3 ${styles.checkboxContainer}`}>
+                {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
+                  <div key={i} className={styles.checkboxItem}>
+                    <Checkbox
+                      label={attachment}
+                      checked={_attachmentsValue === attachment}
+                      onChange={() => setAttachmentsValue(attachment)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className={`ms-4`} style={{ display: 'flex', alignItems: 'center', flex: '1', justifyContent: 'flex-end', paddingRight: '20px' }}>
+                <Label style={{ paddingRight: ' 10px' }}>Details:</Label>
+                <TextField
+                  type="text"
+                  className={styles.resultInput}
+                  placeholder="Enter result"
+                  disabled={_attachmentsValue !== 'Yes'}
+                  value={_attachmentsResult}
+                  onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="row pb-3" id="InstructionsSection">
+            {/* Instructions For Use */}
+            <Stack horizontal id="InstructionsStack">
+              {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <Label>Instructions for Use:</Label>
+                  <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                    {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                      <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                        <strong>{`${idx + 1}. `}</strong>
+                        {instr.Description}
+                      </MessageBar>
+                    )
+                    )}
+                  </div>
+                </div>
+              )}
+            </Stack>
+          </div>
+
+          {/* Personnel Involved - placed under Attachments section */}
+          <div className='row pb-3' id="personnelInvolvedSection">
+            <div>
+              <Label className={styles.ptwLabel}>Personnel Involved</Label>
+            </div>
+            <div className="form-group col-md-12">
+              <ComboBox
+                key={`personnel-${_selectedPersonnelIds.slice().sort((a, b) => a - b).join('_')}`}
+                placeholder="Select personnel"
+                options={personnelOptions as any}
+                onChange={onPersonnelChange}
+                multiSelect
+                useComboBoxAsMenuWidth
+                styles={comboBoxBlackStyles}
+              />
+              <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 8, marginTop: 8 }}>
+                {selectedPersonnel.length === 0 ? (
+                  <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedPersonnel.map(p => (
+                      <span key={p.Id}
+                        style={{ background: '#f3f2f1', border: '1px solid #c8c6c4', borderRadius: 12, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: '#323130' }}>{p.fullName}</span>
+                        <IconButton
+                          iconProps={{ iconName: 'Cancel' }}
+                          ariaLabel={`Remove ${p.fullName}`}
+                          title={`Remove ${p.fullName}`}
+                          onClick={() => removePersonnel(Number(p.Id))}
+                          styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                        />
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
-      </form >
-    </div >
+        <div id="formFooterSection" className='row'>
+          <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
+            <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }
