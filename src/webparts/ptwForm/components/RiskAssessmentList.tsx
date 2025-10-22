@@ -174,7 +174,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         {
             key: 'col-safe',
             name: 'Safeguards',
-            minWidth: 400,
+            minWidth: 350,
             resizable: true,
             onRender: (row: IRiskTaskRow) => {
                 const selectedItems = (row.safeguardIds || [])

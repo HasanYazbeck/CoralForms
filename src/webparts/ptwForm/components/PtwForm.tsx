@@ -1027,7 +1027,7 @@ export default function PTWForm(props: IPTWFormProps) {
           </div>
 
           <Separator />
-          <div className='row pb-3' id="gasTestAndFireWatch">
+          <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
             {/* Gas Test Required Section */}
             <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
               <div className='col-md-3'><Label>Gas Test Required</Label></div>
@@ -1052,9 +1052,6 @@ export default function PTWForm(props: IPTWFormProps) {
                     disabled={_gasTestValue !== 'Yes'}
                     value={_gasTestResult}
                     onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                    rows={1}
-                    autoAdjustHeight
-                    multiline
                   />
                 </div>
               </div>
@@ -1082,16 +1079,39 @@ export default function PTWForm(props: IPTWFormProps) {
                     disabled={_fireWatchValue !== 'Yes'}
                     value={_fireWatchAssigned}
                     onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
-                    rows={1}
-                    autoAdjustHeight
-                    multiline
                   />
                 </div>
               </div>
             </div>
-          </div>
 
+            {/* Attachments Required */}
+            <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+              <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
+              <div className="" style={{ display: "flex", alignItems: "center" }}></div>
+              <div style={{ display: "flex", gap: "30px" }}>
+                {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
+                  <div key={i}>
+                    <Checkbox
+                      label={attachment}
+                      checked={_attachmentsValue === attachment}
+                      onChange={() => setAttachmentsValue(attachment)}
+                    />
+                  </div>
+                ))}
+                <Label style={{ paddingRight: '10px' }}>Details:</Label>
+              </div>
+              <div style={{ flex: '1' }}>
+                <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  placeholder="Enter detail"
+                  disabled={_attachmentsValue !== 'Yes'}
+                  value={_attachmentsResult}
+                  onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                />
+              </div>
+            </div>
+          </div>
           <Separator />
+
           <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
             <div>
               <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
@@ -1155,11 +1175,8 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className="row pb-3" id="attachmentsProvidedSection">
-            <Label className={`${styles.ptwLabel} me-3`}>
-              Attachment(s) provided
-            </Label>
-            {/* Gas Test Required Section */}
+          {/* <div className="row pb-3" id="attachmentsProvidedSection">
+            <div><Label className={`${styles.ptwLabel} me-3`}>Attachment(s) provided</Label></div>
             <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
               <div className={`col-md-3 ${styles.checkboxContainer}`}>
                 {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
@@ -1185,7 +1202,8 @@ export default function PTWForm(props: IPTWFormProps) {
                 />
               </div>
             </div>
-          </div>
+          </div> */}
+
           {/* Personnel Involved - placed under Attachments section */}
           <div className='row pb-3' id="personnelInvolvedSection">
             <div>
