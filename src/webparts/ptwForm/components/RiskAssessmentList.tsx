@@ -22,7 +22,8 @@ export interface IRiskTaskRow {
     initialRisk?: string;       // from _ptwFormStructure.initialRisk[]
     safeguardIds: number[];     // multi-select ILookupItem[]
     residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
-    safeguardsNote?: string;    // custom text entered in the safeguards combobox
+    safeguardsNote?: string;
+    disabledFields: boolean;     // custom text entered in the safeguards combobox
 }
 
 export interface IRiskAssessmentListProps {
@@ -49,7 +50,8 @@ const newRow = (): IRiskTaskRow => ({
     task: '',
     initialRisk: undefined,
     safeguardIds: [],
-    residualRisk: undefined
+    residualRisk: undefined,
+    disabledFields: true,
 });
 
 const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
@@ -67,6 +69,14 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     const [safeFilterByRow, setSafeFilterByRow] = React.useState<Record<string, string>>({});
     const allSafeguardsById = React.useRef<Map<number, ILookupItem>>(new Map());
 
+    // React.useEffect(() => {
+    //     const updatedRows = rows.map(row => ({
+    //         ...row,
+    //         disabledFields: row.task === "" // true if task is empty
+    //     }));
+    //     setRows(updatedRows);
+    // }, [rows]);
+
     React.useEffect(() => {
         (safeguards || []).forEach(s => {
             if (s?.id !== undefined && !allSafeguardsById.current.has(Number(s.id))) {
@@ -81,7 +91,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     }, [rows, overallRisk, l2Required, l2Ref, onChange]);
 
     const handleTaskChange = (id: string, value: string | undefined) => {
-        setRows(prev => prev.map(r => (r.id === id ? { ...r, task: value || '' } : r)));
+        setRows(prev => prev.map(r => (r.id === id ? { ...r, task: value || '', disabledFields: value === "" } : r)));
     };
 
     const handleInitialRiskChange = (id: string, option?: IComboBoxOption) => {
@@ -168,6 +178,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     selectedKey={row.initialRisk}
                     onChange={(_, option) => handleInitialRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
+                    disabled={row.disabledFields}
                 />
             )
         },
@@ -194,6 +205,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             text={safeFilterByRow[row.id] || ''}
                             allowFreeform
                             useComboBoxAsMenuWidth
+                            disabled={row.disabledFields}
                         />
 
                         <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
@@ -236,6 +248,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     selectedKey={row.residualRisk}
                     onChange={(_, option) => handleResidualRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
+                    disabled={row.disabledFields}
                 />
             )
         },
@@ -316,6 +329,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     }}>
                         <Label style={{ marginRight: "10px", paddingTop: "10px" }}>Overall Risk Assessment</Label>
                         <ChoiceGroup
+                            disabled={rows.some(r => r.disabledFields)}
                             selectedKey={overallRisk}
                             options={overallOptions}
                             onChange={(_, option) => setOverallRisk(option?.key)}

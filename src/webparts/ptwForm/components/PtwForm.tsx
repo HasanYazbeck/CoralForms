@@ -744,19 +744,6 @@ export default function PTWForm(props: IPTWFormProps) {
     });
   }, [_permitPayload, setPTWFormStructure, safeguards, workPermitRequired]);
 
-  // const handleCheckedPrecautions = React.useCallback((checked?: boolean, item?: ILookupItem) => {
-  //   if (!item || item.id === undefined || item.id === null) return;
-  //   setSelectedPrecautionItems(prev => {
-  //     const next = new Set(prev);
-  //     if (checked) {
-  //       next.add(item);
-  //     } else {
-  //       next.delete(item);
-  //     }
-  //     return next;
-  //   });
-  // }, []);
-
   React.useEffect(() => {
     // If selected permit types is unchecked, clear the permit payload
     if (!workPermitRequired) {
@@ -935,7 +922,7 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className='row'>
+          <div className='row' id="permitOriginatorDiv">
             <div className={`form-group col-md-6`}>
               <NormalPeoplePicker label={"Permit Originator"} onResolveSuggestions={_onFilterChanged} itemLimit={1}
                 className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
@@ -956,7 +943,7 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className={`row`}>
+          <div className={`row`} id="assetCategoryDetailsDiv">
             <div className={`form-group col-md-6`}>
               <ComboBox
                 label="Asset Category"
@@ -982,7 +969,7 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className={`row`}>
+          <div className={`row`} id="projectTitleDiv">
             <div className={`form-group col-md-12`}>
               <TextField
                 label="Project Title / Description"
@@ -1083,7 +1070,10 @@ export default function PTWForm(props: IPTWFormProps) {
                           <Checkbox
                             label={gas}
                             checked={_gasTestValue === gas}
-                            onChange={() => setGasTestValue(gas)}
+                            // onChange={() => setGasTestValue(gas)}
+                            onChange={() =>
+                              setGasTestValue(prev => (prev === gas ? '' : gas))
+                            }
                           />
                         </div>
                       ))}
@@ -1112,7 +1102,10 @@ export default function PTWForm(props: IPTWFormProps) {
                           <Checkbox
                             label={item}
                             checked={_fireWatchValue === item}
-                            onChange={() => setFireWatchValue(item)}
+                            // onChange={() => setFireWatchValue(item)}
+                            onChange={() =>
+                              setFireWatchValue(prev => (prev === item ? '' : item))
+                            }
                           />
                         </div>
                       ))}
@@ -1139,7 +1132,10 @@ export default function PTWForm(props: IPTWFormProps) {
                         <Checkbox
                           label={attachment}
                           checked={_attachmentsValue === attachment}
-                          onChange={() => setAttachmentsValue(attachment)}
+                          // onChange={() => setAttachmentsValue(attachment)}
+                          onChange={() =>
+                              setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
+                            }
                         />
                       </div>
                     ))}
