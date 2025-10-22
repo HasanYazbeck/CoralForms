@@ -1129,7 +1129,7 @@ export default function PTWForm(props: IPTWFormProps) {
               <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
             </div>
             <div className="form-group col-md-12">
-              <div className='col-md-10'>
+              <div className='col-md-12'>
                 <ComboBox
                   key={`machinery-${_selectedMachineryIds.slice().sort((a, b) => a - b).join('_')}`}
                   placeholder="Select machinery/tools"
@@ -1209,7 +1209,7 @@ export default function PTWForm(props: IPTWFormProps) {
             <div>
               <Label className={styles.ptwLabel}>Personnel Involved</Label>
             </div>
-            <div className="form-group col-md-10">
+            <div className="form-group col-md-12">
               <ComboBox
                 key={`personnel-${_selectedPersonnelIds.slice().sort((a, b) => a - b).join('_')}`}
                 placeholder="Select personnel"

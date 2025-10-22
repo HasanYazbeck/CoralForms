@@ -174,7 +174,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         {
             key: 'col-safe',
             name: 'Safeguards',
-            minWidth: 350,
+            minWidth: 400,
             resizable: true,
             onRender: (row: IRiskTaskRow) => {
                 const selectedItems = (row.safeguardIds || [])
@@ -368,7 +368,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                 value={l2Ref}
                                 disabled={!l2Required}
                                 onChange={(_, v) => setL2Ref(v || '')}
-                                styles={{ root: { maxWidth: 360 , width: '58%' } }}
+                                styles={{ root: { width: '68%' } }}
                             />
                         </div>
 
