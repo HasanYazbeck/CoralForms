@@ -17,7 +17,8 @@ import {
   IComboBox,
   Stack,
   MessageBar,
-  IconButton
+  IconButton,
+  Separator
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
@@ -1025,44 +1026,47 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className='pb-3' id="gasTestAndFireWatch">
-            <Label className={`${styles.ptwLabel} me-3`}>
-              Gas Test Required
-            </Label>
+          <Separator />
+          <div className='row pb-3' id="gasTestAndFireWatch">
             {/* Gas Test Required Section */}
-            <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
-              <div className={`col-md-3 ${styles.checkboxContainer}`}>
-                {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
-                  <div key={i} className={styles.checkboxItem}>
-                    <Checkbox
-                      label={gas}
-                      checked={_gasTestValue === gas}
-                      onChange={() => setGasTestValue(gas)}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
+              <div className='col-md-3'><Label>Gas Test Required</Label></div>
+              <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "30px" }}>
+                  {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
+                    <div key={i}>
+                      <Checkbox
+                        label={gas}
+                        checked={_gasTestValue === gas}
+                        onChange={() => setGasTestValue(gas)}
+                      />
+                    </div>
+                  ))}
 
-              <div className={`ms-4`} style={{ display: 'flex', alignItems: 'center', flex: '1', justifyContent: 'flex-end', paddingRight: '20px' }}>
-                <Label style={{ paddingRight: ' 10px' }}>Gas Test Result:</Label>
-                <TextField
-                  type="text"
-                  className={styles.resultInput}
-                  placeholder="Enter result"
-                  disabled={_gasTestValue !== 'Yes'}
-                  value={_gasTestResult}
-                  onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                />
+                  <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
+                </div>
+                <div style={{ flex: '1' }}>
+                  <TextField
+                    type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    placeholder="Enter result"
+                    disabled={_gasTestValue !== 'Yes'}
+                    value={_gasTestResult}
+                    onChange={(e, newValue) => setGasTestResult(newValue || '')}
+                    rows={1}
+                    autoAdjustHeight
+                    multiline
+                  />
+                </div>
               </div>
             </div>
 
             {/* Fire Watch Needed Section */}
-            <div className=''>
-              <Label className={`${styles.ptwLabel} me-3`}>Fire Watch Needed</Label>
-              <div className="form-group col-md-12 d-flex align-items-center mb-2" style={{ paddingLeft: '30px' }}>
-                <div className={`col-md-3 ${styles.checkboxContainer}`}>
+            <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+              <div className='col-md-3'><Label>Fire Watch Needed</Label></div>
+              <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "30px" }}>
                   {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
-                    <div key={i} className={styles.checkboxItem}>
+                    <div key={i}>
                       <Checkbox
                         label={item}
                         checked={_fireWatchValue === item}
@@ -1070,21 +1074,24 @@ export default function PTWForm(props: IPTWFormProps) {
                       />
                     </div>
                   ))}
+                  <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
                 </div>
-
-                <div className={`ms-4`} style={{ display: 'flex', alignItems: 'center', flex: '1', justifyContent: 'flex-end', paddingRight: '20px' }}>
-                  <Label style={{ paddingRight: ' 10px' }}>Firewatch Assigned:</Label>
-                  <TextField className={styles.resultInput}
+                <div style={{ flex: '1' }}>
+                  <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                     placeholder="Enter name"
                     disabled={_fireWatchValue !== 'Yes'}
                     value={_fireWatchAssigned}
                     onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
+                    rows={1}
+                    autoAdjustHeight
+                    multiline
                   />
                 </div>
               </div>
             </div>
           </div>
 
+          <Separator />
           <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
             <div>
               <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
@@ -1102,43 +1109,49 @@ export default function PTWForm(props: IPTWFormProps) {
               <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
             </div>
             <div className="form-group col-md-12">
-              <ComboBox
-                key={`machinery-${_selectedMachineryIds.slice().sort((a, b) => a - b).join('_')}`}
-                placeholder="Select machinery/tools"
-                options={machineryOptions as any}
-                onChange={onMachineryChange}
-                multiSelect
-                useComboBoxAsMenuWidth
-                styles={comboBoxBlackStyles}
-              />
-            </div>
-
-            <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
-              {selectedMachinery.length === 0 ? (
-                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {selectedMachinery.map(m => (
-                    <span key={m.id}
-                      style={{
-                        background: '#f3f2f1',
-                        border: '1px solid #c8c6c4',
-                        borderRadius: 12,
-                        padding: '2px 6px',
-                        display: 'inline-flex', alignItems: 'center', gap: 6
-                      }}>
-                      <span style={{ color: '#323130' }}>{m.title}</span>
-                      <IconButton
-                        iconProps={{ iconName: 'Cancel' }}
-                        ariaLabel={`Remove ${m.title}`}
-                        title={`Remove ${m.title}`}
-                        onClick={() => removeMachinery(m.id)}
-                        styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
-                      />
-                    </span>
-                  ))}
+              <div className='col-md-10'>
+                <ComboBox
+                  key={`machinery-${_selectedMachineryIds.slice().sort((a, b) => a - b).join('_')}`}
+                  placeholder="Select machinery/tools"
+                  options={machineryOptions as any}
+                  onChange={onMachineryChange}
+                  multiSelect
+                  useComboBoxAsMenuWidth
+                  styles={comboBoxBlackStyles}
+                />
+              </div>
+              <div className='col-md-12'>
+                <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
+                  {selectedMachinery.length === 0 ? (
+                    <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {selectedMachinery.map(m => (
+                        <span key={m.id}
+                          style={{
+                            background: '#f3f2f1',
+                            border: '1px solid #c8c6c4',
+                            borderRadius: 12,
+                            padding: '2px 6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}>
+                          <span style={{ color: '#323130' }}>{m.title}</span>
+                          <IconButton
+                            iconProps={{ iconName: 'Cancel' }}
+                            ariaLabel={`Remove ${m.title}`}
+                            title={`Remove ${m.title}`}
+                            onClick={() => removeMachinery(m.id)}
+                            styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                          />
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
             </div>
           </div>
 
@@ -1173,7 +1186,54 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
             </div>
           </div>
+          {/* Personnel Involved - placed under Attachments section */}
+          <div className='row pb-3' id="personnelInvolvedSection">
+            <div>
+              <Label className={styles.ptwLabel}>Personnel Involved</Label>
+            </div>
+            <div className="form-group col-md-10">
+              <ComboBox
+                key={`personnel-${_selectedPersonnelIds.slice().sort((a, b) => a - b).join('_')}`}
+                placeholder="Select personnel"
+                options={personnelOptions as any}
+                onChange={onPersonnelChange}
+                multiSelect
+                useComboBoxAsMenuWidth
+                styles={comboBoxBlackStyles}
+              />
+              <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
+                {selectedPersonnel.length === 0 ? (
+                  <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {selectedPersonnel.map(p => (
+                      <span key={p.Id}
+                        style={{
+                          background: '#f3f2f1',
+                          border: '1px solid #c8c6c4',
+                          borderRadius: 12,
+                          padding: '2px 6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}>
+                        <span style={{ color: '#323130' }}>{p.fullName}</span>
+                        <IconButton
+                          iconProps={{ iconName: 'Cancel' }}
+                          ariaLabel={`Remove ${p.fullName}`}
+                          title={`Remove ${p.fullName}`}
+                          onClick={() => removePersonnel(Number(p.Id))}
+                          styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                        />
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
+          <Separator />
           <div className="row pb-3" id="InstructionsSection">
             {/* Instructions For Use */}
             <Stack horizontal id="InstructionsStack">
@@ -1193,47 +1253,8 @@ export default function PTWForm(props: IPTWFormProps) {
               )}
             </Stack>
           </div>
-
-          {/* Personnel Involved - placed under Attachments section */}
-          <div className='row pb-3' id="personnelInvolvedSection">
-            <div>
-              <Label className={styles.ptwLabel}>Personnel Involved</Label>
-            </div>
-            <div className="form-group col-md-12">
-              <ComboBox
-                key={`personnel-${_selectedPersonnelIds.slice().sort((a, b) => a - b).join('_')}`}
-                placeholder="Select personnel"
-                options={personnelOptions as any}
-                onChange={onPersonnelChange}
-                multiSelect
-                useComboBoxAsMenuWidth
-                styles={comboBoxBlackStyles}
-              />
-              <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 8, marginTop: 8 }}>
-                {selectedPersonnel.length === 0 ? (
-                  <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {selectedPersonnel.map(p => (
-                      <span key={p.Id}
-                        style={{ background: '#f3f2f1', border: '1px solid #c8c6c4', borderRadius: 12, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: '#323130' }}>{p.fullName}</span>
-                        <IconButton
-                          iconProps={{ iconName: 'Cancel' }}
-                          ariaLabel={`Remove ${p.fullName}`}
-                          title={`Remove ${p.fullName}`}
-                          onClick={() => removePersonnel(Number(p.Id))}
-                          styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
-                        />
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
         </div>
+
         <div id="formFooterSection" className='row'>
           <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
             <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
