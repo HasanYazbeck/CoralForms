@@ -3152,7 +3152,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 />
               )}
             </div>
-          </div> {/* end PdfApprovalsSegment */}
+          </div> 
+       
         </form>
       </div>
     </div>

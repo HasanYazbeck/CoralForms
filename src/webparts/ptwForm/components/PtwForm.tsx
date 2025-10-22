@@ -34,7 +34,6 @@ import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
 import { ICoralFormsList } from '../../../Interfaces/Common/ICoralFormsList';
 
 export default function PTWForm(props: IPTWFormProps) {
-
   // Helpers and refs
   const formName = "Permit To Work";
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
@@ -54,22 +53,28 @@ export default function PTWForm(props: IPTWFormProps) {
   // Form State to used on update or submit
   const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
   const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
-  const [_projectTitle, setProjectTitle] = React.useState<string>('');
   const [_assetId, setAssetId] = React.useState<string>('');
   const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
   const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
+  const [_projectTitle, setProjectTitle] = React.useState<string>('');
+  const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
+  const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
+  const [_selectedHacWorkAreaId, setSelectedHacWorkAreaId] = React.useState<number | undefined>(undefined);
+  const [_selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
+  const [_selectedPrecautionIds, setSelectedPrecautionIds] = React.useState<Set<number>>(new Set());
   const [_gasTestValue, setGasTestValue] = React.useState('');
   const [_gasTestResult, setGasTestResult] = React.useState('');
   const [_fireWatchValue, setFireWatchValue] = React.useState('');
   const [_fireWatchAssigned, setFireWatchAssigned] = React.useState('');
   const [_attachmentsValue, setAttachmentsValue] = React.useState('');
   const [_attachmentsResult, setAttachmentsResult] = React.useState('');
-  const [_selectedWorkHazardIds, setSelectedWorkHazardIds] = React.useState<Set<number>>(new Set());
-  const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
-  const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
-  const [_selectedHacWorkAreaId, setSelectedHacWorkAreaId] = React.useState<number | undefined>(undefined);
-  const [_selectedMachineryIds, setSelectedMachineryIds] = React.useState<number[]>([]);
-  const [_selectedPersonnelIds, setSelectedPersonnelIds] = React.useState<number[]>([]);
+  const [_selectedProtectiveEquipmentIds, setSelectedProtectiveEquipmentIds] = React.useState<Set<number>>(new Set());
+  const [_selectedMachineryIds, setSelectedMachineryIds] = React.useState<number[] | undefined>(undefined);
+  const [_selectedPersonnelIds, setSelectedPersonnelIds] = React.useState<number[] | undefined>(undefined);
+
+  // State for controlling conditional rendering of sections
+  const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
+
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -621,7 +626,7 @@ export default function PTWForm(props: IPTWFormProps) {
   // Machinery/Tools - multi-select ComboBox wiring
   const machineryOptions = React.useMemo(() => {
     const items = ptwFormStructure?.machinaries || [];
-    return items.map(m => ({ key: m.id, text: m.title, selected: _selectedMachineryIds.includes(Number(m.id)) }));
+    return items.map(m => ({ key: m.id, text: m.title, selected: _selectedMachineryIds?.includes(Number(m.id)) }));
   }, [ptwFormStructure?.machinaries, _selectedMachineryIds]);
 
   const onMachineryChange = React.useCallback((_: React.FormEvent<IComboBox>, option?: any) => {
@@ -637,13 +642,13 @@ export default function PTWForm(props: IPTWFormProps) {
   const selectedMachinery = React.useMemo(() => {
     const list = ptwFormStructure?.machinaries || [];
     const byId = new Map<number, ILookupItem>(list.map(m => [m.id, m]));
-    return _selectedMachineryIds
+    return _selectedMachineryIds?.length ? _selectedMachineryIds
       .map(id => byId.get(Number(id)))
-      .filter((m): m is ILookupItem => !!m);
+      .filter((m): m is ILookupItem => !!m) : undefined;
   }, [ptwFormStructure?.machinaries, _selectedMachineryIds]);
 
   const removeMachinery = React.useCallback((id: number) => {
-    setSelectedMachineryIds(prev => prev.filter(x => x !== id));
+    setSelectedMachineryIds(prev => prev?.filter(x => x !== id));
   }, []);
 
   // Personnel Involved - multi-select ComboBox wiring
@@ -651,7 +656,7 @@ export default function PTWForm(props: IPTWFormProps) {
     return (personnelInvolved || []).map(p => ({
       key: p.Id,
       text: p.fullName || '',
-      selected: _selectedPersonnelIds.includes(Number(p.Id))
+      selected: _selectedPersonnelIds?.includes(Number(p.Id))
     }));
   }, [personnelInvolved, _selectedPersonnelIds]);
 
@@ -667,13 +672,13 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const selectedPersonnel = React.useMemo(() => {
     const byId = new Map<number, IEmployeePeronellePassport>((personnelInvolved || []).map(p => [Number(p.Id), p]));
-    return _selectedPersonnelIds
+    return _selectedPersonnelIds?.length ? _selectedPersonnelIds
       .map(id => byId.get(Number(id)))
-      .filter((p): p is IEmployeePeronellePassport => !!p);
+      .filter((p): p is IEmployeePeronellePassport => !!p) : undefined;
   }, [personnelInvolved, _selectedPersonnelIds]);
 
   const removePersonnel = React.useCallback((id: number) => {
-    setSelectedPersonnelIds(prev => prev.filter(x => x !== id));
+    setSelectedPersonnelIds(prev => prev?.filter(x => x !== id));
   }, []);
 
   // Add these handler functions
@@ -689,6 +694,10 @@ export default function PTWForm(props: IPTWFormProps) {
       const nextWorkCategories: IWorkCategory[] = (prev.workCategories || []).map(cat =>
         cat.id === workCategory.id ? { ...cat, isChecked: !!checked } : cat
       );
+
+      // Checks if any work category is selected then show all other form sections
+      const checkedWorkPermitCount = nextWorkCategories?.filter(item => item.isChecked == true).length;
+      setWorkPermitRequired(checkedWorkPermitCount > 0);
 
       // Compute selected list after this toggle
       const selectedItems = nextWorkCategories.filter(cat => cat.isChecked);
@@ -733,7 +742,37 @@ export default function PTWForm(props: IPTWFormProps) {
 
       return { ...prev, workCategories: nextWorkCategories } as IPTWForm;
     });
-  }, [_permitPayload, setPTWFormStructure]);
+  }, [_permitPayload, setPTWFormStructure, safeguards, workPermitRequired]);
+
+  // const handleCheckedPrecautions = React.useCallback((checked?: boolean, item?: ILookupItem) => {
+  //   if (!item || item.id === undefined || item.id === null) return;
+  //   setSelectedPrecautionItems(prev => {
+  //     const next = new Set(prev);
+  //     if (checked) {
+  //       next.add(item);
+  //     } else {
+  //       next.delete(item);
+  //     }
+  //     return next;
+  //   });
+  // }, []);
+
+  React.useEffect(() => {
+    // If selected permit types is unchecked, clear the permit payload
+    if (!workPermitRequired) {
+      setPermitPayload([]);
+      setSelectedHacWorkAreaId(undefined);
+      setSelectedWorkHazardIds(new Set<number>());
+      setSelectedPrecautionIds(new Set<number>());
+      setSelectedProtectiveEquipmentIds(new Set<number>());
+      setGasTestValue('');
+      setGasTestResult('');
+      setFireWatchValue('');
+      setGasTestResult('');
+      setAttachmentsResult('');
+      setAttachmentsValue('');
+    }
+  }, [workPermitRequired]);
 
   // Keep filtered safeguards in sync if safeguards or selected categories change elsewhere
   React.useEffect(() => {
@@ -972,208 +1011,287 @@ export default function PTWForm(props: IPTWFormProps) {
 
           </div>
 
-          <div className="row pb-3" id="hacClassificationWorkAreaSection">
-            <div>
-              <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
-            </div>
-            <CheckBoxDistributerOnlyComponent id="hacClassificationWorkAreaComponent"
-              optionList={ptwFormStructure?.hacWorkAreas || []}
-              colSpacing='col-2'
-              onChange={(checked, item) => handleHACChange(checked, item)}
-              selectedIds={_selectedHacWorkAreaId !== undefined ? [_selectedHacWorkAreaId] : []}
-            />
-          </div>
+          {workPermitRequired && (
+            <div id="ptwFormsSections">
 
-          <div className="row pb-3" id="workHazardSection" >
-            <div>
-              <Label className={styles.ptwLabel}>Work Hazards</Label>
-              <div className="text-center pb-3">
-                <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
-                  if 3 or more working hazards, detailed job description/tasks shall be provided below.
-                </small>
-              </div>
-            </div>
-
-            <CheckBoxDistributerComponent id="workHazardsComponent"
-              optionList={ptwFormStructure?.workHazardosList || []}
-              selectedIds={Array.from(_selectedWorkHazardIds)}
-              onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
-            />
-          </div>
-
-          {_selectedWorkHazardIds.size >= 3 && (
-            <div className="row pb-2" id="riskAssessmentListSection">
-              <div className="form-group col-md-12">
-                <RiskAssessmentList
-                  initialRiskOptions={ptwFormStructure?.initialRisk || []}
-                  residualRiskOptions={ptwFormStructure?.residualRisk || []}
-                  safeguards={filteredSafeguards || []}
-                  overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
+              <div className="row pb-3" id="hacClassificationWorkAreaSection">
+                <div>
+                  <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
+                </div>
+                <CheckBoxDistributerOnlyComponent id="hacClassificationWorkAreaComponent"
+                  optionList={ptwFormStructure?.hacWorkAreas || []}
+                  colSpacing='col-2'
+                  onChange={(checked, item) => handleHACChange(checked, item)}
+                  selectedIds={_selectedHacWorkAreaId !== undefined ? [_selectedHacWorkAreaId] : []}
                 />
               </div>
-            </div>
-          )}
 
-          <div className="row pb-3" id="precautionsSection" >
-            <div>
-              <Label className={styles.ptwLabel}>Precautions Required</Label>
-            </div>
+              <div className="row pb-3" id="workHazardSection" >
+                <div>
+                  <Label className={styles.ptwLabel}>Work Hazards</Label>
+                  <div className="text-center pb-3">
+                    <small className="text-muted" style={{ fontStyle: 'italic', fontSize: '0.8rem' }}>
+                      if 3 or more working hazards, detailed job description/tasks shall be provided below.
+                    </small>
+                  </div>
+                </div>
 
-            <div className="form-group col-md-12">
-              <div className={styles.checkboxContainer}>
-                <CheckBoxDistributerOnlyComponent id="precautionsComponent" optionList={ptwFormStructure?.precuationsItems || []} />
+                <CheckBoxDistributerComponent id="workHazardsComponent"
+                  optionList={ptwFormStructure?.workHazardosList || []}
+                  selectedIds={Array.from(_selectedWorkHazardIds)}
+                  onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
+                />
               </div>
-            </div>
-          </div>
 
-          <Separator />
-          <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
-            {/* Gas Test Required Section */}
-            <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
-              <div className='col-md-3'><Label>Gas Test Required</Label></div>
-              <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ display: "flex", gap: "30px" }}>
-                  {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
-                    <div key={i}>
-                      <Checkbox
-                        label={gas}
-                        checked={_gasTestValue === gas}
-                        onChange={() => setGasTestValue(gas)}
-                      />
-                    </div>
-                  ))}
-
-                  <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
-                </div>
-                <div style={{ flex: '1' }}>
-                  <TextField
-                    type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                    placeholder="Enter result"
-                    disabled={_gasTestValue !== 'Yes'}
-                    value={_gasTestResult}
-                    onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Fire Watch Needed Section */}
-            <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
-              <div className='col-md-3'><Label>Fire Watch Needed</Label></div>
-              <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ display: "flex", gap: "30px" }}>
-                  {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
-                    <div key={i}>
-                      <Checkbox
-                        label={item}
-                        checked={_fireWatchValue === item}
-                        onChange={() => setFireWatchValue(item)}
-                      />
-                    </div>
-                  ))}
-                  <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
-                </div>
-                <div style={{ flex: '1' }}>
-                  <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                    placeholder="Enter name"
-                    disabled={_fireWatchValue !== 'Yes'}
-                    value={_fireWatchAssigned}
-                    onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Attachments Required */}
-            <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
-              <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
-              <div className="" style={{ display: "flex", alignItems: "center" }}></div>
-              <div style={{ display: "flex", gap: "30px" }}>
-                {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
-                  <div key={i}>
-                    <Checkbox
-                      label={attachment}
-                      checked={_attachmentsValue === attachment}
-                      onChange={() => setAttachmentsValue(attachment)}
+              {_selectedWorkHazardIds.size >= 3 && (
+                <div className="row pb-2" id="riskAssessmentListSection">
+                  <div className="form-group col-md-12">
+                    <RiskAssessmentList
+                      initialRiskOptions={ptwFormStructure?.initialRisk || []}
+                      residualRiskOptions={ptwFormStructure?.residualRisk || []}
+                      safeguards={filteredSafeguards || []}
+                      overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
                     />
                   </div>
-                ))}
-                <Label style={{ paddingRight: '10px' }}>Details:</Label>
-              </div>
-              <div style={{ flex: '1' }}>
-                <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                  placeholder="Enter detail"
-                  disabled={_attachmentsValue !== 'Yes'}
-                  value={_attachmentsResult}
-                  onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
-                />
-              </div>
-            </div>
-          </div>
-          <Separator />
+                </div>
+              )}
 
-          <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
-            <div>
-              <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
-            </div>
+              <div className="row pb-3" id="precautionsSection" >
+                <div>
+                  <Label className={styles.ptwLabel}>Precautions Required</Label>
+                </div>
 
-            <div className="form-group col-md-12">
-              <div className={styles.checkboxContainer}>
-                <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent" optionList={ptwFormStructure?.protectiveSafetyEquipments || []} />
-              </div>
-            </div>
-          </div>
-
-          <div className='row pb-3' id="machineryToolsSection">
-            <div>
-              <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
-            </div>
-            <div className="form-group col-md-12">
-              <div className='col-md-12'>
-                <ComboBox
-                  key={`machinery-${_selectedMachineryIds.slice().sort((a, b) => a - b).join('_')}`}
-                  placeholder="Select machinery/tools"
-                  options={machineryOptions as any}
-                  onChange={onMachineryChange}
-                  multiSelect
-                  useComboBoxAsMenuWidth
-                  styles={comboBoxBlackStyles}
-                />
-              </div>
-              <div className='col-md-12'>
-                <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
-                  {selectedMachinery.length === 0 ? (
-                    <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {selectedMachinery.map(m => (
-                        <span key={m.id}
-                          style={{
-                            background: '#f3f2f1',
-                            border: '1px solid #c8c6c4',
-                            borderRadius: 12,
-                            padding: '2px 6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6
-                          }}>
-                          <span style={{ color: '#323130' }}>{m.title}</span>
-                          <IconButton
-                            iconProps={{ iconName: 'Cancel' }}
-                            ariaLabel={`Remove ${m.title}`}
-                            title={`Remove ${m.title}`}
-                            onClick={() => removeMachinery(m.id)}
-                            styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
-                          />
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                <div className="form-group col-md-12">
+                  <div className={styles.checkboxContainer}>
+                    <CheckBoxDistributerComponent id="precautionsComponent"
+                      optionList={ptwFormStructure?.precuationsItems || []}
+                      onChange={(ids) => setSelectedPrecautionIds(new Set(ids))}
+                    />
+                  </div>
                 </div>
               </div>
 
+              <Separator />
+              <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
+                {/* Gas Test Required Section */}
+                <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
+                  <div className='col-md-3'><Label>Gas Test Required</Label></div>
+                  <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "30px" }}>
+                      {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
+                        <div key={i}>
+                          <Checkbox
+                            label={gas}
+                            checked={_gasTestValue === gas}
+                            onChange={() => setGasTestValue(gas)}
+                          />
+                        </div>
+                      ))}
+
+                      <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
+                    </div>
+                    <div style={{ flex: '1' }}>
+                      <TextField
+                        type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                        placeholder="Enter result"
+                        disabled={_gasTestValue !== 'Yes'}
+                        value={_gasTestResult}
+                        onChange={(e, newValue) => setGasTestResult(newValue || '')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fire Watch Needed Section */}
+                <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+                  <div className='col-md-3'><Label>Fire Watch Needed</Label></div>
+                  <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "30px" }}>
+                      {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
+                        <div key={i}>
+                          <Checkbox
+                            label={item}
+                            checked={_fireWatchValue === item}
+                            onChange={() => setFireWatchValue(item)}
+                          />
+                        </div>
+                      ))}
+                      <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
+                    </div>
+                    <div style={{ flex: '1' }}>
+                      <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                        placeholder="Enter name"
+                        disabled={_fireWatchValue !== 'Yes'}
+                        value={_fireWatchAssigned}
+                        onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attachments Required */}
+                <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+                  <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
+                  <div className="" style={{ display: "flex", alignItems: "center" }}></div>
+                  <div style={{ display: "flex", gap: "30px" }}>
+                    {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
+                      <div key={i}>
+                        <Checkbox
+                          label={attachment}
+                          checked={_attachmentsValue === attachment}
+                          onChange={() => setAttachmentsValue(attachment)}
+                        />
+                      </div>
+                    ))}
+                    <Label style={{ paddingRight: '10px' }}>Details:</Label>
+                  </div>
+                  <div style={{ flex: '1' }}>
+                    <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                      placeholder="Enter detail"
+                      disabled={_attachmentsValue !== 'Yes'}
+                      value={_attachmentsResult}
+                      onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                    />
+                  </div>
+                </div>
+              </div>
+              <Separator />
+
+              <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
+                <div>
+                  <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
+                </div>
+
+                <div className="form-group col-md-12">
+                  <div className={styles.checkboxContainer}>
+                    <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent"
+                      optionList={ptwFormStructure?.protectiveSafetyEquipments || []}
+                      selectedIds={Array.from(_selectedProtectiveEquipmentIds)}
+                      onChange={(ids) => setSelectedProtectiveEquipmentIds(new Set(ids))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className='row pb-3' id="machineryToolsSection">
+                <div>
+                  <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
+                </div>
+                <div className="form-group col-md-12">
+                  <div className='col-md-12'>
+                    <ComboBox
+                      key={`machinery-${_selectedMachineryIds?.slice().sort((a, b) => a - b).join('_')}`}
+                      placeholder="Select machinery/tools"
+                      options={machineryOptions as any}
+                      onChange={onMachineryChange}
+                      multiSelect
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                    />
+                  </div>
+                  <div className='col-md-12'>
+                    <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
+                      {selectedMachinery?.length === 0 ? (
+                        <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {selectedMachinery?.map(m => (
+                            <span key={m.id}
+                              style={{
+                                background: '#f3f2f1',
+                                border: '1px solid #c8c6c4',
+                                borderRadius: 12,
+                                padding: '2px 6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6
+                              }}>
+                              <span style={{ color: '#323130' }}>{m.title}</span>
+                              <IconButton
+                                iconProps={{ iconName: 'Cancel' }}
+                                ariaLabel={`Remove ${m.title}`}
+                                title={`Remove ${m.title}`}
+                                onClick={() => removeMachinery(m.id)}
+                                styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                              />
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personnel Involved - placed under Attachments section */}
+              <div className='row pb-3' id="personnelInvolvedSection">
+                <div>
+                  <Label className={styles.ptwLabel}>Personnel Involved</Label>
+                </div>
+                <div className="form-group col-md-12">
+                  <ComboBox
+                    key={`personnel-${_selectedPersonnelIds?.slice().sort((a, b) => a - b).join('_')}`}
+                    placeholder="Select personnel"
+                    options={personnelOptions as any}
+                    onChange={onPersonnelChange}
+                    multiSelect
+                    useComboBoxAsMenuWidth
+                    styles={comboBoxBlackStyles}
+                  />
+                  <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
+                    {selectedPersonnel?.length === 0 ? (
+                      <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {selectedPersonnel?.map(p => (
+                          <span key={p.Id}
+                            style={{
+                              background: '#f3f2f1',
+                              border: '1px solid #c8c6c4',
+                              borderRadius: 12,
+                              padding: '2px 6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}>
+                            <span style={{ color: '#323130' }}>{p.fullName}</span>
+                            <IconButton
+                              iconProps={{ iconName: 'Cancel' }}
+                              ariaLabel={`Remove ${p.fullName}`}
+                              title={`Remove ${p.fullName}`}
+                              onClick={() => removePersonnel(Number(p.Id))}
+                              styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
+                            />
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="row pb-3" id="InstructionsSection">
+                {/* Instructions For Use */}
+                <Stack horizontal id="InstructionsStack">
+                  {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <Label>Instructions for Use:</Label>
+                      <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
+                        {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
+                          <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
+                            <strong>{`${idx + 1}. `}</strong>
+                            {instr.Description}
+                          </MessageBar>
+                        )
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </Stack>
+              </div>
+
             </div>
-          </div>
+          )}
 
           {/* <div className="row pb-3" id="attachmentsProvidedSection">
             <div><Label className={`${styles.ptwLabel} me-3`}>Attachment(s) provided</Label></div>
@@ -1203,74 +1321,6 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
             </div>
           </div> */}
-
-          {/* Personnel Involved - placed under Attachments section */}
-          <div className='row pb-3' id="personnelInvolvedSection">
-            <div>
-              <Label className={styles.ptwLabel}>Personnel Involved</Label>
-            </div>
-            <div className="form-group col-md-12">
-              <ComboBox
-                key={`personnel-${_selectedPersonnelIds.slice().sort((a, b) => a - b).join('_')}`}
-                placeholder="Select personnel"
-                options={personnelOptions as any}
-                onChange={onPersonnelChange}
-                multiSelect
-                useComboBoxAsMenuWidth
-                styles={comboBoxBlackStyles}
-              />
-              <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
-                {selectedPersonnel.length === 0 ? (
-                  <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {selectedPersonnel.map(p => (
-                      <span key={p.Id}
-                        style={{
-                          background: '#f3f2f1',
-                          border: '1px solid #c8c6c4',
-                          borderRadius: 12,
-                          padding: '2px 6px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6
-                        }}>
-                        <span style={{ color: '#323130' }}>{p.fullName}</span>
-                        <IconButton
-                          iconProps={{ iconName: 'Cancel' }}
-                          ariaLabel={`Remove ${p.fullName}`}
-                          title={`Remove ${p.fullName}`}
-                          onClick={() => removePersonnel(Number(p.Id))}
-                          styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
-                        />
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-          <div className="row pb-3" id="InstructionsSection">
-            {/* Instructions For Use */}
-            <Stack horizontal id="InstructionsStack">
-              {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <Label>Instructions for Use:</Label>
-                  <div style={{ backgroundColor: "#f3f2f1", padding: 10, borderRadius: 4 }}>
-                    {itemInstructionsForUse.map((instr: ILKPItemInstructionsForUse, idx: number) => (
-                      <MessageBar key={instr.Id ?? instr.Order} isMultiline styles={{ root: { marginBottom: 6 } }}>
-                        <strong>{`${idx + 1}. `}</strong>
-                        {instr.Description}
-                      </MessageBar>
-                    )
-                    )}
-                  </div>
-                </div>
-              )}
-            </Stack>
-          </div>
         </div>
 
         <div id="formFooterSection" className='row'>
@@ -1278,6 +1328,7 @@ export default function PTWForm(props: IPTWFormProps) {
             <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
           </div>
         </div>
+
       </form>
     </div>
   );

@@ -18,8 +18,8 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
 
     const { regularCategories, othersCategory } = React.useMemo(() => {
         const items = props.optionList?.slice()?.sort((a, b) => a.orderRecord - b.orderRecord) ?? [];
-        const others = items.find(c => c.title === 'Others' || c.title === 'Other' || c.title === 'Other(s)');
-        const regular = items.filter(c => c.title !== 'Others' && c.title !== 'Other' && c.title !== 'Other(s)');
+        const others = items.find(c => c.title === 'Others' || c.title === 'Other');
+        const regular = items.filter(c => c.title !== 'Others' && c.title !== 'Other');
         return { regularCategories: regular, othersCategory: others };
     }, [props.optionList]);
 
