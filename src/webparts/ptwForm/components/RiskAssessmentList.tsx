@@ -35,7 +35,7 @@ export interface IRiskAssessmentListProps {
     disableRiskControls?: boolean;            // when true, IR/RR/Overall/L2 are disabled
     onChange?: (state: {
         rows: IRiskTaskRow[];
-        overallRisk?: string;
+         overallRisk?: string;
         l2Required: boolean;
         l2Ref?: string;
     }) => void;
@@ -327,7 +327,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             selectedKey={overallRisk}
                             options={overallOptions}
                             onChange={(_, option) => setOverallRisk(option?.key)}
-                            style={{color: '#232020', fontWeight:"700"}}
+                            style={{ color: '#232020', fontWeight: "700" }}
                             styles={{
                                 flexContainer: {
                                     display: 'flex',

@@ -705,7 +705,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   }, [IsHSEgroupMembership, isCurrentRequester, isCurrentSubmitter, anyApproved, canEditFormHeader]);
 
   // Determine which approval rows can be edited by current user
-  //TODO: Need to be checked for final level as iam in the group
   const canEditApprovalRow = useCallback((item: IFormsApprovalWorkflow): boolean => {
 
     if (!item) {

@@ -530,6 +530,32 @@ export class SPCrudOperations {
     }
   }
 
+  // Resolve a SharePoint user by email/login and return numeric user Id
+  public async ensureUserId(loginOrEmail?: string): Promise<number | undefined> {
+    if (!loginOrEmail) return undefined;
 
+    const spHttp: SPHttpClient = (this as any).spHttpClient || (this as any)._spHttpClient;
+    const webUrl: string = (this as any).webUrl || (this as any)._webUrl;
+
+    if (!spHttp || !webUrl) throw new Error('SPCrudOperations missing spHttpClient or webUrl');
+
+    const url = `${webUrl}/_api/web/ensureuser`;
+    const options: ISPHttpClientOptions = {
+      headers: {
+        Accept: 'application/json;odata=nometadata',
+        'Content-Type': 'application/json;odata=verbose',
+        'odata-version': '',
+      },
+      body: JSON.stringify({ logonName: `i:0#.f|membership|${loginOrEmail}` })
+    };
+
+    const res: SPHttpClientResponse = await spHttp.post(url, SPHttpClient.configurations.v1, options);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`ensureUser failed for ${loginOrEmail}: ${t}`);
+    }
+    const u = await res.json();
+    return u?.Id;
+  }
 
 }

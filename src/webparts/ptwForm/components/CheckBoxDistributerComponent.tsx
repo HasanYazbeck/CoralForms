@@ -10,7 +10,6 @@ interface ICheckBoxDistributerComponentProps {
   colSpacing?: 'col-1' | 'col-2' | 'col-3' | 'col-4' | 'col-6';
   selectedIds?: number[]; // if provided, component acts controlled
   onChange?: (selectedIds: number[]) => void;
-  // onChangeItem?: (checked: boolean | undefined, selectedItem: ILookupItem | undefined) => void;
   countOthersAsSelection?: boolean; // default true
   onOthersChange?: (checked: boolean, text: string) => void;
 }
