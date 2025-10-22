@@ -3117,7 +3117,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 </div>
               </Stack>
             )}
-            <DocumentMetaBanner docCode={'COR-HSE-01-FOR-001'} version="V03" effectiveDate="16-SEP-2020" page={1} />
+            <DocumentMetaBanner docCode={'COR-HSE-01-FOR-001'} version="V03" effectiveDate="16-OCT-2025" page={1} />
           </div> {/* end PdfApprovalsSegment */}
 
           <div id="PdfbuttonsSection">

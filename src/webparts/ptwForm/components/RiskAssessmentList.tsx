@@ -32,6 +32,7 @@ export interface IRiskAssessmentListProps {
     safeguards: ILookupItem[];                // ILookupItem[] source (e.g., precuationsItems)
     defaultRows?: IRiskTaskRow[];
     overallRiskOptions?: string[];            // from _ptwFormStructure.overallRiskAssessment
+    disableRiskControls?: boolean;            // when true, IR/RR/Overall/L2 are disabled
     onChange?: (state: {
         rows: IRiskTaskRow[];
         overallRisk?: string;
@@ -60,7 +61,8 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     safeguards,
     defaultRows,
     overallRiskOptions,
-    onChange
+    onChange,
+    disableRiskControls = false
 }) => {
     const [rows, setRows] = React.useState<IRiskTaskRow[]>(defaultRows?.length ? defaultRows : [newRow()]);
     const [overallRisk, setOverallRisk] = React.useState<string | undefined>(undefined);
@@ -68,14 +70,6 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     const [l2Ref, setL2Ref] = React.useState<string>('');
     const [safeFilterByRow, setSafeFilterByRow] = React.useState<Record<string, string>>({});
     const allSafeguardsById = React.useRef<Map<number, ILookupItem>>(new Map());
-
-    // React.useEffect(() => {
-    //     const updatedRows = rows.map(row => ({
-    //         ...row,
-    //         disabledFields: row.task === "" // true if task is empty
-    //     }));
-    //     setRows(updatedRows);
-    // }, [rows]);
 
     React.useEffect(() => {
         (safeguards || []).forEach(s => {
@@ -178,7 +172,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     selectedKey={row.initialRisk}
                     onChange={(_, option) => handleInitialRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
-                    disabled={row.disabledFields}
+                    disabled={disableRiskControls || row.disabledFields}
                 />
             )
         },
@@ -248,7 +242,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     selectedKey={row.residualRisk}
                     onChange={(_, option) => handleResidualRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
-                    disabled={row.disabledFields}
+                    disabled={disableRiskControls || row.disabledFields}
                 />
             )
         },
@@ -329,10 +323,11 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     }}>
                         <Label style={{ marginRight: "10px", paddingTop: "10px" }}>Overall Risk Assessment</Label>
                         <ChoiceGroup
-                            disabled={rows.some(r => r.disabledFields)}
+                            disabled={disableRiskControls || rows.some(r => r.disabledFields)}
                             selectedKey={overallRisk}
                             options={overallOptions}
                             onChange={(_, option) => setOverallRisk(option?.key)}
+                            style={{color: '#232020', fontWeight:"700"}}
                             styles={{
                                 flexContainer: {
                                     display: 'flex',
@@ -373,6 +368,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                 label="Detailed (L2) Risk Assessment required"
                                 checked={l2Required}
                                 onChange={(_, chk) => setL2Required(!!chk)}
+                                disabled={disableRiskControls}
                             />
                         </div>
 
@@ -380,7 +376,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             <Label style={{ fontStyle: 'italic' }}>Risk Assessment Ref. Nbr.</Label>
                             <TextField
                                 value={l2Ref}
-                                disabled={!l2Required}
+                                disabled={disableRiskControls || !l2Required}
                                 onChange={(_, v) => setL2Ref(v || '')}
                                 styles={{ root: { width: '68%' } }}
                             />

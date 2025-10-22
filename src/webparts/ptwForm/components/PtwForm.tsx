@@ -18,6 +18,8 @@ import {
   Stack,
   MessageBar,
   IconButton,
+  DefaultButton,
+  PrimaryButton,
   Separator
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
@@ -32,16 +34,26 @@ import RiskAssessmentList from './RiskAssessmentList';
 import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
 import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
 import { ICoralFormsList } from '../../../Interfaces/Common/ICoralFormsList';
+import ExportPdfControls from '../../ppeForm/components/ExportPdfControls';
+import BannerComponent, { BannerKind } from '../../ppeForm/components/BannerComponent';
 
 export default function PTWForm(props: IPTWFormProps) {
   // Helpers and refs
   const formName = "Permit To Work";
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const overlayRef = React.useRef<HTMLDivElement>(null);
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [_users, setUsers] = React.useState<IUser[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
-  const [, setCoralFormsList] = React.useState<ICoralFormsList>({ Id: "" });
+  const [isExportingPdf, setIsExportingPdf] = React.useState(false); // NEW
+  const [exportMode, setExportMode] = React.useState(false);
+  const [bannerText, setBannerText] = React.useState<string>();
+  const [bannerTick, setBannerTick] = React.useState(0);
+  const [bannerOpts, setBannerOpts] = React.useState<{ autoHideMs?: number; fade?: boolean; kind?: BannerKind } | undefined>();
+  const bannerTopRef = React.useRef<HTMLDivElement>(null);
 
+  const [, setCoralFormsList] = React.useState<ICoralFormsList>({ Id: "" });
   const [ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
   const [itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [personnelInvolved, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
@@ -71,6 +83,14 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_selectedProtectiveEquipmentIds, setSelectedProtectiveEquipmentIds] = React.useState<Set<number>>(new Set());
   const [_selectedMachineryIds, setSelectedMachineryIds] = React.useState<number[] | undefined>(undefined);
   const [_selectedPersonnelIds, setSelectedPersonnelIds] = React.useState<number[] | undefined>(undefined);
+  // Busy overlay and notifications
+  const [isBusy, setIsBusy] = React.useState<boolean>(false);
+  const [busyLabel, setBusyLabel] = React.useState<string>('Processing…');
+
+  // Current user vs. Permit Originator
+  const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
+  const permitOriginatorEmail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+  const isOriginator = !!permitOriginatorEmail && permitOriginatorEmail === currentUserEmail;
 
   // State for controlling conditional rendering of sections
   const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
@@ -797,51 +817,161 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, []);
 
-  // const showBanner = useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
-  //   setBannerText(text);
-  //   setBannerTick(t => t + 1);
-  //   setBannerOpts(opts);
-  // }, []);
+  const showBanner = React.useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
+    setBannerText(text);
+    setBannerTick(t => t + 1);
+    setBannerOpts(opts);
+  }, []);
 
-  // const hideBanner = useCallback(() => {
-  //   showBanner(``);
-  //   setBannerText(undefined);
-  //   setBannerOpts(undefined);
-  // }, []);
+  const hideBanner = React.useCallback(() => {
+    showBanner(``);
+    setBannerText(undefined);
+    setBannerOpts(undefined);
+  }, []);
 
   // Navigate back to host list view (via callback or URL params)
-  // const goBackToHost = useCallback(() => {
-  //   if (typeof props.onClose === 'function') {
-  //     props.onClose();
-  //     return;
-  //   }
-  //   const url = new URL(window.location.href);
-  //   url.searchParams.delete('mode');
-  //   url.searchParams.delete('formId');
-  //   window.location.href = url.toString();
-  // }, [props.onClose]);
+  const goBackToHost = React.useCallback(() => {
+    if (typeof props.onClose === 'function') {
+      props.onClose();
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mode');
+    url.searchParams.delete('formId');
+    window.location.href = url.toString();
+  }, [props.onClose]);
 
-  // const handleCancel = useCallback(() => {
-  //   goBackToHost();
-  // }, [goBackToHost]);
+  const handleCancel = React.useCallback(() => {
+    goBackToHost();
+  }, [goBackToHost]);
+
+  // const uiDisabled = React.useCallback((normalDisabled: boolean) => (exportMode ? false : normalDisabled), [exportMode]);
+
+  React.useEffect(() => {
+    if (!bannerText) return;
+
+    // Determine current scrollTop (container or window)
+    const currentScrollTop = (containerRef.current && typeof containerRef.current.scrollTop === 'number'
+      ? containerRef.current.scrollTop
+      : (window.scrollY || document.documentElement.scrollTop || 0));
+
+    if (currentScrollTop >= 0) {
+      // Wait a tick so the banner renders, then scroll to it
+      requestAnimationFrame(() => {
+        if (bannerTopRef.current) {
+          bannerTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (containerRef.current) {
+          containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    }
+  }, [bannerText, bannerTick]);
 
   // When we start submitting/updating, scroll to where the loader overlay is rendered
-  // useEffect(() => {
-  //   if (!isSubmitting) return;
-  //   // Wait for overlay to render, then scroll it into view
-  //   requestAnimationFrame(() => {
-  //     if (overlayRef.current && overlayRef.current.scrollIntoView) {
-  //       try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
-  //     } else if (containerRef.current) {
-  //       try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
-  //     } else {
-  //       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
-  //     }
-  //   });
-  // }, [isSubmitting]);
+  React.useEffect(() => {
+    if (!isBusy) return;
+    // Wait for overlay to render, then scroll it into view
+    requestAnimationFrame(() => {
+      if (overlayRef.current && overlayRef.current.scrollIntoView) {
+        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+      } else if (containerRef.current) {
+        try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      } else {
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      }
+    });
+  }, [isBusy]);
 
   // Handlers
 
+  // Minimal payload builder (adjust to your save schema)
+  const buildPayload = React.useCallback(() => {
+    return {
+      reference: _coralReferenceNumber,
+      assetId: _assetId,
+      assetCategoryId: _selectedAssetCategory,
+      assetDetailsId: _selectedAssetDetails,
+      projectTitle: _projectTitle,
+      permitTypes: _selectedPermitTypeList?.map(x => x.id),
+      permitRows: _permitPayload,
+      hacWorkAreaId: _selectedHacWorkAreaId,
+      workHazardIds: Array.from(_selectedWorkHazardIds || []),
+      precautionsIds: Array.from(_selectedPrecautionIds || []),
+      protectiveEquipmentIds: Array.from(_selectedProtectiveEquipmentIds || []),
+      gasTestRequired: _gasTestValue,
+      gasTestResult: _gasTestResult,
+      fireWatchNeeded: _fireWatchValue,
+      fireWatchAssigned: _fireWatchAssigned,
+      attachmentsProvided: _attachmentsValue,
+      attachmentsDetails: _attachmentsResult,
+      machineryIds: _selectedMachineryIds || [],
+      personnelIds: _selectedPersonnelIds || [],
+      originator: permitOriginatorEmail
+    };
+  }, [
+    _coralReferenceNumber, _assetId, _selectedAssetCategory, _selectedAssetDetails, _projectTitle,
+    _selectedPermitTypeList, _permitPayload, _selectedHacWorkAreaId,
+    _selectedWorkHazardIds, _selectedPrecautionIds, _selectedProtectiveEquipmentIds,
+    _gasTestValue, _gasTestResult, _fireWatchValue, _fireWatchAssigned,
+    _attachmentsValue, _attachmentsResult, _selectedMachineryIds, _selectedPersonnelIds, permitOriginatorEmail
+  ]);
+
+  const submitForm = React.useCallback(async (mode: 'save' | 'submit') => {
+    if (!isOriginator) {
+      showBanner('Only the Permit Originator can save or submit this form.',
+        { autoHideMs: 5000, fade: true, kind: 'error' });
+      return;
+    } else {
+      hideBanner();
+    }
+
+    setIsBusy(true);
+    setBusyLabel(mode === 'save' ? 'Saving form…' : 'Submitting form…');
+    try {
+      const payload = buildPayload();
+      void payload; // placeholder until wired to backend
+      // TODO: Wire to SPCrudOperations for real save/update
+      handleSubmit(mode)
+      await new Promise(res => setTimeout(res, 1000));
+      setBannerText('success');
+      showBanner('Form saved successfully.',
+        { autoHideMs: 5000, fade: true, kind: 'success' });
+    } catch (e) {
+      showBanner('An error occurred while processing the form.',
+        { autoHideMs: 5000, fade: true, kind: 'error' });
+    } finally {
+      setIsBusy(false);
+    }
+  }, [isOriginator, buildPayload]);
+
+  const validateBeforeSubmit = React.useCallback((): string | undefined => {
+    const missing: string[] = [];
+    if (!buildPayload().originator.trim()) missing.push('Permit Originator');
+    if (!buildPayload()?.assetId?.trim()) missing.push('Asset ID');
+    if (!buildPayload().assetCategoryId?.toString().trim()) missing.push('Asset Category');
+    if (!buildPayload().assetDetailsId?.toString().trim()) missing.push('Asset Details');
+    if (!buildPayload().projectTitle?.trim()) missing.push('Project Title');
+    if (!buildPayload().permitTypes || buildPayload().permitTypes.length === 0) missing.push('At least one Permit Type');
+
+    // if (!_company.title?.trim()) missing.push('Company');
+    if (missing.length) {
+      return `Please fill in the required fields: ${missing.join(', ')}.`;
+    }
+
+    return undefined;
+  }, []);
+
+  const handleSubmit = React.useCallback(async (mode: 'save' | 'submit' | 'update' | 'approve') => {
+
+    const validationError = validateBeforeSubmit();
+    if (validationError) {
+      showBanner(validationError);
+      return false;
+    }
+
+  }, [validateBeforeSubmit, showBanner]);
 
   // ---------------------------
   // Render
@@ -863,9 +993,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
   return (
 
-    <div style={{ position: 'relative' }}>
-
-      {/* {isSubmitting && !exportMode && (
+    <div style={{ position: 'relative' }} ref={containerRef}>
+      <div ref={bannerTopRef} />
+      {isBusy && (
         <div
           ref={overlayRef}
           aria-busy="true"
@@ -873,7 +1003,7 @@ export default function PTWForm(props: IPTWFormProps) {
           aria-modal="true"
           className="no-pdf"
           data-html2canvas-ignore="true"
-          aria-label={props.formId ? 'Updating form' : 'Submitting form'}
+          aria-label={busyLabel}
           style={{
             position: 'absolute',
             inset: 0,
@@ -884,11 +1014,36 @@ export default function PTWForm(props: IPTWFormProps) {
             justifyContent: 'center',
             pointerEvents: 'all'
           }}>
-          <Spinner label={props.formId ? 'Updating form…' : 'Submitting form…'} size={SpinnerSize.large} />
+          <Spinner label={busyLabel} size={SpinnerSize.large} />
         </div>
-      )} */}
+      )}
 
-      <form >
+      {/* Screen-blocking overlay while preparing the PDF */}
+      {isExportingPdf && (
+        <div
+          aria-busy="true"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Preparing PDF"
+          className="no-pdf"
+          data-html2canvas-ignore="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(255,255,255,0.75)',
+            zIndex: 1500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'all'
+          }}
+        >
+          <Spinner label="Preparing PDF…" />
+        </div>
+      )}
+
+      <form id="ptwFormMain">
+        {/* Top action bar removed; Save/Submit moved to bottom */}
         <div id="formTitleSection">
           <div className={styles.ptwformHeader} >
             <div>
@@ -906,15 +1061,19 @@ export default function PTWForm(props: IPTWFormProps) {
           </div>
         </div>
 
+        <BannerComponent text={bannerText} kind={bannerOpts?.kind || 'error'}
+          autoHideMs={bannerOpts?.autoHideMs} fade={bannerOpts?.fade}
+          onDismiss={() => { setBannerText(undefined); setBannerOpts(undefined); }}
+        />
+
         <div id="formHeaderInfo" className={styles.formBody}>
           {/* Administrative Note */}
           <div>
-            <div className={`form-group col-md-12 ${styles.adminNote}`}
-              style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Label>Grey areas are for administrative use only</Label>
+            <div className={`form-group col-md-12 mb-1`}
+              style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              {/* <Label>Grey areas are for administrative use only</Label> */}
 
-              <div className={`form-group col-md-4`}>
-
+              <div className={`form-group col-md-5 col-sm-12`}>
                 <TextField label="PTW Ref #" underlined disabled defaultValue={_coralReferenceNumber}
                   styles={{ root: { color: '#000', fontWeight: 500, backgroundColor: '#f4f4f4' } }}
                   onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')} />
@@ -961,7 +1120,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 placeholder="Select asset details"
                 options={assetDetailsOptions}
                 selectedKey={_selectedAssetDetails}
-                onChange={() => onAssetDetailsChange}
+                onChange={(_e, ch) => onAssetDetailsChange(_e as any, ch as any)}
                 disabled={!_selectedAssetCategory}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
@@ -1038,6 +1197,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       residualRiskOptions={ptwFormStructure?.residualRisk || []}
                       safeguards={filteredSafeguards || []}
                       overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
+                      disableRiskControls={isOriginator}
                     />
                   </div>
                 </div>
@@ -1074,6 +1234,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             onChange={() =>
                               setGasTestValue(prev => (prev === gas ? '' : gas))
                             }
+                            disabled={isOriginator}
                           />
                         </div>
                       ))}
@@ -1084,7 +1245,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       <TextField
                         type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                         placeholder="Enter result"
-                        disabled={_gasTestValue !== 'Yes'}
+                        disabled={isOriginator || _gasTestValue !== 'Yes'}
                         value={_gasTestResult}
                         onChange={(e, newValue) => setGasTestResult(newValue || '')}
                       />
@@ -1106,6 +1267,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             onChange={() =>
                               setFireWatchValue(prev => (prev === item ? '' : item))
                             }
+                            disabled={isOriginator}
                           />
                         </div>
                       ))}
@@ -1114,7 +1276,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     <div style={{ flex: '1' }}>
                       <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                         placeholder="Enter name"
-                        disabled={_fireWatchValue !== 'Yes'}
+                        disabled={isOriginator || _fireWatchValue !== 'Yes'}
                         value={_fireWatchAssigned}
                         onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
                       />
@@ -1134,8 +1296,8 @@ export default function PTWForm(props: IPTWFormProps) {
                           checked={_attachmentsValue === attachment}
                           // onChange={() => setAttachmentsValue(attachment)}
                           onChange={() =>
-                              setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
-                            }
+                            setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
+                          }
                         />
                       </div>
                     ))}
@@ -1319,13 +1481,40 @@ export default function PTWForm(props: IPTWFormProps) {
           </div> */}
         </div>
 
-        <div id="formFooterSection" className='row'>
-          <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-            <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
-          </div>
-        </div>
-
       </form>
+
+      <Separator />
+
+      {/* Bottom action buttons */}
+      <div id="formButtonsSection" className="no-pdf" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8, marginBottom: 8 }}>
+        <DefaultButton text="Close" onClick={handleCancel} />
+
+        <ExportPdfControls targetRef={containerRef} coralReferenceNumber={_coralReferenceNumber}
+          employeeName={_PermitOriginator?.[0]?.text}
+          exportMode={exportMode}
+          onExportModeChange={setExportMode}
+          onBusyChange={setIsExportingPdf}
+          // isClosedBySystem={(formsApprovalWorkflow || []).some(r => String(r?.Status?.title || '').toLowerCase().includes('approved') && r.FinalLevel === r.Order)}
+          onError={(m) => showBanner(m)}
+        />
+
+        <DefaultButton text="Save"
+          onClick={() => submitForm('save')}
+          disabled={!isOriginator || isBusy}
+        />
+
+        <PrimaryButton text="Submit"
+          onClick={() => submitForm('submit')}
+          disabled={!isOriginator || isBusy}
+        />
+      </div>
+
+      <div id="formFooterSection" className='row'>
+        <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
+          <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
+        </div>
+      </div>
+
     </div>
   );
 }

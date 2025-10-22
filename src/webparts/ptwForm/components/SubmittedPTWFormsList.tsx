@@ -47,7 +47,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [items, setItems] = React.useState<Row[]>([]);
   const [error, setError] = React.useState<string | undefined>(undefined);
-  const [view, setView] = React.useState<'active' | 'closed' | 'rejected'>('active');
+  const [view, setView] = React.useState<'active' | 'closed' | 'rejected' | 'saved'>('active');
   const [selectionVersion, setSelectionVersion] = React.useState(0);
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
@@ -123,7 +123,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     []
   );
 
-  const loadItems = React.useCallback(async (scope: 'active' | 'closed' | 'rejected' = view, reset: boolean = false) => {
+  const loadItems = React.useCallback(async (scope: 'active' | 'closed' | 'rejected' | 'saved' = view, reset: boolean = false) => {
 
     if (!listGuid) {
       setItems([]);
@@ -137,6 +137,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     const filterActive = ``;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
     const filterRejected = `&$filter=(RejectionReason ne null and RejectionReason ne '')`;
+    const filterSaved = `&$filter=WorkflowStatus eq 'Saved'`;
     const orderBy = `&$orderby=Created desc`;
 
     const headers = { Accept: 'application/json;odata=nometadata', 'odata-version': '' } as any;
@@ -147,7 +148,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       // Continue from SharePoint’s paging link (absolute URL)
       url = nextLink;
     } else {
-      const filter = scope === 'closed' ? filterClosed : scope === 'rejected' ? filterRejected : filterActive;
+      const filter = scope === 'closed' ? filterClosed : scope === 'rejected' ? filterRejected : scope === 'saved' ? filterSaved : filterActive;
       url = `${webUrl}/_api/web/lists(guid'${listGuid}')/items${baseSelect}${filter}${orderBy}&$top=${PAGE_SIZE}`;
     }
 
@@ -228,7 +229,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     }
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
 
-  const switchState = React.useCallback((next: 'active' | 'rejected' | 'closed') => {
+  const switchState = React.useCallback((next: 'active' | 'rejected' | 'closed' | 'saved') => {
     setView(next);
     setNextLink(undefined);
     setHasMore(false);
@@ -319,8 +320,14 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         subMenuProps: {
           items: [
             {
+              key: 'saved',
+              text: 'Saved',
+              iconProps: { iconName: 'Saved' },
+              onClick: () => switchState('saved')
+            },
+            {
               key: 'active',
-              text: 'Active',
+              text: 'Submitted',
               iconProps: { iconName: 'ActivateOrders' },
               onClick: () => switchState('active')
             },
