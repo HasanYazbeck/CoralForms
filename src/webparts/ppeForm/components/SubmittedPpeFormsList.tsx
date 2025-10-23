@@ -351,6 +351,8 @@ const SubmittedPpeFormsList: React.FC<SubmittedPpeFormsListProps> = ({ context, 
           setKey={`ppeForms-${view}`}
           compact
           isHeaderVisible
+          styles={{ root: { minHeight: '350px', height: 'auto' } }
+          }
         />
       </MarqueeSelection>
 

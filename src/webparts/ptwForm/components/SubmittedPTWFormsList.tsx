@@ -356,8 +356,15 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       {loading && <Spinner label="Loading..." />}
       {error && <Text styles={{ root: { color: 'red' } }}>{error}</Text>}
       <MarqueeSelection selection={selectionRef.current}>
-        <DetailsList items={items} columns={columns} selection={selectionRef.current} selectionMode={SelectionMode.multiple} layoutMode={DetailsListLayoutMode.justified}
-          setKey={`ptwForms-${view}`} compact isHeaderVisible />
+        <DetailsList items={items} columns={columns}
+          selection={selectionRef.current}
+          selectionMode={SelectionMode.multiple}
+          layoutMode={DetailsListLayoutMode.justified}
+          setKey={`ptwForms-${view}`}
+          compact
+          isHeaderVisible
+          styles={{ root: { minHeight: '350px', height: 'auto' } }}
+        />
       </MarqueeSelection>
 
       {/* Paged footer */}
