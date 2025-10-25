@@ -52,6 +52,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [loading, setLoading] = React.useState<boolean>(true);
+  const [mode, setMode] = React.useState<'saved' | 'submitted' | 'approved' | 'new'>('new');
+
   const [isExportingPdf, setIsExportingPdf] = React.useState(false); // NEW
   const [exportMode, setExportMode] = React.useState(false);
   const [bannerText, setBannerText] = React.useState<string>();
@@ -76,8 +78,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
   const [_assetId, setAssetId] = React.useState<string>('');
   const [_selectedCompany, setSelectedCompany] = React.useState<ILookupItem | undefined>(undefined);
-  const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<string | number | undefined>(undefined);
-  const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<string | number | undefined>(undefined);
+  const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<number | undefined>(undefined);
+  const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<number | undefined>(undefined);
   const [_projectTitle, setProjectTitle] = React.useState<string>('');
   const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
@@ -104,6 +106,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const [_selectedMachineryIds, setSelectedMachineryIds] = React.useState<number[] | undefined>(undefined);
   const [_selectedPersonnelIds, setSelectedPersonnelIds] = React.useState<number[] | undefined>(undefined);
+
+  const [_selectedToolboxTalk, setToolboxTalk] = React.useState<Boolean | undefined>(undefined);
+  const [_toolboxHSEReference, setToolboxHSEReference] = React.useState<String>('');
+  const [_selectedToolboxTalkDate, setToolboxTalkDate] = React.useState<String | undefined>(undefined);
+  const [_selectedToolboxConductedBy, setToolboxConductedBy] = React.useState<IPersonaProps[]>([]);
 
   // Busy overlay and notifications
   const [isBusy, setIsBusy] = React.useState<boolean>(false);
@@ -554,7 +561,6 @@ export default function PTWForm(props: IPTWFormProps) {
         await _getLKPItemInstructionsForUse(formName);
       }
 
-      console.log('Fetched users:', _users?.length > 0 ? _users[0].displayName : 'none');
       if (!cancelled) {
         try {
           const currentUserEmail = props.context.pageContext.user.email;
@@ -580,6 +586,7 @@ export default function PTWForm(props: IPTWFormProps) {
     suggestionsAvailableAlertText: 'People Picker Suggestions available',
     suggestionsContainerAriaLabel: 'Suggested contacts'
   };
+
   const _onFilterChanged = (filterText: string, currentPersonas: IPersonaProps[]): IPersonaProps[] | Promise<IPersonaProps[]> => {
     if (filterText) {
       let filteredPersonas: IPersonaProps[] = [];
@@ -602,25 +609,16 @@ export default function PTWForm(props: IPTWFormProps) {
       return [];
     }
   };
-  // Asset category options
-  // const assetCategoryOptions: IDropdownOption[] = React.useMemo(() => {
-  //   if (!ptwFormStructure?.assetsCategories) return [];
-  //   return ptwFormStructure.assetsCategories.sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0))
-  //     .map(item => ({
-  //       key: item.id,
-  //       text: item.title || ''
-  //     }));
-  // }, [ptwFormStructure?.assetsCategories]);
 
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
-    setSelectedAssetCategory(item ? item.key : undefined);
+    setSelectedAssetCategory(item ? Number(item.key) : undefined);
     setSelectedAssetDetails(undefined);
   };
 
   // Handle asset details change
   const onAssetDetailsChange = (event: React.FormEvent<HTMLDivElement>, item: IDropdownOption | undefined): void => {
-    setSelectedAssetDetails(item ? item.key : undefined);
+    setSelectedAssetDetails(item ? Number(item.key) : undefined);
   };
 
   // Asset details options (filtered by selected category)
@@ -730,6 +728,22 @@ export default function PTWForm(props: IPTWFormProps) {
 
       if (selectedItems.length === 0) {
         setPermitPayload([]);
+        setSelectedMachineryIds([]);
+        setSelectedPersonnelIds([]);
+        setSelectedPrecautionIds(new Set<number>());
+        setSelectedProtectiveEquipmentIds(new Set<number>());
+        setGasTestResult('');
+        setGasTestValue('');
+        setFireWatchAssigned('');
+        setFireWatchValue('');
+        setAttachmentsResult('');
+        setAttachmentsValue('');
+        setSelectedWorkHazardIds(new Set<number>());
+        setSelectedHacWorkAreaId(0);
+        setProtectiveEquipmentsOtherText('');
+        setPrecautionsOtherText('');
+        setProtectiveEquipmentsOtherText('');
+        setWorkHazardsOtherText('');
       } else {
         // Minimum number of renewals among selected categories
         const minRenewals = Math.min(...selectedItems.map(cat => (cat.renewalValidity ?? 0)));
@@ -774,9 +788,39 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const updatePermitRow = React.useCallback((rowId: string, field: string, value: string, checked: boolean) => {
 
-    setPermitPayload(prevItems =>
-      prevItems.map(item => {
+    setPermitPayload(prevItems => {
+      // Helper to compare date-only in UTC
+      const toDayUtc = (iso?: string): number => {
+        if (!iso) return NaN;
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return NaN;
+        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+      };
+
+      // Find latest previous selected date (by array order) for this row
+      const currIndex = prevItems.findIndex(r => r.id === rowId);
+      const latestPrevDay = currIndex > 0
+        ? Math.max(
+          ...prevItems
+            .slice(0, currIndex)
+            .filter(r => r.isChecked && r.date)
+            .map(r => toDayUtc(r.date))
+            .filter(n => !isNaN(n)),
+          Number.NEGATIVE_INFINITY
+        )
+        : Number.NEGATIVE_INFINITY;
+
+      return prevItems.map(item => {
         if (item.id !== rowId) return item;
+
+        // Block invalid date chronologically (must be strictly after any previous selected dates)
+        if (field === 'date') {
+          const newDay = toDayUtc(value);
+          if (!isNaN(newDay) && latestPrevDay !== Number.NEGATIVE_INFINITY && newDay <= latestPrevDay) {
+            showBanner('Permit date must be after previous selected permit dates.', { autoHideMs: 4000, fade: true, kind: 'error' });
+            return item; // block invalid date change
+          }
+        }
         // Base update for the edited field and selection state
         let next = { ...item, [field]: value, isChecked: !!checked } as IPermitScheduleRow;
 
@@ -802,8 +846,8 @@ export default function PTWForm(props: IPTWFormProps) {
           return { ...next, date: '', startTime: '', endTime: '' };
         }
         return next;
-      })
-    );
+      });
+    });
   }, []);
 
   const handleHACChange = React.useCallback((checked?: boolean, hacArea?: ILookupItem) => {
@@ -907,7 +951,6 @@ export default function PTWForm(props: IPTWFormProps) {
   };
 
   const handleRiskTasksChange = React.useCallback((tasks?: IRiskAssessmentResult) => {
-    debugger
     if (!tasks) {
       setRiskAssessmentsTasks(undefined);
       setRiskAssessmentReferenceNumber('');
@@ -921,7 +964,6 @@ export default function PTWForm(props: IPTWFormProps) {
     setDetailedRiskAssessment(!!tasks?.l2Required);
     setRiskAssessmentsTasks(prev => mergeRiskRows(prev, tasks?.rows || []));
   }, []);
-
 
   // Minimal payload builder (adjust to your save schema)
   const buildPayload = React.useCallback(() => {
@@ -963,6 +1005,10 @@ export default function PTWForm(props: IPTWFormProps) {
     _attachmentsValue, _attachmentsResult, _selectedMachineryIds, _selectedPersonnelIds, permitOriginatorEmail,
     _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment
   ]);
+
+  const approveForm = React.useCallback(async (mode: 'approve') => {
+
+  }, [isOriginator, buildPayload]);
 
   const submitForm = React.useCallback(async (mode: 'save' | 'submit') => {
     if (!isOriginator) {
@@ -1236,7 +1282,6 @@ export default function PTWForm(props: IPTWFormProps) {
         if (!_createdPermits) {
           throw new Error('Failed to create PTW Work Permits');
         }
-        debugger;
 
         if (mode === 'submit') {
           const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), coralReferenceNumber, originatorId);
@@ -1470,6 +1515,204 @@ export default function PTWForm(props: IPTWFormProps) {
   // Render
   // ---------------------------
 
+  const [prefilledFormId, setPrefilledFormId] = React.useState<number | undefined>(undefined);
+
+  // Prefill when editing an existing form
+  React.useEffect(() => {
+    const formId = props.formId;
+    if (!formId || prefilledFormId === formId) return;
+
+    // Wait until base items are loaded and itemRows initialized
+    if (loading) return;
+
+    let cancelled = false;
+
+    const toPersona = (obj?: { Id?: any; Title?: string; EMail?: string; FullName?: string }): IPersonaProps | undefined => {
+      if (!obj) return undefined;
+      const text = obj.FullName || obj.Title || '';
+      const email = obj.EMail || '';
+      const id = obj.Id != null ? String(obj.Id) : text;
+      return { text, secondaryText: email, id } as IPersonaProps;
+    };
+
+    const load = async () => {
+      try {
+
+        const ptwFirstSelect = `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,IsDetailedRiskAssessmentRequired,RiskAssessmentRefNumber,WorkHazardsOthers,` +
+          `OverallRiskAssessment,GasTestRequired,GasTestResult,WorkflowStatus,` +
+          `PermitOriginator/Id,PermitOriginator/Title,PermitOriginator/EMail,` +
+          `AssetCategory/Id,AssetCategory/Title,` +
+          `AssetDetails/Id,AssetDetails/Title,` +
+          `CompanyRecord/Id,CompanyRecord/Title,` +
+          `WorkCategory/Id,WorkCategory/Title,WorkCategory/OrderRecord,WorkCategory/RenewalValidity,` +
+          `HACClassificationWorkArea/Id,HACClassificationWorkArea/Title,` +
+          `WorkHazards/Id,WorkHazards/Title` +
+          `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord,WorkCategory,` +
+          `HACClassificationWorkArea,WorkHazards` +
+          `&$filter=Id eq ${formId}`;
+
+        const ptwSecondSelect = `?$select=Id,FireWatchNeeded,AttachmentsProvided,AttachmentsProvidedDetails,ToolboxTalk,` +
+          `ToolboxTalkHSEReference,ToolBoxTalkDate,ProtectiveSafetyEquipmentsOthers,PrecautionsOthers,` +
+          `Precuations/Id,Precuations/Title,` +
+          `ProtectiveSafetyEquipments/Id,ProtectiveSafetyEquipments/Title,` +
+          `MachineryInvolved/Id,MachineryInvolved/Title,` +
+          `FireWatchAssigned/Id,FireWatchAssigned/FullName,` +
+          `PersonnelInvolved/Id,PersonnelInvolved/Title,` +
+          `ToolboxConductedBy/Id,ToolboxConductedBy/Title,ToolboxConductedBy/EMail` +
+          `&$expand=Precuations,ProtectiveSafetyEquipments,MachineryInvolved,FireWatchAssigned,` +
+          `PersonnelInvolved,ToolboxConductedBy` +
+          `&$filter=Id eq ${formId}`;
+
+        const ptwWorkPermits = `?$select=Id,PermitType,PermitDate,PermitStartTime,PermitEndTime,RecordOrder,StatusRecord,` +
+          `PTWForm/Id,PTWForm/CoralReferenceNumber` +
+          `&$expand=PTWForm` +
+          `&$filter=PTWForm/Id eq ${formId}`;
+
+        const ptwTaskDescription = `?$select=Id,JobDescription,InitialRisk,ResidualRisk,OtherSafeguards,` +
+          `PTWForm/Id,PTWForm/CoralReferenceNumber,` +
+          `Safeguards/Id,Safeguards/Title` +
+          `&$expand=PTWForm,Safeguards` +
+          `&$filter=PTWForm/Id eq ${formId}`;
+
+        const formCrudFirstSelect = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', ptwFirstSelect);
+        const headerItemsFirstSelect = await formCrudFirstSelect._getItemsWithQuery();
+        const headerFirstSelect = Array.isArray(headerItemsFirstSelect) ? headerItemsFirstSelect[0] : undefined;
+
+        const formCrudSecondSelect = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', ptwSecondSelect);
+        const headerItemsSecondSelect = await formCrudSecondSelect._getItemsWithQuery();
+        const headerSecondSelect = Array.isArray(headerItemsSecondSelect) ? headerItemsSecondSelect[0] : undefined;
+
+        const formCrudWorkPermits = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', ptwWorkPermits);
+        const headerItemsWorkPermits = await formCrudWorkPermits._getItemsWithQuery();
+        const headerWorkPermits = Array.isArray(headerItemsWorkPermits) ? headerItemsWorkPermits : undefined;
+
+        const formCrudTaskDescription = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Job_Descriptions', ptwTaskDescription);
+        const headerItemsTaskDescription = await formCrudTaskDescription._getItemsWithQuery();
+        const headerTaskDescription = Array.isArray(headerItemsTaskDescription) ? headerItemsTaskDescription : undefined;
+
+        if (headerFirstSelect && !cancelled && headerSecondSelect) {
+          // Top-level fields prefill
+          if (headerFirstSelect?.FormStatusRecord) {
+            setMode(headerFirstSelect?.FormStatusRecord.toLowerCase());
+          }
+
+          const permitOriginator = toPersona({ Id: headerFirstSelect?.PermitOriginator?.Id, FullName: headerFirstSelect?.PermitOriginator?.Title, EMail: headerFirstSelect?.PermitOriginator?.EMail });
+          // setPermitOriginator([{ text: permitOriginator?.Title || '', secondaryText: permitOriginator.email || '', id: permitOriginator.id }]);
+          setPermitOriginator(permitOriginator ? [permitOriginator] : []);
+          setCoralReferenceNumber(headerFirstSelect?.CoralReferenceNumber || '');
+          setAssetId(headerFirstSelect?.AssetID);
+          setSelectedCompany(headerFirstSelect?.CompanyRecord ? { id: headerFirstSelect.CompanyRecord.Id, title: headerFirstSelect.CompanyRecord.Title || '', orderRecord: headerFirstSelect.CompanyRecord.OrderRecord || 0 } : undefined);
+          setProjectTitle(headerFirstSelect?.ProjectTitle || '');
+          setSelectedAssetCategory(headerFirstSelect?.AssetCategory ? Number(headerFirstSelect.AssetCategory.Id) : undefined);
+          setSelectedAssetDetails(headerFirstSelect?.AssetDetails ? Number(headerFirstSelect.AssetDetails.Id) : undefined);
+          setSelectedHacWorkAreaId(headerFirstSelect?.HACClassificationWorkArea?.Id != null ? Number(headerFirstSelect.HACClassificationWorkArea.Id) : undefined);
+          setSelectedHacWorkAreaId(headerFirstSelect?.HACClassificationWorkArea?.Id != null ? Number(headerFirstSelect.HACClassificationWorkArea.Id) : undefined);
+          setSelectedWorkHazardIds(new Set(Array.isArray(headerFirstSelect.WorkHazards) ? headerFirstSelect.WorkHazards.map((wh: any) => Number(wh.Id)) : []));
+          setWorkHazardsOtherText(headerFirstSelect?.WorkHazardsOthers || '');
+          setOverAllRiskAssessment(headerFirstSelect?.OverallRiskAssessment || '');
+          setDetailedRiskAssessment(!!headerFirstSelect?.IsDetailedRiskAssessmentRequired);
+          setRiskAssessmentReferenceNumber(headerFirstSelect?.RiskAssessmentRefNumber || '');
+          setSelectedPrecautionIds(new Set(Array.isArray(headerSecondSelect.Precuations) ? headerSecondSelect.Precuations.map((pc: any) => Number(pc.Id)) : []));
+          setPrecautionsOtherText(headerSecondSelect?.PrecautionsOthers || '');
+          setGasTestValue(headerFirstSelect?.GasTestRequired || '');
+          setGasTestResult(headerFirstSelect?.GasTestResult || '');
+          setFireWatchValue(headerSecondSelect?.FireWatchNeeded || '');
+          setFireWatchAssigned(headerSecondSelect?.FireWatchAssigned ? String(headerSecondSelect.FireWatchAssigned.FullName) : '');
+          setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
+          setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
+
+          if (headerSecondSelect.ProtectiveSafetyEquipments.length > 0) {
+            setSelectedProtectiveEquipmentIds(headerSecondSelect.ProtectiveSafetyEquipments.map(
+              (item: any) => {
+                if (item.Title.toLowerCase().includes('other')) {
+                  setProtectiveEquipmentsOtherText(headerSecondSelect?.ProtectiveSafetyEquipmentsOthers || '');
+                }
+                return Number(item.Id);
+              }));
+          }
+          if (headerSecondSelect?.MachineryInvolved.length > 0) {
+            setSelectedMachineryIds(headerSecondSelect?.MachineryInvolved.map((item: any) => Number(item.Id)) || []);
+          }
+          if (headerSecondSelect?.PersonnelInvolved.length > 0) {
+            setSelectedPersonnelIds(headerSecondSelect?.PersonnelInvolved.map((item: any) => Number(item.Id)) || []);
+          }
+
+          setToolboxTalk(headerSecondSelect?.ToolboxTalk || '');
+          setToolboxHSEReference(headerSecondSelect?.ToolboxTalkHSEReference || '');
+          setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? spHelpers.toISO(headerSecondSelect?.ToolBoxTalkDate) : undefined);
+          const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, Title: headerSecondSelect?.ToolboxConductedBy?.Title, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
+          setToolboxConductedBy(toolboxConductedBy ? [toolboxConductedBy] : []);
+
+          if (headerTaskDescription && headerTaskDescription.length > 0) {
+            const tasksList: IRiskTaskRow[] = [];
+            headerTaskDescription.forEach((item: any, index) => {
+              if (item) {
+                tasksList.push({
+                  id: item.Id,
+                  task: item.JobDescription || '',
+                  initialRisk: item.InitialRisk || '',
+                  residualRisk: item.ResidualRisk || '',
+                  safeguardsNote: item.OtherSafeguards || '',
+                  disabledFields: false,
+                  safeguardIds: Array.isArray(item.Safeguards) ? item.Safeguards.map((sg: any) => ({ id: sg.Id })) : [],
+                })
+              }
+            });
+            setRiskAssessmentsTasks(tasksList);
+          } else {
+            setRiskAssessmentsTasks([]);
+          }
+
+          const _workCategories: IWorkCategory[] = [];
+          if (headerFirstSelect.WorkCategory !== undefined && headerFirstSelect.WorkCategory !== null && Array.isArray(headerFirstSelect.WorkCategory)) {
+            headerFirstSelect.WorkCategory.forEach((item: any) => {
+              if (item) {
+                _workCategories.push({
+                  id: item.Id,
+                  title: item.Title,
+                  orderRecord: item.OrderRecord || 0,
+                  renewalValidity: item.RenewalValidity || 0,
+                  isChecked: true,
+                });
+              }
+            });
+          }
+          setSelectedPermitTypeList(_workCategories);
+          setWorkPermitRequired(_workCategories.length > 0);
+          if (headerWorkPermits && headerWorkPermits.length > 0) {
+            const permitsList: IPermitScheduleRow[] = [];
+            headerWorkPermits.sort((a: any, b: any) => a.OrderRecord - b.OrderRecord).forEach((item: any, index) => {
+              if (item) {
+                const startTime = item?.PermitStartTime ? spHelpers.toHHmm(item.PermitStartTime) : '';
+                const endTime = item?.PermitEndTime ? spHelpers.toHHmm(item.PermitEndTime) : '';
+                permitsList.push({
+                  id: String(item.Id),
+                  type: item.PermitType,
+                  date: item.PermitDate ? new Date(item.PermitDate).toISOString() : '',
+                  startTime: startTime,
+                  endTime: endTime,
+                  orderRecord: item.RecordOrder,
+                  isChecked: true,
+                });
+              }
+            });
+            setPermitPayload(permitsList);
+          } else {
+            setPermitPayload([]);
+          }
+        }
+
+        if (!cancelled) setPrefilledFormId(formId);
+      } catch (e) {
+        showBanner('An error occurred while loading the form for editing.', { autoHideMs: 5000, fade: true, kind: 'error' });
+      }
+    };
+
+    load();
+
+    return () => { cancelled = true; };
+  }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -1651,8 +1894,8 @@ export default function PTWForm(props: IPTWFormProps) {
         <div id="formContentSection">
           <div className='row pb-3' id="permitScheduleSection">
             <PermitSchedule
-              workCategories={ptwFormStructure?.workCategories || []}
-              selectedPermitTypeList={_selectedPermitTypeList}
+              workCategories={ptwFormStructure?.workCategories?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
+              selectedPermitTypeList={_selectedPermitTypeList.sort((a, b) => a.orderRecord - b.orderRecord)}
               permitRows={_permitPayload}
               onPermitTypeChange={handlePermitTypeChange}
               onPermitRowUpdate={updatePermitRow}
@@ -1690,6 +1933,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   optionList={ptwFormStructure?.workHazardosList || []}
                   selectedIds={Array.from(_selectedWorkHazardIds)}
                   onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
+                  othersTextValue={_workHazardsOtherText}
                   onOthersChange={(checked, othersText) => setWorkHazardsOtherText(othersText)}
                 />
               </div>
@@ -1719,7 +1963,9 @@ export default function PTWForm(props: IPTWFormProps) {
                   <div className={styles.checkboxContainer}>
                     <CheckBoxDistributerComponent id="precautionsComponent"
                       optionList={ptwFormStructure?.precuationsItems || []}
+                      selectedIds={Array.from(_selectedPrecautionIds)}
                       onChange={(ids) => setSelectedPrecautionIds(new Set(ids))}
+                      othersTextValue={_precautionsOtherText}
                       onOthersChange={(checked, othersText) => setPrecautionsOtherText(othersText)}
                     />
                   </div>
@@ -1739,8 +1985,10 @@ export default function PTWForm(props: IPTWFormProps) {
                             label={gas}
                             checked={_gasTestValue === gas}
                             // onChange={() => setGasTestValue(gas)}
-                            onChange={() =>
-                              setGasTestValue(prev => (prev === gas ? '' : gas))
+                            onChange={() => {
+                              setGasTestValue(prev => (prev === gas ? '' : gas));
+                              setGasTestResult('');
+                            }
                             }
                             disabled={isOriginator}
                           />
@@ -1772,8 +2020,11 @@ export default function PTWForm(props: IPTWFormProps) {
                             label={item}
                             checked={_fireWatchValue === item}
                             // onChange={() => setFireWatchValue(item)}
-                            onChange={() =>
-                              setFireWatchValue(prev => (prev === item ? '' : item))
+                            onChange={() => {
+                              setFireWatchValue(prev => (prev === item ? '' : item));
+                              setFireWatchAssigned('');
+                            }
+
                             }
                             disabled={isOriginator}
                           />
@@ -1801,10 +2052,11 @@ export default function PTWForm(props: IPTWFormProps) {
                       <div key={i}>
                         <Checkbox
                           label={attachment}
-                          checked={_attachmentsValue === attachment}
-                          // onChange={() => setAttachmentsValue(attachment)}
-                          onChange={() =>
+                          checked={_attachmentsValue.toLowerCase() == attachment.toLowerCase() ? true : false}
+                          onChange={() => {
                             setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
+                            setAttachmentsResult('');
+                          }
                           }
                         />
                       </div>
@@ -1834,6 +2086,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       optionList={ptwFormStructure?.protectiveSafetyEquipments || []}
                       selectedIds={Array.from(_selectedProtectiveEquipmentIds)}
                       onChange={(ids) => setSelectedProtectiveEquipmentIds(new Set(ids))}
+                      othersTextValue={_protectiveEquipmentsOtherText}
                       onOthersChange={(checked, othersText) => setProtectiveEquipmentsOtherText(othersText)}
                     />
                   </div>
@@ -1850,6 +2103,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       key={`machinery-${_selectedMachineryIds?.slice().sort((a, b) => a - b).join('_')}`}
                       placeholder="Select machinery/tools"
                       options={machineryOptions as any}
+                      selectedKey={_selectedMachineryIds}
                       onChange={onMachineryChange}
                       multiSelect
                       useComboBoxAsMenuWidth
@@ -1901,6 +2155,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     placeholder="Select personnel"
                     options={personnelOptions as any}
                     onChange={onPersonnelChange}
+                    selectedKey={_selectedPersonnelIds}
                     multiSelect
                     useComboBoxAsMenuWidth
                     styles={comboBoxBlackStyles}
@@ -1977,19 +2232,26 @@ export default function PTWForm(props: IPTWFormProps) {
           // isClosedBySystem={(formsApprovalWorkflow || []).some(r => String(r?.Status?.title || '').toLowerCase().includes('approved') && r.FinalLevel === r.Order)}
           onError={(m) => showBanner(m)}
         />
+        {(mode === "new" || mode === "saved") &&
+          <>
+            <DefaultButton text="Save"
+              onClick={() => submitForm('save')}
+              disabled={!isOriginator || isBusy}
+            />
 
-        {
-
+            <DefaultButton text="Submit"
+              onClick={() => submitForm('submit')}
+              disabled={!isOriginator || isBusy}
+            />
+          </>
         }
-        <DefaultButton text="Save"
-          onClick={() => submitForm('save')}
-          disabled={!isOriginator || isBusy}
-        />
 
-        <PrimaryButton text="Submit"
-          onClick={() => submitForm('submit')}
-          disabled={!isOriginator || isBusy}
-        />
+        {(mode === "submitted" && !isOriginator) && (
+          <PrimaryButton text="Approve"
+            onClick={() => approveForm('approve')}
+            disabled={!isOriginator || isBusy}
+          />
+        )}
       </div>
 
       <div id="formFooterSection" className='row'>

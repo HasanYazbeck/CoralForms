@@ -291,23 +291,6 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         }
       },
       {
-        key: 'view',
-        text: 'View',
-        iconProps: { iconName: 'View' },
-        disabled: delDisabled,
-        onClick: () => {
-          const row = selectedRows[0];
-          if (row) {
-            if (onView) onView(row.id, row);
-            else {
-              navigateWithParams({ mode: 'view', formId: row.id });
-              setFormStatusRecord({ "value": row.FormStatusRecord });
-            }
-          }
-        }
-      },
-
-      {
         key: 'delete',
         text: 'Delete',
         iconProps: { iconName: 'Delete' },

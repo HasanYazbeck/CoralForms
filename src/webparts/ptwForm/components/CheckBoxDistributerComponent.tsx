@@ -12,12 +12,12 @@ interface ICheckBoxDistributerComponentProps {
   onChange?: (selectedIds: number[]) => void;
   countOthersAsSelection?: boolean; // default true
   onOthersChange?: (checked: boolean, text: string) => void;
+  othersTextValue?: string | undefined;
 }
 
 export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponentProps): JSX.Element {
   const [othersChecked, setOthersChecked] = React.useState(false);
   const [othersText, setOthersText] = React.useState('');
-
   const [internalSelectedIds, setInternalSelectedIds] = React.useState<number[]>([]);
   const effectiveSelectedIds = React.useMemo(
     () => (props.selectedIds !== undefined ? props.selectedIds : internalSelectedIds),
@@ -31,6 +31,20 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
     const regular = items.filter(c => c.title !== 'Others' && c.title !== 'Other' && c.title !== 'Other(s)');
     return { regularCategories: regular, othersCategory: others };
   }, [props.optionList]);
+
+   // NEW: derive active state and sync checkbox when text/value exists or Others selected
+  const isOthersActive = React.useMemo(() => {
+    const hasText = !!props.othersTextValue && props.othersTextValue.trim() !== '';
+    const othersSelected = !!othersCategory && effectiveSelectedIds.includes(othersCategory.id);
+    return othersChecked || hasText || (countOthers && othersSelected);
+  }, [othersChecked, props.othersTextValue, effectiveSelectedIds, othersCategory, countOthers]);
+
+  React.useEffect(() => {
+    const hasText = !!props.othersTextValue && props.othersTextValue.trim() !== '';
+    if (hasText && !othersChecked) setOthersChecked(true);
+    // keep local mirror so user can edit when controlled
+    if (hasText && props.othersTextValue !== othersText) setOthersText(props.othersTextValue!);
+  }, [props.othersTextValue, othersChecked, othersText]);
 
   const setSelectedIds = (next: number[]) => {
     if (props.selectedIds === undefined) setInternalSelectedIds(next);
@@ -58,7 +72,6 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
                 label={category.title}
                 checked={effectiveSelectedIds.includes(category.id)}
                 onChange={(_, checked) => toggle(category.id, !!checked)}
-                
               />
             </div>
           </div>
@@ -86,13 +99,13 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
               type="text"
               className={styles.othersText}
               placeholder="Please specify"
-              value={othersText}
+              value={props.othersTextValue !== undefined ? props.othersTextValue : othersText}
               onChange={(_, v) => {
                 const val = v || '';
                 setOthersText(val);
                 props.onOthersChange?.(othersChecked, val);
               }}
-              disabled={!othersChecked}
+              disabled={!isOthersActive}
             />
           </div>
         </div>

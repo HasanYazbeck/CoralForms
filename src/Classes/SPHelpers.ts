@@ -226,12 +226,26 @@ export class SPHelpers {
     return new Date(y, m - 1, d, hh, mi, ss, 0); // local Date
   }
 
-  public parseTimeToMinutes(t?: string): number {
-    if (!t) return NaN;
-    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(t.trim());
+  public parseTimeToMinutes(time?: string): number {
+    if (!time) return NaN;
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(time.trim());
     if (!m) return NaN;
     const h = Number(m[1]), min = Number(m[2]);
     return h * 60 + min;
   };
 
+  public toISO = (v?: any): string | undefined => {
+    if (!v) return undefined;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? undefined : d.toISOString(); // matches your onSelectDate -> toISOString
+  };
+
+  public toHHmm = (v?: any): string => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
 }

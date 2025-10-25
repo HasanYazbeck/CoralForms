@@ -98,12 +98,12 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
                 return aOrder - bOrder;
               })
               ?.map(category => {
-                // const checked = selectedPermitTypeList.some(p => p.id === category.id);
+                const checked = selectedPermitTypeList.some(p => p.id === category.id);
                 return (
                   <div key={category.id} className="col-xl-2 col-lg-3 col-3 col-md-3 col-sm-6 col-12" style={{ marginBottom: '10px' }}>
                     <Checkbox
                       label={category.title}
-                      checked={category.isChecked}
+                      checked={checked}
                       onChange={(e, checked) => onPermitTypeChange(checked, category)}
                     />
                   </div>
@@ -117,15 +117,10 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       {/* Permit Schedule Table */}
       {workCategories && permitRows.length > 0 && (
         <div className="row pb-3">
-          {/* <div>
-            <Label className={styles?.ptwLabel}>Permit Schedule - {selectedPermitType.title} {selectedPermitType.renewalValidity && selectedPermitType.renewalValidity > 0 &&
-              ` (Renewable ${selectedPermitType.renewalValidity} times)`}
-            </Label>
-          </div> */}
           <div className="form-group col-md-12">
             <div className={styles?.permitTable} style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', padding: '8px' }}>
               <DetailsList
-                items={permitRows}
+                items={permitRows.sort((a, b) => { return a.orderRecord! - b.orderRecord!})}
                 columns={columns}
                 selectionMode={SelectionMode.none}
                 layoutMode={DetailsListLayoutMode.fixedColumns}

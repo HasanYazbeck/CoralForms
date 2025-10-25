@@ -7,6 +7,7 @@ export interface IPermitScheduleRow {
   startTime: string;
   endTime: string;
   isChecked: boolean;
+  orderRecord?: number;
 }
 
 export interface IPermitScheduleProps {
