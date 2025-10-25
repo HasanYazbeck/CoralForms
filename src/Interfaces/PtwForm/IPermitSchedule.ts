@@ -16,4 +16,5 @@ export interface IPermitScheduleProps {
   onPermitTypeChange: (checked: boolean | undefined, workCategory: IWorkCategory | undefined) => void;
   onPermitRowUpdate: (rowId: string, field: string, value: string , checked :boolean | undefined) => void;
   styles?: any;
+  isEndTimeOptionDisabled?: (row: IPermitScheduleRow, optionTime: string) => boolean;
 }

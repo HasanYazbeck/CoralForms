@@ -1,12 +1,14 @@
 import * as React from 'react';
 import { SPHttpClient } from '@microsoft/sp-http';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
+import LocalStorageComponent from '../../../Classes/LocalStorageComponent';
 import {
   DetailsList, DetailsListLayoutMode, IColumn, Selection, SelectionMode, MarqueeSelection, CommandBar, ICommandBarItemProps, Stack, Text, Spinner, DefaultButton,
   IPersonaProps,
   PersonaSize,
   Persona
 } from '@fluentui/react';
+
 
 export type Row = {
   id: number;
@@ -18,6 +20,7 @@ export type Row = {
   projectTitle?: string;
   assetCategory?: string;
   assetDetails?: string;
+  FormStatusRecord: string;
 };
 
 interface SubmittedPTWFormsListProps {
@@ -52,7 +55,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
   const PAGE_SIZE = 50;
-
+  const [formStatusRecord, setFormStatusRecord] = LocalStorageComponent('FormStatusRecord', { value: '' });
   const selectionRef = React.useRef(
     new Selection({
       selectionMode: SelectionMode.multiple,
@@ -64,7 +67,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
   // Build the shared select/expand pieces (without $top so we can append it)
   const baseSelect = React.useMemo(() => (
-    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,` +
+    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,` +
     `PermitOriginator/Title,PermitOriginator/EMail,` +
     `AssetCategory/Id,AssetCategory/Title,` +
     `AssetDetails/Id,AssetDetails/Title,` +
@@ -84,6 +87,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         assetCategory: obj.AssetCategory ? obj.AssetCategory.Title : undefined,
         assetDetails: obj.AssetDetails ? obj.AssetDetails.Title : undefined,
         company: obj.CompanyRecord ? obj.CompanyRecord.Title : undefined,
+        FormStatusRecord: obj.FormStatusRecord ?? undefined
       };
     });
   }, []);
@@ -134,10 +138,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
     // Null-safe, startswith filter to keep "Closed By System" and any "Closed ..." statuses separate
     // const filterActive = `&&$filter=WorkflowStatus ne 'Closed By System' and RejectionReason eq null`;
-    const filterActive = ``;
+    const filterActive = `&$filter=FormStatusRecord eq 'Submitted'`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
-    const filterRejected = `&$filter=(RejectionReason ne null and RejectionReason ne '')`;
-    const filterSaved = `&$filter=WorkflowStatus eq 'Saved'`;
+    const filterRejected = `&$filter=WorkflowStatus eq 'Rejected')`;
+    const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
     const orderBy = `&$orderby=Created desc`;
 
     const headers = { Accept: 'application/json;odata=nometadata', 'odata-version': '' } as any;
@@ -178,7 +182,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         setSelectionVersion(v => v + 1);
       }
     } catch (e: any) {
-      setError(`Failed to load forms: ${e?.message || e}`);
+      setError(`Failed: ${e?.message || e} - Please reload page again.`);
       if (reset) {
         setItems([]);
         setHasMore(false);
@@ -253,6 +257,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       url.searchParams.set(k, String(v));
     });
     window.location.href = url.toString();
+    console.log(formStatusRecord.value);
   };
 
   const viewLabel = React.useMemo(() => (
@@ -278,7 +283,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           const row = selectedRows[0];
           if (row) {
             if (onEdit) onEdit(row.id, row);
-            else navigateWithParams({ mode: 'edit', formId: row.id });
+            else {
+              navigateWithParams({ mode: 'edit', formId: row.id });
+              setFormStatusRecord({ "value": row.FormStatusRecord });
+            }
           }
         }
       },
@@ -291,7 +299,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           const row = selectedRows[0];
           if (row) {
             if (onView) onView(row.id, row);
-            else navigateWithParams({ mode: 'view', formId: row.id });
+            else {
+              navigateWithParams({ mode: 'view', formId: row.id });
+              setFormStatusRecord({ "value": row.FormStatusRecord });
+            }
           }
         }
       },
@@ -322,7 +333,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
             {
               key: 'saved',
               text: 'Saved',
-              iconProps: { iconName: 'Saved' },
+              iconProps: { iconName: 'Save' },
               onClick: () => switchState('saved')
             },
             {
@@ -356,7 +367,8 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       {loading && <Spinner label="Loading..." />}
       {error && <Text styles={{ root: { color: 'red' } }}>{error}</Text>}
       <MarqueeSelection selection={selectionRef.current}>
-        <DetailsList items={items} columns={columns}
+        <DetailsList items={items}
+          columns={columns}
           selection={selectionRef.current}
           selectionMode={SelectionMode.multiple}
           layoutMode={DetailsListLayoutMode.justified}

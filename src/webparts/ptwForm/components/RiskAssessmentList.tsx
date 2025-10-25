@@ -35,7 +35,7 @@ export interface IRiskAssessmentListProps {
     disableRiskControls?: boolean;            // when true, IR/RR/Overall/L2 are disabled
     onChange?: (state: {
         rows: IRiskTaskRow[];
-         overallRisk?: string;
+        overallRisk?: string;
         l2Required: boolean;
         l2Ref?: string;
     }) => void;
@@ -91,8 +91,6 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     const handleInitialRiskChange = (id: string, option?: IComboBoxOption) => {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, initialRisk: option?.key as string | undefined } : r)));
     };
-
-    // (Dropdown change handler removed)
 
     // Build multi-select ComboBox options with selected state based on row.safeguardIds
     const buildSafeguardComboOptions = React.useCallback((row: IRiskTaskRow): IComboBoxOption[] => {

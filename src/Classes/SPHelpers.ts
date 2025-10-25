@@ -53,14 +53,14 @@ export class SPHelpers {
     return gmtDate;
   }
 
-  public setDateWithSelectedTime(date: Date, timeString: string): Date {
+  public setDateWithSelectedTime(date: Date | undefined, timeString: string): Date {
     // Split the time string into hours and minutes
     const [hours, minutes] = timeString.split(":").map(Number);
 
     // Set the hours and minutes on the date object
-    date.setHours(hours, minutes, 0, 0); // Setting seconds and milliseconds to 0
+    date?.setHours(hours, minutes, 0, 0); // Setting seconds and milliseconds to 0
 
-    return date;
+    return date as Date;
   }
 
   public adjustDateForGMTOffset(dateString: string): string {
@@ -174,14 +174,64 @@ export class SPHelpers {
   }
 
   // Read formId from the page URL so the form can be deep-linked
-  public getQueryNumber(name: string): number | undefined 
-  {
+  public getQueryNumber(name: string): number | undefined {
     try {
       const href = (window.top?.location?.href) || window.location.href;
       const v = new URL(href).searchParams.get(name) || undefined;
       const n = v != null ? Number(v) : NaN;
       return Number.isFinite(n) ? n : undefined;
     } catch { return undefined; }
+  };
+
+  public parseLocalDate_ddMMyyyy(dateStr: string): Date | undefined {
+    // "DD/MM/YYYY"
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateStr);
+    if (!m) return undefined;
+    const [, dd, mm, yyyy] = m.map(Number) as unknown as [number, number, number, number];
+    return new Date(yyyy, mm - 1, dd); // local time
+  }
+
+  public parseLocalDate_yyyyMMdd(dateStr: string): Date | undefined {
+    // "YYYY-MM-DD"
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!m) return undefined;
+    const [, yyyy, mm, dd] = m.map(Number) as unknown as [number, number, number, number];
+    return new Date(yyyy, mm - 1, dd); // local time
+  }
+
+  public parseLocalDate_mmddyyyy(dateStr: string): Date | undefined {
+    // "MM/DD/YYYY"
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateStr);
+    if (!m) return undefined;
+    const [, mm, dd, yyyy] = m.map(Number) as unknown as [number, number, number, number];
+    return new Date(yyyy, mm - 1, dd); // local time
+  }
+
+  public combineDateAndTime(dateStr: string, timeStr: string): Date | null {
+    // supports "YYYY-MM-DD" or "DD/MM/YYYY", time "HH:mm" or "HH:mm:ss"
+    let y: number, m: number, d: number;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [yy, mm, dd] = dateStr.split('-').map(Number);
+      y = yy; m = mm; d = dd;
+    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+      const [dd, mm, yy] = dateStr.split('/').map(Number);
+      y = yy; m = mm; d = dd;
+    } else {
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) return null;
+      y = parsed.getFullYear(); m = parsed.getMonth() + 1; d = parsed.getDate();
+    }
+
+    const [hh = 0, mi = 0, ss = 0] = timeStr.split(':').map(v => parseInt(v || '0', 10));
+    return new Date(y, m - 1, d, hh, mi, ss, 0); // local Date
+  }
+
+  public parseTimeToMinutes(t?: string): number {
+    if (!t) return NaN;
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(t.trim());
+    if (!m) return NaN;
+    const h = Number(m[1]), min = Number(m[2]);
+    return h * 60 + min;
   };
 
 }

@@ -137,7 +137,9 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const [bannerTick, setBannerTick] = useState(0);
   const [prefilledFormId, setPrefilledFormId] = useState<number | undefined>(undefined);
   const [, setIsHSEApprovalLevel] = React.useState<boolean>(false);
+  const [, setIsWarehouseApprovalLevel] = React.useState<boolean>(false);
   const [IsHSEgroupMembership, setHSEGroupMembership] = useState<boolean>(false);
+  const [IsWarehouseGroupMembership, setWarehouseGroupMembership] = useState<boolean>(false);
   const [editableRows, setEditableRows] = useState<Record<number, boolean>>({});
   const [canChangeApprovalRows, setCanChangeApprovalRows] = useState<boolean>(false);
   const [IsEligibleToSubmitForm, setIsEligibleToSubmitForm] = useState<boolean>(true);
@@ -684,6 +686,13 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return hseLevel?.Status?.title?.trim().toLowerCase() === 'pending';
   }, [formsApprovalWorkflow]);
 
+  const isProcessingWareHouseDepartment: boolean = useMemo(() => {
+    if (!formsApprovalWorkflow || formsApprovalWorkflow.length < 4 || formsApprovalWorkflow.length > 4) return false;
+    const wareHouseLevel = formsApprovalWorkflow.find(r => r?.Order === 4);
+    if (!wareHouseLevel) return false;
+    return wareHouseLevel?.Status?.title?.trim().toLowerCase() === 'pending';
+  }, [formsApprovalWorkflow]);
+
   // Whether the form is in edit mode (has a valid formId)
   const isEditMode = useMemo(() => {
     const editFormId = props.formId ? Number(props.formId) : undefined;
@@ -700,9 +709,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   // Derived permission: can edit items grid
   const canEditItems = useMemo(() => {
     if (IsHSEgroupMembership && isProcessingHSEDepartment) return true;
+    if (IsWarehouseGroupMembership && isProcessingWareHouseDepartment) return true;
     if (isCurrentRequester && isCurrentSubmitter && anyApproved) return false; // Rule 1
     return !!canEditFormHeader;
-  }, [IsHSEgroupMembership, isCurrentRequester, isCurrentSubmitter, anyApproved, canEditFormHeader]);
+  }, [IsHSEgroupMembership, IsWarehouseGroupMembership, isCurrentRequester, isCurrentSubmitter, anyApproved, canEditFormHeader]);
 
   // Determine which approval rows can be edited by current user
   const canEditApprovalRow = useCallback((item: IFormsApprovalWorkflow): boolean => {
@@ -952,19 +962,79 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
   }, [prefilledFormId, users, _getPPEFormApprovalWorkflows]);
 
+
+  // Check when in edit mode and the 4th approval level is Warehouse Approval and set setIsWarehouseApprovalLevel
+  useEffect(() => {
+
+    const wareHouseLevel = (formsApprovalWorkflow && formsApprovalWorkflow.length === 4) ? formsApprovalWorkflow.
+      find(wareHouseLevel => wareHouseLevel.Order === 4 && wareHouseLevel.SignOffName?.toLowerCase().includes('warehouse')) : undefined;
+
+    if (!isEditMode || !wareHouseLevel) {
+      setIsWarehouseApprovalLevel(false);
+      return;
+    }
+
+    const groupTitle: string = (wareHouseLevel && wareHouseLevel.ApproverGroup && wareHouseLevel.ApproverGroup.text) ?
+      String(wareHouseLevel.ApproverGroup.text) : 'WarehouseApproverGroup';
+
+    let cancelled = false;
+    const checkMembership = async () => {
+      try {
+
+        const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isMember: boolean | undefined = await spCrud._IsSPGroup(groupTitle);
+        if (!cancelled) setIsWarehouseApprovalLevel(isMember === true);
+      } catch {
+        if (!cancelled) setIsWarehouseApprovalLevel(false);
+      }
+    };
+
+    checkMembership();
+
+    return () => { cancelled = true; };
+  }, [props.context, formsApprovalWorkflow]);
+
+  // Check if current user is in WarehouseApproverGroup when the form has Warehouse Approval level
+  useEffect(() => {
+    const wareHouseLevel = (formsApprovalWorkflow && formsApprovalWorkflow.length === 4) ? formsApprovalWorkflow.
+      find(wareHouseLevel => wareHouseLevel.Order === 4 && wareHouseLevel.SignOffName?.toLowerCase().includes('warehouse')) : undefined
+
+    if (!wareHouseLevel) {
+      return;
+    }
+
+    const groupTitle: string = (wareHouseLevel && wareHouseLevel.ApproverGroup && wareHouseLevel.ApproverGroup.text)
+      ? String(wareHouseLevel.ApproverGroup.text) : 'Warehouse Approver Group';
+
+    let cancelled = false;
+    const checkInGroupMembership = async () => {
+      try {
+        const spCrud = new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const loggesUserEmail = props.context.pageContext?.user?.email || '';
+        const isMember: boolean | undefined = await spCrud._IsUserInSPGroup(groupTitle, loggesUserEmail);
+        if (!cancelled) setWarehouseGroupMembership(isMember === true);
+      } catch {
+        if (!cancelled) setWarehouseGroupMembership(false);
+      }
+    };
+
+    checkInGroupMembership();
+
+    return () => { cancelled = true; };
+  }, [props.context, formsApprovalWorkflow]);
+
   // Check when in edit mode and the 3rd approval level is HSE Approval and set isHSEApprovalLevel
   useEffect(() => {
 
     const hseLEvel = (formsApprovalWorkflow && formsApprovalWorkflow.length === 3) ? formsApprovalWorkflow.
-      find(hseLevel => hseLevel.Order === 3 && hseLevel.SignOffName?.toLowerCase().includes('hse')) : undefined
+      find(hseLevel => hseLevel.Order === 3 && hseLevel.SignOffName?.toLowerCase().includes('hse')) : undefined;
 
     if (!isEditMode || !hseLEvel) {
       setIsHSEApprovalLevel(false);
       return;
     }
 
-    const groupTitle: string = (hseLEvel && hseLEvel.ApproverGroup && hseLEvel.ApproverGroup.text)
-      ? String(hseLEvel.ApproverGroup.text) : 'HSEApproverGroup';
+    const groupTitle: string = (hseLEvel && hseLEvel.ApproverGroup && hseLEvel.ApproverGroup.text) ? String(hseLEvel.ApproverGroup.text) : 'HSE Approvers Group';
 
     let cancelled = false;
     const checkMembership = async () => {
@@ -1953,7 +2023,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
       next[idx] = row;
       return next;
     });
-  }, []);
+  }, [editableRows]);
 
   //  Handles reason text change
   const handleApprovalReasonChange = useCallback((id: number | string, reason: string) => {
@@ -2157,43 +2227,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     const res = await Promise.all(updates);
     return res.length;
   }, [formsApprovalWorkflow, props.context]);
-
-  // const handleSaveApprovalsOnly = useCallback(async () => {
-  //   const editFormId = props.formId ? Number(props.formId) : undefined;
-  //   if (!editFormId || editFormId <= 0) return;
-
-  //   const result = await handleSubmit(true);
-  //   if (!result) {
-  //     return;
-  //   }
-
-  //   try {
-  //     setIsSubmitting(true);
-
-  //     // No changes? Tell the user and exit
-  //     if (!hasApprovalChanges) {
-  //       showBanner('No approval changes to save.');
-  //       return;
-  //     }
-
-  //     const saved = await _saveApprovalWorkflowChanges(editFormId);
-  //     if (saved > 0) {
-  //       try {
-  //         window.alert('Approvals updated.');
-
-  //         goBackToHost();
-  //       } catch { /* ignore */ }
-  //       // Optional: refresh approvals from server if needed
-  //       // await _getPPEFormApprovalWorkflows(users, editFormId);
-  //     } else {
-  //       showBanner('No approval changes to save.');
-  //     }
-  //   } catch (err: any) {
-  //     showBanner('Failed to save approvals: ' + (err?.message || err));
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // }, [_saveApprovalWorkflowChanges, props.formId, hasApprovalChanges, showBanner, handleSubmit]);
 
   // Create parent PPEForm item and return its Id
   const _createPPEForm = useCallback(async (payload: ReturnType<typeof formPayload>): Promise<number> => {
@@ -2994,7 +3027,8 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                             placeHolderDisplay = selectedKey;
                           }
                           else if (isMember && !isPending) {
-                            selectedKey = item?.DepartmentManagerApprover?.text || '';
+                            selectedKey = isMember?.text || '';
+                            // selectedKey = item?.DepartmentManagerApprover?.text || '';
                             placeHolderDisplay = selectedKey;
                           }
 
@@ -3151,10 +3185,73 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                 />
               )}
             </div>
-          </div> 
-       
+          </div>
+
         </form>
       </div>
     </div>
   );
 }
+
+{/* <p>Dear <b>Team Member</b>,</p>
+<p>You have a new PPE requisition update:</p>
+
+<table cellpadding="8" cellspacing="0" style="margin-top: 15px; border-collapse: collapse; border-radius: 6px; overflow: hidden; font-size: 13px; table-layout: auto; width: 100%; max-width: 600px;">
+
+<table cellpadding="0" cellspacing="0" style="border-collapse: collapse; max-width: 600px; border-radius: 8px; border: 1px solid #e2e2e2; width: 100%; font-family: 'Segoe UI', Arial, sans-serif;">
+  <tbody><tr>
+    <td style="padding: 20px;">
+      <!-- Header Section -->
+      <table cellpadding="0" cellspacing="0">
+        <tbody><tr>
+          <td style="font-size: 18px; font-weight: bold; color: #004085;">
+            🦺 PPE Request Summary
+          </td>
+        </tr>
+      </tbody></table>
+
+      <!-- Request Details -->
+      <table cellpadding="0" cellspacing="0" style="margin-top: 10px; font-size: 14px; color: #333;">
+        <tbody><tr><td><b>Reference Number:</b> @{items('For_each_11')?['CoralReferenceNumber']}</td></tr>
+        <tr><td><b>Requester:</b> @{items('For_each_11')?['RequesterName/DisplayName']}</td></tr>
+        <tr><td><b>Department:</b> @{items('For_each_11')?['DepartmentRecord/Value']}</td></tr>
+        <tr>
+          <td>
+            <b>Status:</b>
+            <span style="color: #28a745; font-weight: bold;">● Closed</span>
+          </td>
+        </tr>
+      </tbody>
+</table>
+
+      <!-- Action Button -->
+      <div style="padding-top: 15px; text-align: center;">
+        <a href="@{variables('BaseURl')}@{triggerBody()?['PPEForm/Id']}" style="background-color: #28a745; color: #ffffff; text-decoration: none; 
+                 padding: 10px 25px; border-radius: 6px; font-weight: bold; display: inline-block;">
+          REVIEW PPE REQUEST
+        </a>
+      </div>
+    </td>
+  </tr>
+</tbody>
+</table>
+
+<!-- Item Summary Table -->
+  <table cellpadding="8" cellspacing="0" style="margin-top: 15px; border-collapse: collapse; border-radius: 6px; overflow: hidden; font-size: 13px; table-layout: auto; width: 100%; max-width: 600px;">
+  <thead>
+    <tr style="background-color: #e9f5ee; color: #215c4a; text-align: left; border-bottom: 2px solid #c6e6d3;">
+      <th style="padding: 10px; white-space: normal;">Item</th>
+      <th style="padding: 10px; white-space: normal;">Detail</th>
+      <th style="padding: 10px; white-space: normal;">Quantity</th>
+      <th style="padding: 10px; white-space: normal;">Brand</th>
+        <th style="padding: 10px; white-space: normal;">Modifed By</th>
+      <th style="padding: 10px; white-space: normal;">Added By</th>
+    </tr>
+  </thead>
+  <tbody style="background-color: #ffffff; color: #333;"></tbody>
+</table>
+
+<!--Footer -->
+  <p style="font-style: italic; color: #215c4a; font-size: 14px; margin-top: 20px; text-align: center;">
+    ‘Safety is not an option but a commitment to ourselves, the public, and the environment.’
+  </p> */}
