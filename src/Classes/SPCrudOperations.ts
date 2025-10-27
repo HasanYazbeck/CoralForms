@@ -402,9 +402,7 @@ export class SPCrudOperations {
     const getUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items?$filter=${lookupFieldInternal} eq ${lookupValueId}&$select=Id`;
 
     try {
-      const getResponse: SPHttpClientResponse = await this.spHttpClient.get(
-        getUrl, SPHttpClient.configurations.v1, { headers: { "Accept": "application/json;odata=nometadata" } } );
-
+      const getResponse: SPHttpClientResponse = await this.spHttpClient.get(getUrl, SPHttpClient.configurations.v1);
       if (!getResponse.ok) throw new Error(`Error fetching items: ${getResponse.status}`);
 
       const items = await getResponse.json();

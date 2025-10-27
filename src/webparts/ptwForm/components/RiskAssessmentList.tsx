@@ -12,7 +12,8 @@ import {
     Label,
     ChoiceGroup,
     IChoiceGroupOption,
-    Checkbox
+    Checkbox,
+    DefaultButton
 } from '@fluentui/react';
 import { ILookupItem } from '../../../Interfaces/PtwForm/IPTWForm';
 
@@ -23,22 +24,23 @@ export interface IRiskTaskRow {
     safeguardIds: number[];     // multi-select ILookupItem[]
     residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
     safeguardsNote?: string;
-    disabledFields: boolean;     // custom text entered in the safeguards combobox
+    disabledFields: boolean;    // custom text entered in the safeguards combobox
+    orderRecord: number;    // for sorting
 }
 
 export interface IRiskAssessmentListProps {
     initialRiskOptions: string[];
     residualRiskOptions: string[];
-    safeguards: ILookupItem[];               
+    safeguards: ILookupItem[];
     defaultRows?: IRiskTaskRow[];
-    overallRiskOptions?: string[];          
-    disableRiskControls?: boolean;  
+    overallRiskOptions?: string[];
+    disableRiskControls?: boolean;
     onChange?: (state: {
         rows: IRiskTaskRow[];
         overallRisk?: string;
         l2Required: boolean;
         l2Ref?: string;
-    } ) => void;
+    }) => void;
 }
 
 const toComboOptions = (values: string[]): IComboBoxOption[] =>
@@ -53,6 +55,7 @@ const newRow = (): IRiskTaskRow => ({
     safeguardIds: [],
     residualRisk: undefined,
     disabledFields: true,
+    orderRecord: 0
 });
 
 const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
@@ -181,10 +184,9 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             resizable: true,
             onRender: (row: IRiskTaskRow) => {
                 const selectedItems = (row.safeguardIds || [])
-                    // .map(id => (safeguards || []).find(s => Number(s.id) === Number(id)))
+                    .sort((a, b) => Number(a) - Number(b))
                     .map(id => allSafeguardsById.current.get(Number(id)))
                     .filter(Boolean) as ILookupItem[];
-
                 return (
                     <div>
                         <ComboBox
@@ -292,7 +294,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         <Stack tokens={{ childrenGap: 12 }}>
             <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
                 <Label style={{ margin: 0 }}>Job Description / Tasks</Label>
-                <IconButton
+                <DefaultButton
                     iconProps={{ iconName: 'Add' }}
                     text="Add row"
                     onClick={addRow}

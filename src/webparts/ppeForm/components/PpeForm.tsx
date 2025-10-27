@@ -782,9 +782,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
   const validateBeforeSubmit = useCallback((): string | undefined => {
     const missing: string[] = [];
     if (!_employee?.[0]?.text?.trim()) missing.push('Employee Name');
-    // if (!_jobTitle?.title?.trim()) missing.push('Job Title');
-    // if (!_department.title?.trim()) missing.push('Department');
-    // if (!_company.title?.trim()) missing.push('Company');
     if (_requester.length === 0) missing.push('Requester');
 
     if (missing.length) {
@@ -792,7 +789,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     }
 
     // Example: if Replacement, require a reason
-    // if (_isReplacementChecked && !_replacementReason.trim()) return 'Please provide a reason for Replacement.';
     if ((_isReplacementChecked || _isAccidentalChecked) && !(_replacementReason && _replacementReason.trim().length)) {
       return 'Please provide a reason for this request.';
     }
