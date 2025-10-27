@@ -1006,68 +1006,6 @@ export default function PTWForm(props: IPTWFormProps) {
     _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment
   ]);
 
-  const approveForm = React.useCallback(async (mode: 'approve') => {
-
-  }, [isOriginator, buildPayload]);
-
-  const submitForm = React.useCallback(async (mode: 'save' | 'submit') => {
-    if (!isOriginator) {
-      showBanner('Only the Permit Originator can save or submit this form.',
-        { autoHideMs: 5000, fade: true, kind: 'error' });
-      return;
-    } else {
-      hideBanner();
-    }
-
-    setIsBusy(true);
-    setBusyLabel(mode === 'save' ? 'Saving form…' : 'Submitting form…');
-    try {
-      // const payload = buildPayload();
-      const validationError = validateBeforeSubmit(mode);
-      if (validationError) {
-        showBanner(validationError);
-        return false;
-      } else {
-        const editFormId = props.formId ? Number(props.formId) : undefined;
-        const formStatusRecord = JSON.parse(localStorage.getItem('FormStatusRecord') || '{}');
-
-        if (editFormId === undefined) {
-          const savedId = await _createPTWForm(mode);
-
-          if (savedId) {
-            await new Promise(res => setTimeout(res, 1000));
-            if (mode === 'save') {
-              showBanner('Form saved successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
-            }
-            else if (mode === 'submit') {
-              showBanner('Form submitted successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
-            }
-          }
-        }
-
-        if (editFormId && editFormId > 0 && formStatusRecord.value.toLowerCase() === 'saved') {
-          const updated = await _updatePTWForm(editFormId, mode);
-          if (updated) {
-            // await _updatePTWWorkPermit(editFormId);
-
-            await new Promise(res => setTimeout(res, 1000));
-            if (mode === 'save') {
-              showBanner('Form updated successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
-            }
-            else if (mode === 'submit') {
-              showBanner('Form submitted successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
-            }
-          }
-        }
-      }
-    } catch (e) {
-      showBanner('An error occurred while processing the form.', { autoHideMs: 5000, fade: true, kind: 'error' });
-    } finally {
-      setIsBusy(false);
-      goBackToHost();
-    }
-  }, [isOriginator, buildPayload]);
-
   const validateBeforeSubmit = React.useCallback((mode: 'save' | 'submit' | 'approve'): string | undefined => {
     const missing: string[] = [];
     const payload = buildPayload();
@@ -1215,6 +1153,65 @@ export default function PTWForm(props: IPTWFormProps) {
     return undefined;
   }, [buildPayload, ptwFormStructure?.workHazardosList]);
 
+  const approveForm = React.useCallback(async (mode: 'approve') => {
+
+  }, [isOriginator, buildPayload]);
+
+  const submitForm = React.useCallback(async (mode: 'save' | 'submit') => {
+    if (!isOriginator) {
+      showBanner('Only the Permit Originator can save or submit this form.',
+        { autoHideMs: 5000, fade: true, kind: 'error' });
+      return;
+    } else {
+      hideBanner();
+    }
+
+    setIsBusy(true);
+    setBusyLabel(mode === 'save' ? 'Saving form…' : 'Submitting form…');
+    try {
+      // const payload = buildPayload();
+      const validationError = validateBeforeSubmit(mode);
+      if (validationError) {
+        showBanner(validationError);
+        return false;
+      } else {
+        const editFormId = props.formId ? Number(props.formId) : undefined;
+        const formStatusRecord = JSON.parse(localStorage.getItem('FormStatusRecord') || '{}');
+
+        if (editFormId === undefined) {
+          const savedId = await _createPTWForm(mode);
+
+          if (savedId) {
+            await new Promise(res => setTimeout(res, 1000));
+            if (mode === 'save') {
+              showBanner('Form saved successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
+            }
+            else if (mode === 'submit') {
+              showBanner('Form submitted successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
+            }
+          }
+        }
+
+        if (editFormId && editFormId > 0 && formStatusRecord.value.toLowerCase() === 'saved') {
+          const updated = await _updatePTWForm(editFormId, mode);
+          if (updated) {
+            if (mode === 'save') {
+              showBanner('Form updated successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
+            }
+            else if (mode === 'submit') {
+              showBanner('Form submitted successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      showBanner('An error occurred while processing the form.', { autoHideMs: 5000, fade: true, kind: 'error' });
+    } finally {
+      setIsBusy(false);
+      goBackToHost();
+    }
+  }, [isOriginator, buildPayload]);
+
   // Create parent PTWForm item and return its Id
   const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<number> => {
     const payload = buildPayload();
@@ -1225,6 +1222,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
     const body: any = {
       PermitOriginatorId: originatorId ?? null,
+      Title: 'PTW Form' + (originatorId ? ` - ${payload.originator}` : ''),
       AssetID: payload.assetId ?? null,
       AssetCategoryId: payload.assetCategoryId ? Number(payload.assetCategoryId) : null,
       AssetDetailsId: payload.assetDetailsId ? Number(payload.assetDetailsId) : null,
@@ -1279,7 +1277,7 @@ export default function PTWForm(props: IPTWFormProps) {
       if (payload.permitRows?.length && payload.permitRows.some(r => r.isChecked)) {
         const _createdPermits = await _createPTWWorkPermits(Number(newId), payload.permitRows);
 
-        if (!_createdPermits) {
+        if (!_createdPermits?.length) {
           throw new Error('Failed to create PTW Work Permits');
         }
 
@@ -1295,7 +1293,7 @@ export default function PTWForm(props: IPTWFormProps) {
       if (payload.workTaskLists?.length) {
         const _createdTask = await _createPTWTasksJobsDescriptions(Number(newId), payload.workTaskLists);
 
-        if (!_createdTask) {
+        if (!_createdTask?.length) {
           throw new Error('Failed to create PTW Tasks and Job Descriptions');
         }
       }
@@ -1308,9 +1306,10 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [buildPayload, props.context.spHttpClient]);
 
   const _createPTWWorkPermits = React.useCallback(async (parentId: number, permitRows: IPermitScheduleRow[]) => {
-    const requiredItems = permitRows.filter((row, index) => row.isChecked);
+    const requiredItems = permitRows.filter((row) => row.isChecked);
+    if (requiredItems.length === 0) return [];
 
-    if (requiredItems.length === 0) return false;
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
     const posts = requiredItems.map((item, index) => {
       const body = {
         PTWFormId: parentId,
@@ -1322,23 +1321,19 @@ export default function PTWForm(props: IPTWFormProps) {
         Title: item.type === 'new' ? 'New Permit' : 'Renewal Permit'
       };
 
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
-      const data = spCrudRef.current._insertItem(body);
+      const data = ops._insertItem(body);
 
-      if (!data) {
-        showBanner('An error occurred while creating PTW Work Permits.',
-          { autoHideMs: 5000, fade: true, kind: 'error' });
-        throw new Error('Failed to create PTW Work Permits.');
-      }
-      return data;
+      if (!data) throw new Error('Failed to create PTW Work Permits.');
+      return typeof data === 'number' ? data : (data);
     });
-    await Promise.all(posts);
-  }, [props.context.spHttpClient]);
+    const results = await Promise.all(posts);
+    return results;
+  }, [props.context.spHttpClient, spHelpers]);
 
   const _createPTWTasksJobsDescriptions = React.useCallback(async (parentId: number, workTaskLists: IRiskTaskRow[]) => {
     const requiredItems = workTaskLists.filter((row) => row.disabledFields !== true);
-
-    if (requiredItems.length === 0) return false;
+    if (requiredItems.length === 0) return [];
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Job_Descriptions', '');
     const posts = requiredItems.map((item, index) => {
       const body: any = {
         PTWFormId: parentId,
@@ -1349,25 +1344,24 @@ export default function PTWForm(props: IPTWFormProps) {
       };
 
       if (item.safeguardIds?.length) {
+        body['SafeguardsId@odata.type'] = 'Collection(Edm.Int32)';
         body['SafeguardsId'] = item.safeguardIds.map(Number);
+      } else {
+        body['SafeguardsId'] = { results: [] };
       }
 
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Job_Descriptions', '');
-      const data = spCrudRef.current._insertItem(body);
+      const data = ops._insertItem(body);
 
-      if (!data) {
-        showBanner('An error occurred while creating PTW Tasks Descriptions.',
-          { autoHideMs: 5000, fade: true, kind: 'error' });
-        throw new Error('Failed to create PTW Tasks Descriptions.');
-      }
-      return data;
+      if (!data) throw new Error('Failed to create PTW Tasks Descriptions.');
+      return typeof data === 'number' ? data : (data);
     });
-    await Promise.all(posts);
+    const results = await Promise.all(posts);
+    return results;
   }, [props.context.spHttpClient]);
 
   const _createPTWFormApprovalWorkflow = React.useCallback(async (parentId: number, coralReferenceNumber: string, originatorId: number | undefined) => {
     if (originatorId === undefined || !coralReferenceNumber) return;
-
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', '');
     const payload = buildPayload();
     try {
       const body: any = {
@@ -1381,15 +1375,9 @@ export default function PTWForm(props: IPTWFormProps) {
         OrderRecord: 1
       };
 
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', '');
-      const data = spCrudRef.current._insertItem(body);
-
-      if (!data) {
-        showBanner('An error occurred while creating PTW Form Approval Workflow.',
-          { autoHideMs: 5000, fade: true, kind: 'error' });
-        throw new Error('Failed to create PTW Form Approval Workflow.');
-      }
-      return data;
+      const data = ops._insertItem(body);
+      if (!data) throw new Error('Failed to create PTW Form Approval Workflow.');
+      return typeof data === 'number' ? data : (data);;
     }
     catch (e) {
       console.warn('Failed to create PTW Form Approval Workflow', e);
@@ -1413,7 +1401,9 @@ export default function PTWForm(props: IPTWFormProps) {
       HACClassificationWorkAreaId: payload.hacWorkAreaId ? Number(payload.hacWorkAreaId) : null,
       WorkHazardsOthers: payload.workHazardsOtherText ?? null,
       ProtectiveSafetyEquipmentsOthers: payload.protectiveEquipmentsOtherText ?? null,
-      PrecautionsOthers: payload.precautionsOtherText ?? null
+      PrecautionsOthers: payload.precautionsOtherText ?? null,
+      FormStatusRecord: mode === 'submit' ? 'Submitted' : 'Saved',
+      WorkflowStatus: mode === 'submit' ? 'New' : '',
     };
 
     if (payload.permitTypes?.length) {
@@ -1459,57 +1449,100 @@ export default function PTWForm(props: IPTWFormProps) {
       showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
       return false;
     }
+
+    if (payload.permitRows?.length && payload.permitRows.some(r => r.isChecked)) {
+      const _createdPermits = await _updatePTWWorkPermit(Number(id), payload.permitRows);
+
+      if (!_createdPermits?.length) {
+        throw new Error('Failed to create PTW Work Permits');
+      }
+
+      if (mode === 'submit') {
+        const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(id), _coralReferenceNumber, originatorId);
+
+        if (!_createdWorkflow) {
+          throw new Error('Failed to create PTW Form Approval Workflow');
+        }
+      }
+    }
+
+    if (payload.workTaskLists?.length) {
+      const _createdTask = await _updatePTWTasksJobsDescriptions(Number(id), payload.workTaskLists);
+
+      if (!_createdTask?.length) {
+        throw new Error('Failed to create PTW Tasks and Job Descriptions');
+      }
+    }
+
     return true;
   }, [buildPayload, props.context.spHttpClient]);
 
-  // const _updatePTWWorkPermit = React.useCallback(async (permitItemId: number, row: IPermitScheduleRow, index?: number): Promise<boolean> => {
-  //   const dateOnly = row?.date ? spHelpers.parseLocalDate_mmddyyyy(String(row.date)) : undefined;
-  //   const start = (dateOnly && row?.startTime) ? spHelpers.setDateWithSelectedTime(new Date(dateOnly), row.startTime) : null;
-  //   const end = (dateOnly && row?.endTime) ? spHelpers.setDateWithSelectedTime(new Date(dateOnly), row.endTime) : null;
+  const _updatePTWWorkPermit = React.useCallback(async (formId: number, permitRows: IPermitScheduleRow[]) => {
+    const opsDelete = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
+    permitRows.map((item) => {
+      opsDelete._deleteLookUPItems(Number(formId), "PTWForm");
+    });
 
-  //   const body: any = {
-  //     PermitType: row.type ?? null,
-  //     PermitDate: dateOnly ?? null,
-  //     StartTime: start,
-  //     EndTime: end,
-  //     RecordOrder: typeof index === 'number' ? index : null,
-  //     StatusRecord: 'New',
-  //     Title: row.type === 'new' ? 'New Permit' : 'Renewal Permit'
-  //   };
+    const requiredItems = permitRows.filter((row) => row.isChecked);
+    if (requiredItems.length === 0) return [];
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
+    const posts = requiredItems.map((item, index) => {
+      const body = {
+        PTWFormId: formId,
+        PermitType: item.type ?? null,
+        PermitDate: item.date,
+        PermitStartTime: spHelpers.combineDateAndTime(item.date.toString(), item.startTime),
+        PermitEndTime: spHelpers.combineDateAndTime(item.date.toString(), item.endTime),
+        RecordOrder: index + 1,
+        Title: item.type === 'new' ? 'New Permit' : 'Renewal Permit'
+      };
 
-  //   spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Items', '');
-  //   const ok = await spCrudRef.current._updateItem(String(permitItemId), body);
-  //   if (!ok) {
-  //     showBanner('Failed to update PTW Work Permit.', { autoHideMs: 5000, fade: true, kind: 'error' });
-  //     return false;
-  //   }
-  //   return true;
-  // }, [props.context.spHttpClient, spHelpers]);
+      const data = ops._updateItem(String(item.id), body);
 
-  // const _updatePTWTaskJobDescription = React.useCallback(async (taskItemId: number, row: IRiskTaskRow, index?: number): Promise<boolean> => {
-  //   const body: any = {
-  //     JobDescription: row.task ?? null,
-  //     InitialRisk: row.initialRisk ?? null,
-  //     ResidualRisk: row.residualRisk ?? null,
-  //     RecordOrder: typeof index === 'number' ? index : null,
-  //     Title: row.task ?? null
-  //   };
+      if (!data) throw new Error('Failed to update PTW Work Permit.');
+      return typeof data === 'number' ? data : (data);
+    });
+    const results = await Promise.all(posts);
+    return results;
+  }, [props.context.spHttpClient, spHelpers]);
 
-  //   if (row.safeguardIds?.length) {
-  //     body['SafeguardsId@odata.type'] = 'Collection(Edm.Int32)';
-  //     body['SafeguardsId'] = row.safeguardIds;
-  //   } else {
-  //     body['SafeguardsId'] = { results: [] };
-  //   }
+  const _updatePTWTasksJobsDescriptions = React.useCallback(async (formId: number, workTaskLists: IRiskTaskRow[]) => {
+    const opsDelete = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Job_Descriptions', '');
+    workTaskLists.map((item) => {
+      opsDelete._deleteLookUPItems(Number(formId), "PTWForm");
+    });
 
-  //   spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PPE_Form_Items', '');
-  //   const ok = await spCrudRef.current._updateItem(String(taskItemId), body);
-  //   if (!ok) {
-  //     showBanner('Failed to update PTW Task Description.', { autoHideMs: 5000, fade: true, kind: 'error' });
-  //     return false;
-  //   }
-  //   return true;
-  // }, [props.context.spHttpClient]);
+    const requiredItems = workTaskLists.filter((row) => row.disabledFields !== true);
+    if (requiredItems.length === 0) return [];
+
+    if (requiredItems.length === 0) return [];
+    const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Job_Descriptions', '');
+    const posts = requiredItems.map((item) => {
+      const body: any = {
+        PTWFormId: formId,
+        JobDescription: item.task ?? null,
+        InitialRisk: item.initialRisk ?? null,
+        ResidualRisk: item.residualRisk ?? null,
+        Title: item.task,
+      };
+
+      if (item.safeguardIds?.length) {
+        body['SafeguardsId@odata.type'] = 'Collection(Edm.Int32)';
+        body['SafeguardsId'] = item.safeguardIds.map(Number);
+      } else {
+        body['SafeguardsId'] = { results: [] };
+      }
+
+      const data = ops._updateItem(String(item.id), body);
+
+      if (!data) throw new Error('Failed to update PTW Task Description.');
+      return typeof data === 'number' ? data : (data);
+    });
+    const results = await Promise.all(posts);
+    return results;
+
+  }, [props.context.spHttpClient]);
+
 
   // ---------------------------
   // Render
@@ -1572,7 +1605,7 @@ export default function PTWForm(props: IPTWFormProps) {
           `PTWForm/Id,PTWForm/CoralReferenceNumber,` +
           `Safeguards/Id,Safeguards/Title` +
           `&$expand=PTWForm,Safeguards` +
-          `&$filter=PTWForm/Id eq ${formId}`;
+          `&$filter=PTWForm/Id eq '${formId}'`;
 
         const formCrudFirstSelect = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', ptwFirstSelect);
         const headerItemsFirstSelect = await formCrudFirstSelect._getItemsWithQuery();
@@ -1654,7 +1687,8 @@ export default function PTWForm(props: IPTWFormProps) {
                   residualRisk: item.ResidualRisk || '',
                   safeguardsNote: item.OtherSafeguards || '',
                   disabledFields: false,
-                  safeguardIds: Array.isArray(item.Safeguards) ? item.Safeguards.map((sg: any) => ({ id: sg.Id })) : [],
+                  safeguardIds: Array.isArray(item.Safeguards) ? item.Safeguards
+                    .map((sg: any) => Number(sg.Id)) : [],
                 })
               }
             });
@@ -1901,7 +1935,6 @@ export default function PTWForm(props: IPTWFormProps) {
               onPermitRowUpdate={updatePermitRow}
               styles={styles}
             />
-
           </div>
 
           {workPermitRequired && (
@@ -2023,9 +2056,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             onChange={() => {
                               setFireWatchValue(prev => (prev === item ? '' : item));
                               setFireWatchAssigned('');
-                            }
-
-                            }
+                            }}
                             disabled={isOriginator}
                           />
                         </div>
@@ -2056,8 +2087,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           onChange={() => {
                             setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
                             setAttachmentsResult('');
-                          }
-                          }
+                          }}
                         />
                       </div>
                     ))}

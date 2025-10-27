@@ -50,7 +50,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [items, setItems] = React.useState<Row[]>([]);
   const [error, setError] = React.useState<string | undefined>(undefined);
-  const [view, setView] = React.useState<'active' | 'closed' | 'rejected' | 'saved'>('active');
+  const [view, setView] = React.useState<'submitted' | 'closed' | 'rejected' | 'saved'>('saved');
   const [selectionVersion, setSelectionVersion] = React.useState(0);
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
@@ -127,7 +127,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     []
   );
 
-  const loadItems = React.useCallback(async (scope: 'active' | 'closed' | 'rejected' | 'saved' = view, reset: boolean = false) => {
+  const loadItems = React.useCallback(async (scope: 'submitted' | 'closed' | 'rejected' | 'saved' = view, reset: boolean = false) => {
 
     if (!listGuid) {
       setItems([]);
@@ -136,11 +136,9 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       return;
     }
 
-    // Null-safe, startswith filter to keep "Closed By System" and any "Closed ..." statuses separate
-    // const filterActive = `&&$filter=WorkflowStatus ne 'Closed By System' and RejectionReason eq null`;
     const filterActive = `&$filter=FormStatusRecord eq 'Submitted'`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
-    const filterRejected = `&$filter=WorkflowStatus eq 'Rejected')`;
+    const filterRejected = `&$filter=WorkflowStatus eq 'Rejected'`;
     const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
     const orderBy = `&$orderby=Created desc`;
 
@@ -233,7 +231,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     }
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
 
-  const switchState = React.useCallback((next: 'active' | 'rejected' | 'closed' | 'saved') => {
+  const switchState = React.useCallback((next: 'submitted' | 'rejected' | 'closed' | 'saved') => {
     setView(next);
     setNextLink(undefined);
     setHasMore(false);
@@ -261,7 +259,9 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   };
 
   const viewLabel = React.useMemo(() => (
-    view === 'active' ? 'Active' : view === 'rejected' ? 'Rejected' : 'Closed'
+    view === 'submitted' ? 'Submitted' :
+      view === 'rejected' ? 'Rejected' :
+        view === 'closed' ? 'Closed' : 'Saved'
   ), [view]);
 
   const cmdItems = React.useMemo<ICommandBarItemProps[]>(() => {
@@ -320,10 +320,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
               onClick: () => switchState('saved')
             },
             {
-              key: 'active',
+              key: 'submitted',
               text: 'Submitted',
               iconProps: { iconName: 'ActivateOrders' },
-              onClick: () => switchState('active')
+              onClick: () => switchState('submitted')
             },
             {
               key: 'rejected',

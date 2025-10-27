@@ -29,16 +29,16 @@ export interface IRiskTaskRow {
 export interface IRiskAssessmentListProps {
     initialRiskOptions: string[];
     residualRiskOptions: string[];
-    safeguards: ILookupItem[];                // ILookupItem[] source (e.g., precuationsItems)
+    safeguards: ILookupItem[];               
     defaultRows?: IRiskTaskRow[];
-    overallRiskOptions?: string[];            // from _ptwFormStructure.overallRiskAssessment
-    disableRiskControls?: boolean;            // when true, IR/RR/Overall/L2 are disabled
+    overallRiskOptions?: string[];          
+    disableRiskControls?: boolean;  
     onChange?: (state: {
         rows: IRiskTaskRow[];
         overallRisk?: string;
         l2Required: boolean;
         l2Ref?: string;
-    }) => void;
+    } ) => void;
 }
 
 const toComboOptions = (values: string[]): IComboBoxOption[] =>

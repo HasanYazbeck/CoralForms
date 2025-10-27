@@ -393,6 +393,59 @@ export class SPCrudOperations {
       throw error;
     }
   }
+
+  // Bulk Delete Items related to a Lookup Field
+  public async _deleteLookUPItems(lookupValueId: number, lookupFieldName: string): Promise<void> {
+    const lookupFieldInternal = `${lookupFieldName}Id`; 
+
+    // Step 1: Get all items that match the lookup value
+    const getUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items?$filter=${lookupFieldInternal} eq ${lookupValueId}&$select=Id`;
+
+    try {
+      const getResponse: SPHttpClientResponse = await this.spHttpClient.get(
+        getUrl, SPHttpClient.configurations.v1, { headers: { "Accept": "application/json;odata=nometadata" } } );
+
+      if (!getResponse.ok) throw new Error(`Error fetching items: ${getResponse.status}`);
+
+      const items = await getResponse.json();
+      const totalItems = items.value.length;
+
+      if (totalItems === 0) {
+        console.log(`No items found with ${lookupFieldInternal} = ${lookupValueId}`);
+        return;
+      }
+
+      // Step 2: Loop and delete each item
+      for (const item of items.value) {
+        const deleteUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items(${item.Id})`;
+
+        const spHttpClientOptions: ISPHttpClientOptions = {
+          headers: {
+            "X-HTTP-Method": "DELETE",
+            "IF-MATCH": "*",
+          },
+        };
+
+        const deleteResponse: SPHttpClientResponse = await this.spHttpClient.post(
+          deleteUrl,
+          SPHttpClient.configurations.v1,
+          spHttpClientOptions
+        );
+
+        if (deleteResponse.ok) {
+          console.log(`Deleted item ID ${item.Id}`);
+        } else {
+          console.error(`Failed to delete item ID ${item.Id}: ${deleteResponse.status}`);
+        }
+      }
+
+      console.log(`✅ Successfully deleted ${totalItems} items linked to ${lookupFieldInternal} = ${lookupValueId}`);
+    } catch (error) {
+      console.error("Error during bulk delete:", error);
+      throw error;
+    }
+  }
+
   // Get userPermission
   public async hasPermission(): Promise<boolean> {
     const url: string = `${this.siteUrl}/_api/web/effectiveBasePermissions`;
