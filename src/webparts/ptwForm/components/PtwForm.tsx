@@ -26,6 +26,7 @@ import {
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
 import { MSGraphClientV3 } from '@microsoft/sp-http-msgraph';
+import { SPHttpClient } from '@microsoft/sp-http';
 import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
@@ -52,7 +53,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const overlayRef = React.useRef<HTMLDivElement>(null);
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
-  const todaysDate = new Date();
   const [loading, setLoading] = React.useState<boolean>(true);
   const [mode, setMode] = React.useState<'saved' | 'submitted' | 'approved' | 'new'>('new');
 
@@ -112,23 +112,30 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_selectedToolboxTalk, setToolboxTalk] = React.useState<Boolean | undefined>(undefined);
   const [_toolboxHSEReference, setToolboxHSEReference] = React.useState<String>('');
   const [_selectedToolboxTalkDate, setToolboxTalkDate] = React.useState<String | undefined>(undefined);
-  const [_selectedToolboxConductedBy, setToolboxConductedBy] = React.useState<IPersonaProps[]>([]);
+  const [_selectedToolboxConductedBy, setToolboxConductedBy] = React.useState<IPersonaProps[] | undefined>(undefined);
 
   // Busy overlay and notifications
   const [isBusy, setIsBusy] = React.useState<boolean>(false);
   const [busyLabel, setBusyLabel] = React.useState<string>('Processing…');
 
   // Current user role
-  // const [isPerformingAuthority, setIsPerformingAuthority] = React.useState<boolean>(false);
-  // const [isPermitIssuer, setIsPermitIssuer] = React.useState<boolean>(false);
-  // const [isAssetDirector, setIsAssetDirector] = React.useState<boolean>(false);
-  // const [isHSEDirector, setIsHSEDirector] = React.useState<boolean>(false);
+  const [isPermitOriginator, setIsPermitOriginator] = React.useState<boolean>(false);
+  const [isPerformingAuthority, setIsPerformingAuthority] = React.useState<boolean>(false);
+  const [isPermitIssuer, setIsPermitIssuer] = React.useState<boolean>(false);
+  const [isAssetDirector, setIsAssetDirector] = React.useState<boolean>(false);
+  const [isAssetManager, setIsAssetManager] = React.useState<boolean>(false);
+  const [isHSEDirector, setIsHSEDirector] = React.useState<boolean>(false);
 
   // Add status type and options
   type SignOffStatus = 'Pending' | 'Approved' | 'Rejected' | 'Closed';
 
+  // SharePoint group members cache
+  type SPGroupUser = { id: number; title: string; email: string };
+  const [groupMembers, setGroupMembers] = React.useState<Record<string, SPGroupUser[]>>({});
+
   // Sign-off state
   const [_poDate, setPoDate] = React.useState<string | undefined>(new Date().toISOString());
+
   const [_poStatus, setPoStatus] = React.useState<SignOffStatus>('Pending');
 
   const [_paPicker, setPaPicker] = React.useState<IPersonaProps[]>([]);
@@ -161,7 +168,202 @@ export default function PTWForm(props: IPTWFormProps) {
   // Determine if current user is the Permit Originator
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
   const permitOriginatorEmail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
-  const isOriginator = !!permitOriginatorEmail && permitOriginatorEmail === currentUserEmail;
+  // const isOriginator = !!permitOriginatorEmail && permitOriginatorEmail === currentUserEmail;
+
+  // Resolve eligibility from SP group membership for Permit Originator Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function PermitOriginatorGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('PermitOriginatorGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsPermitOriginator(false); return; }
+        if (!disposed) setIsPermitOriginator(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsPermitOriginator(false);
+      }
+    }
+
+    if (currentUserEmail) PermitOriginatorGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Resolve eligibility from SP group membership for Performing Authority Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function PerformingAuthorityGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('PerformingAuthorityGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsPerformingAuthority(false); return; }
+        if (!disposed) setIsPerformingAuthority(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsPerformingAuthority(false);
+      }
+    }
+
+    if (currentUserEmail) PerformingAuthorityGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Resolve eligibility from SP group membership for Permit Issuer Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function PermitIssuerGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('PermitIssuerGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsPermitIssuer(false); return; }
+        if (!disposed) setIsPermitIssuer(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsPermitIssuer(false);
+      }
+    }
+
+    if (currentUserEmail) PermitIssuerGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Resolve eligibility from SP group membership for Asset Director Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function AssetDirectorsGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('AssetDirectorsGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsAssetDirector(false); return; }
+        if (!disposed) setIsAssetDirector(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsAssetDirector(false);
+      }
+    }
+
+    if (currentUserEmail) AssetDirectorsGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Resolve eligibility from SP group membership for HSE Director Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function HSEDirectorGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('HSEDirectorGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsHSEDirector(false); return; }
+        if (!disposed) setIsHSEDirector(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsHSEDirector(false);
+      }
+    }
+
+    if (currentUserEmail) HSEDirectorGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Resolve eligibility from SP group membership for Asset Managers Group Logged In Users
+  React.useEffect(() => {
+    let disposed = false;
+    async function AssetManagersGroup() {
+      try {
+        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+        const isEligibleGroup = await spOps._IsUserInSPGroup('AssetManagersGroup', currentUserEmail);
+        if (!isEligibleGroup) { if (!disposed) setIsAssetManager(false); return; }
+        if (!disposed) setIsAssetManager(isEligibleGroup);
+      } catch {
+        if (!disposed) setIsAssetManager(false);
+      }
+    }
+
+    if (currentUserEmail) AssetManagersGroup();
+    return () => { disposed = true; };
+  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  const getGroupMembers = React.useCallback(async (groupName: string): Promise<SPGroupUser[]> => {
+    const url = `${webUrl}/_api/web/sitegroups/getbyname('${encodeURIComponent(groupName)}')/users?$select=Id,Title,Email`;
+    const res = await props.context.spHttpClient.get(url, SPHttpClient.configurations.v1);
+    if (!res.ok) return [];
+    const json: any = await res.json();
+    const users: SPGroupUser[] = Array.isArray(json?.value)
+      ? json.value.map((u: any) => ({ id: u.Id, title: u.Title, email: u.Email }))
+      : [];
+    return users;
+  }, [props.context.spHttpClient, webUrl]);
+
+  React.useEffect(() => {
+    let disposed = false;
+    (async () => {
+      try {
+        const names = [
+          'PermitOriginatorGroup',
+          'PerformingAuthorityGroup',
+          'PermitIssuerGroup',
+          'AssetDirectorsGroup',
+          'HSEDirectorGroup',
+          'AssetManagersGroup'
+        ];
+        const entries = await Promise.all(
+          names.map(async n => [n, await getGroupMembers(n)] as const)
+        );
+        if (!disposed) {
+          const map: Record<string, SPGroupUser[]> = {};
+          entries.forEach(([name, users]) => { map[name] = users; });
+          setGroupMembers(map);
+        }
+      } catch {
+        if (!disposed) setGroupMembers({});
+      }
+    })();
+    return () => { disposed = true; };
+  }, [getGroupMembers]);
+
+  // Build dropdown options from a group
+  const getOptionsForGroup = React.useCallback(
+    (groupName: string): IDropdownOption[] =>
+      (groupMembers[groupName] || []).map(m => ({
+        key: m.email || String(m.id),
+        text: m.title || m.email || String(m.id)
+      })),
+    [groupMembers]
+  );
+
+  // Current selected email from a PeoplePicker-like state
+  const selectedKeyFromPicker = React.useCallback(
+    (picker?: IPersonaProps[]) => picker?.[0]?.secondaryText || undefined,
+    []
+  );
+
+  // Factory to update a single-select "picker" state from ComboBox
+  const onSingleApproverChange = React.useCallback(
+    (groupName: string, setPicker: (items: IPersonaProps[]) => void) =>
+      (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+        if (!opt) { setPicker([]); return; }
+        const emailKey = String(opt.key);
+        const u = (groupMembers[groupName] || [])
+          .find(x => (x.email || String(x.id)) === emailKey);
+        setPicker(u ? [{
+          text: u.title || '',
+          secondaryText: u.email || '',
+          id: String(u.id)
+        }] : []);
+      },
+    [groupMembers]
+  );
+
+  const stageEnabled = React.useMemo(() => {
+    const poEnabled = isPermitOriginator; // Originator signs first
+    const paEnabled = isPerformingAuthority && _poStatus === 'Approved';
+    const piEnabled = isPermitIssuer && _paStatus === 'Approved';
+    // High risk requires AD then HSE; otherwise skip to closure after PI
+    const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus === 'Approved';
+    const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus === 'Approved';
+    const closureEnabled = isAssetManager && (
+      (isHighRisk ? _hseDirStatus === 'Approved' : _piStatus === 'Approved')
+    );
+    return { poEnabled, paEnabled, piEnabled, assetDirEnabled, hseDirEnabled, closureEnabled };
+  }, [
+    isPermitOriginator, isPerformingAuthority, isPermitIssuer, isAssetDirector, isHSEDirector, isAssetManager,
+    _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk
+  ]);
 
   // State for controlling conditional rendering of sections
   const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
@@ -172,7 +374,6 @@ export default function PTWForm(props: IPTWFormProps) {
     { key: 'Rejected', text: 'Rejected' },
     { key: 'Closed', text: 'Closed' }
   ]), []);
-
 
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
@@ -197,6 +398,14 @@ export default function PTWForm(props: IPTWFormProps) {
     input: { color: '#000 !important', fontWeight: '500 !important', }
   };
 
+  const toPersona = (obj?: { Id?: any; Title?: string; EMail?: string; FullName?: string }): IPersonaProps | undefined => {
+    if (!obj) return undefined;
+    const text = obj.FullName || obj.Title || '';
+    const email = obj.EMail || '';
+    const id = obj.Id != null ? String(obj.Id) : text;
+    return { text, secondaryText: email, id } as IPersonaProps;
+  };
+
   // ---------------------------
   // Data-loading functions (ported)
   // ---------------------------
@@ -206,10 +415,29 @@ export default function PTWForm(props: IPTWFormProps) {
   //   return !!(editFormId && editFormId > 0);
   // }, [props.formId]);
 
-  const isSubmitted = React.useMemo(() => {
-    const formStatus = JSON.parse(localStorage.getItem("FormStatusRecord") || '{value: ""}').value
-    return formStatus === "submitted";
-  }, [localStorage])
+  const [formStatus, setFormStatus] = React.useState<string>(() => {
+    try {
+      const raw = localStorage.getItem('FormStatusRecord');
+      return raw ? String(JSON.parse(raw)?.value || '').toLowerCase() : '';
+    } catch { return ''; }
+  });
+
+  React.useEffect(() => {
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'FormStatusRecord') {
+        try {
+          const v = e.newValue ? String(JSON.parse(e.newValue)?.value || '').toLowerCase() : '';
+          setFormStatus(v);
+        } catch { /* no-op */ }
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+  const isSubmitted = (formStatus || mode) === 'submitted';
+  // const isSaved = (formStatus || mode) === 'saved';
 
   // const isPermitsAllClosed = React.useMemo(() => {
   //   const formStatus = JSON.parse(localStorage.getItem("FormStatusRecord") || '{value: ""}').value
@@ -525,10 +753,11 @@ export default function PTWForm(props: IPTWFormProps) {
   const _getAssetDetails = React.useCallback(async () => {
     try {
       const query: string = `?$select=Id,Title,OrderRecord,` +
-        `Manager/Id,Manager/EMail,` +
+        `AssetDirector/Id,AssetDirector/EMail,` +
+        `AssetManager/Id,AssetManager/EMail,` +
         `HSEPartner/Id,HSEPartner/EMail,` +
         `AssetCategoryRecord/Id,AssetCategoryRecord/Title,AssetCategoryRecord/OrderRecord` +
-        `&$expand=AssetCategoryRecord,Manager,HSEPartner`;
+        `&$expand=AssetCategoryRecord,AssetDirector,AssetManager,HSEPartner`;
 
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Asset_Details', query);
       const data = await spCrudRef.current._getItemsWithQuery();
@@ -543,6 +772,9 @@ export default function PTWForm(props: IPTWFormProps) {
             title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
             orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
             assetCategoryId: categoryId,
+            assetDirector: obj.AssetDirector !== undefined && obj.AssetDirector !== null ? toPersona(obj.AssetDirector) : undefined,
+            assetManager: obj.AssetManager !== undefined && obj.AssetManager !== null ? toPersona(obj.AssetManager) : undefined,
+            hsePartner: obj.HSEPartner !== undefined && obj.HSEPartner !== null ? toPersona(obj.HSEPartner) : undefined,
           };
 
           if (!detailsByCategory.has(categoryId)) {
@@ -557,6 +789,9 @@ export default function PTWForm(props: IPTWFormProps) {
         title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
         orderRecord: obj.OrderRecord !== undefined && obj.OrderRecord !== null ? obj.OrderRecord : undefined,
         assetCategoryId: obj.AssetCategoryRecord?.Id !== undefined && obj.AssetCategoryRecord?.Id !== null ? obj.AssetCategoryRecord.Id : undefined,
+        assetDirector: obj.AssetDirector !== undefined && obj.AssetDirector !== null ? toPersona(obj.AssetDirector) : undefined,
+        assetManager: obj.AssetManager !== undefined && obj.AssetManager !== null ? toPersona(obj.AssetManager) : undefined,
+        hsePartner: obj.HSEPartner !== undefined && obj.HSEPartner !== null ? toPersona(obj.HSEPartner) : undefined,
       })));
 
     } catch (error) {
@@ -599,6 +834,7 @@ export default function PTWForm(props: IPTWFormProps) {
       return [];
     }
   }, [props.context]);
+
 
   // Initial load of users
   React.useEffect(() => {
@@ -665,6 +901,20 @@ export default function PTWForm(props: IPTWFormProps) {
       return [];
     }
   };
+
+  // const _onFilterChangedForGroup = (groupName: string) =>
+  //   (filterText: string, currentPersonas: IPersonaProps[]) => {
+  //     if (!filterText) return [];
+  //     const allowed = new Set((groupMembers[groupName] || []).map(m => (m.email || '').toLowerCase()));
+  //     return (_users || [])
+  //       .filter(u =>
+  //         (u.displayName?.toLowerCase().includes(filterText.toLowerCase()) ||
+  //           u.email?.toLowerCase().includes(filterText.toLowerCase())) &&
+  //         (u.email && allowed.has(u.email.toLowerCase()))
+  //       )
+  //       .map(u => ({ text: u.displayName || '', secondaryText: u.email || '', id: u.id }))
+  //       .filter(p => !currentPersonas.some(cp => cp.id === p.id));
+  //   };
 
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
@@ -1051,7 +1301,7 @@ export default function PTWForm(props: IPTWFormProps) {
       attachmentsDetails: _attachmentsResult,
       machineryIds: _selectedMachineryIds || [],
       personnelIds: _selectedPersonnelIds || [],
-      originator: permitOriginatorEmail
+      originator: _PermitOriginator?.[0]?.secondaryText || '',
     };
   }, [
     _coralReferenceNumber, _assetId, _selectedAssetCategory, _selectedAssetDetails, _projectTitle,
@@ -1071,7 +1321,7 @@ export default function PTWForm(props: IPTWFormProps) {
       return `Please fill in the required fields: ${missing.join(', ')}.`;
     };
 
-    if (isOriginator && (mode === 'submit')) {
+    if (isPermitOriginator && (mode === 'submit')) {
       if (!payload?.assetId?.trim()) missing.push('Asset ID');
       if (!payload.assetCategoryId?.toString().trim()) missing.push('Asset Category');
       if (!payload.assetDetailsId?.toString().trim()) missing.push('Asset Details');
@@ -1211,10 +1461,10 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const approveForm = React.useCallback(async (mode: 'approve') => {
 
-  }, [isOriginator, buildPayload]);
+  }, []);
 
   const submitForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<boolean> => {
-    if (!isOriginator) {
+    if (!isPermitOriginator) {
       showBanner('Only the Permit Originator can save or submit this form.',
         { autoHideMs: 5000, fade: true, kind: 'error' });
       return false;
@@ -1223,6 +1473,13 @@ export default function PTWForm(props: IPTWFormProps) {
     }
 
     setIsBusy(true);
+    if (mode === 'submit') {
+      setPoStatus('Approved');
+    }
+    else {
+      setPoStatus('Pending');
+    }
+
     setBusyLabel(mode === 'save' ? 'Saving form…' : 'Submitting form…');
     try {
       // const payload = buildPayload();
@@ -1236,9 +1493,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
         if (editFormId === undefined) {
           const savedId = await _createPTWForm(mode);
-
           if (savedId) {
-            await new Promise(res => setTimeout(res, 1000));
+            // await new Promise(res => setTimeout(res, 1000));
             if (mode === 'save') {
               showBanner('Form saved successfully.', { autoHideMs: 5000, fade: true, kind: 'success' });
             }
@@ -1268,7 +1524,7 @@ export default function PTWForm(props: IPTWFormProps) {
     } finally {
       setIsBusy(false);
     }
-  }, [isOriginator, buildPayload]);
+  }, [isPermitOriginator, buildPayload]);
 
   // Create parent PTWForm item and return its Id
   const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<number> => {
@@ -1340,7 +1596,7 @@ export default function PTWForm(props: IPTWFormProps) {
         }
       }
 
-      if (mode === 'submit' && isOriginator) {
+      if (mode === 'submit' && isPermitOriginator) {
         const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), _coralReferenceNumber, originatorId);
 
         if (!_createdWorkflow) {
@@ -1525,7 +1781,7 @@ export default function PTWForm(props: IPTWFormProps) {
       }
     }
 
-    if (mode === 'submit' && isOriginator) {
+    if (mode === 'submit' && isPermitOriginator) {
       const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(id), _coralReferenceNumber, originatorId);
 
       if (!_createdWorkflow) {
@@ -1674,7 +1930,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setToolboxHSEReference(headerSecondSelect?.ToolboxTalkHSEReference || '');
           setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? spHelpers.toISO(headerSecondSelect?.ToolBoxTalkDate) : undefined);
           const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, Title: headerSecondSelect?.ToolboxConductedBy?.Title, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
-          setToolboxConductedBy(toolboxConductedBy ? [toolboxConductedBy] : []);
+          setToolboxConductedBy(toolboxConductedBy ? [toolboxConductedBy] : undefined);
 
           if (headerTaskDescription && headerTaskDescription.length > 0) {
             const tasksList: IRiskTaskRow[] = [];
@@ -1980,7 +2236,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       residualRiskOptions={ptwFormStructure?.residualRisk || []}
                       safeguards={filteredSafeguards || []}
                       overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
-                      disableRiskControls={isOriginator}
+                      disableRiskControls={isPermitOriginator}
                       defaultRows={_riskAssessmentsTasks?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
                       onChange={handleRiskTasksChange}
                     />
@@ -2024,7 +2280,7 @@ export default function PTWForm(props: IPTWFormProps) {
                               setGasTestResult('');
                             }
                             }
-                            disabled={isOriginator}
+                            disabled={!isPermitIssuer}
                           />
                         </div>
                       ))}
@@ -2035,7 +2291,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       <TextField
                         type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                         placeholder="Enter result"
-                        disabled={isOriginator || _gasTestValue !== 'Yes'}
+                        disabled={!isPermitIssuer || _gasTestValue !== 'Yes'}
                         value={_gasTestResult}
                         onChange={(e, newValue) => setGasTestResult(newValue || '')}
                       />
@@ -2058,7 +2314,7 @@ export default function PTWForm(props: IPTWFormProps) {
                               setFireWatchValue(prev => (prev === item ? '' : item));
                               setFireWatchAssigned('');
                             }}
-                            disabled={isOriginator}
+                            disabled={!isPermitIssuer}
                           />
                         </div>
                       ))}
@@ -2067,7 +2323,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     <div style={{ flex: '1' }}>
                       <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                         placeholder="Enter name"
-                        disabled={isOriginator || _fireWatchValue !== 'Yes'}
+                        disabled={!isPermitIssuer || _fireWatchValue !== 'Yes'}
                         value={_fireWatchAssigned}
                         onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
                       />
@@ -2258,7 +2514,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         setToolboxTalkDate(undefined);
                       }
                     }}
-                    disabled={isOriginator}
+                    disabled={!isPermitOriginator && !isPerformingAuthority}
                   />
                 </div>
 
@@ -2277,7 +2533,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     onChange={(items) => setToolboxConductedBy(items || [])}
                     inputProps={{ placeholder: 'Enter name or email' }}
                     pickerSuggestionsProps={suggestionProps}
-                    disabled={isOriginator || !_selectedToolboxTalk}
+                    disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
                   />
                 </div>
 
@@ -2287,7 +2543,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     placeholder="Enter reference"
                     value={String(_toolboxHSEReference || '')}
                     onChange={(_, v) => setToolboxHSEReference(v || '')}
-                    disabled={isOriginator || !_selectedToolboxTalk}
+                    disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
                   />
                 </div>
 
@@ -2295,106 +2551,140 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label>Date</Label>
                   <DatePicker
                     placeholder="Select date"
-                    value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : undefined}
+                    value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
                     onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
-                    disabled={isOriginator || !_selectedToolboxTalk}
+                    disabled={(!isPermitOriginator && !isPerformingAuthority)}
                   />
                 </div>
               </div>
 
               {/* PTW Sign Off and Approval - visible when submitted */}
-              {isSubmitted && (
+              {isSubmitted &&
+                (
+                  <div className="row pb-3" id="ptwSignOffSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
+                    <div className="col-md-12" style={{ paddingTop: 8 }}>
+                      <Label style={{ fontWeight: 600 }}>PTW Sign Off and Approval</Label>
+                    </div>
 
+                    {/* Permit Originator (PO) */}
+                    <div className="col-md-4" style={{ padding: 8 }}>
+                      <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
+                      <TextField className='pb-1'
+                        value={_PermitOriginator?.[0]?.text || ''}
+                        disabled={true}
+                      // disabled={!isPermitOriginator && isPermitOriginator} 
+                      />
+                      <DatePicker
+                        disabled={true}
+                        placeholder="Select date"
+                        value={_poDate ? new Date(_poDate) : new Date()}
+                        onSelectDate={d => setPoDate(d ? d.toISOString() : undefined)}
+                      />
+                      <ComboBox
+                        placeholder="Status"
+                        options={statusOptions}
+                        selectedKey={_poStatus}
+                        onChange={(_, opt) => setPoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                        useComboBoxAsMenuWidth
+                        disabled={isPermitOriginator}
+                      />
+                    </div>
 
-                <div className="row pb-3" id="ptwSignOffSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
-                  <div className="col-md-12" style={{ paddingTop: 8 }}>
-                    <Label style={{ fontWeight: 600 }}>PTW Sign Off and Approval</Label>
+                    {/* Performing Authority (PA) */}
+                    <div className="col-md-4" style={{ padding: 8 }}>
+                      <Label style={{ fontWeight: 600 }}>Performing Authority (PA)</Label>
+                      {/* <NormalPeoplePicker
+                        // disabled={!isPerformingAuthority}
+                        disabled={!stageEnabled.paEnabled}
+                        // onResolveSuggestions={_onFilterChanged}
+                        onResolveSuggestions={_onFilterChangedForGroup('PerformingAuthorityGroup')}
+                        itemLimit={1}
+                        className={'ms-PeoplePicker pb-1'}
+                        key={'paPicker'}
+                        removeButtonAriaLabel={'Remove'}
+                        onInputChange={onInputChange}
+                        resolveDelay={150}
+                        styles={peoplePickerBlackStyles}
+                        selectedItems={_paPicker}
+                        onChange={items => setPaPicker(items || [])}
+                        inputProps={{ placeholder: 'Enter name or email' }}
+                        pickerSuggestionsProps={suggestionProps}
+                      /> */}
+                      <ComboBox
+                        placeholder="Select Performing Authority"
+                        disabled={!stageEnabled.paEnabled}
+                        options={getOptionsForGroup('PerformingAuthorityGroup')}
+                        selectedKey={selectedKeyFromPicker(_paPicker)}
+                        onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => setPaPicker(items))}
+                        useComboBoxAsMenuWidth
+                        styles={comboBoxBlackStyles}
+                        className={'pb-1'}
+                      />
+                      <DatePicker
+                        disabled={true}
+                        placeholder="Select date"
+                        value={_paDate ? new Date(_paDate) : new Date()}
+                        onSelectDate={d => setPaDate(d ? d.toISOString() : undefined)}
+                      />
+                      <ComboBox
+                        // disabled={!isPerformingAuthority}
+                        disabled={!stageEnabled.paEnabled}
+                        placeholder="Status"
+                        options={statusOptions}
+                        selectedKey={_paStatus}
+                        onChange={(_, opt) => setPaStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                        useComboBoxAsMenuWidth
+                      />
+                    </div>
+
+                    {/* Permit Issuer (PI) */}
+                    <div className="col-md-4" style={{ padding: 8 }}>
+                      <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
+                      {/* <NormalPeoplePicker
+                        // disabled={!isPermitIssuer}
+                        disabled={!stageEnabled.piEnabled}
+                        onResolveSuggestions={_onFilterChangedForGroup('PermitIssuerGroup')}
+                        // onResolveSuggestions={_onFilterChanged}
+                        itemLimit={1}
+                        className={'ms-PeoplePicker pb-1'}
+                        key={'piPicker'}
+                        removeButtonAriaLabel={'Remove'}
+                        onInputChange={onInputChange}
+                        resolveDelay={150}
+                        styles={peoplePickerBlackStyles}
+                        selectedItems={_piPicker}
+                        onChange={items => setPiPicker(items || [])}
+                        inputProps={{ placeholder: 'Enter name or email' }}
+                        pickerSuggestionsProps={suggestionProps}
+                      /> */}
+                      <ComboBox
+                        placeholder="Select Permit Issuer"
+                        disabled={!stageEnabled.piEnabled}
+                        options={getOptionsForGroup('PermitIssuerGroup')}
+                        selectedKey={selectedKeyFromPicker(_piPicker)}
+                        onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items))}
+                        useComboBoxAsMenuWidth
+                        styles={comboBoxBlackStyles}
+                        className={'pb-1'}
+                      />
+                      <DatePicker
+                        disabled={true}
+                        placeholder="Select date"
+                        value={_piDate ? new Date(_piDate) : new Date()}
+                        onSelectDate={d => setPiDate(d ? d.toISOString() : undefined)}
+                      />
+                      <ComboBox
+                        // disabled={!isPermitIssuer}
+                        disabled={!stageEnabled.piEnabled}
+                        placeholder="Status"
+                        options={statusOptions}
+                        selectedKey={_piStatus}
+                        onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                        useComboBoxAsMenuWidth
+                      />
+                    </div>
                   </div>
-
-                  {/* Permit Originator (PO) */}
-                  <div className="col-md-4" style={{ padding: 8 }}>
-                    <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
-                    <TextField className='pb-1'
-                      value={_PermitOriginator?.[0]?.text || ''} disabled={isOriginator} />
-                    <DatePicker
-                      disabled={isOriginator}
-                      placeholder="Select date"
-                      value={_poDate ? new Date(_poDate) : todaysDate}
-                      onSelectDate={d => setPoDate(d ? d.toISOString() : undefined)}
-                    />
-                    <ComboBox
-                      placeholder="Status"
-                      options={statusOptions}
-                      selectedKey={_poStatus}
-                      onChange={(_, opt) => setPoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                      useComboBoxAsMenuWidth
-                      disabled={isOriginator}
-                    />
-                  </div>
-
-                  {/* Performing Authority (PA) */}
-                  <div className="col-md-4" style={{ padding: 8 }}>
-                    <Label style={{ fontWeight: 600 }}>Performing Authority (PA)</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={'paPicker'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={_paPicker}
-                      onChange={items => setPaPicker(items || [])}
-                      inputProps={{ placeholder: 'Enter name or email' }}
-                      pickerSuggestionsProps={suggestionProps}
-                    />
-                    <DatePicker
-                      placeholder="Select date"
-                      value={_paDate ? new Date(_paDate) : undefined}
-                      onSelectDate={d => setPaDate(d ? d.toISOString() : undefined)}
-                    />
-                    <ComboBox
-                      placeholder="Status"
-                      options={statusOptions}
-                      selectedKey={_paStatus}
-                      onChange={(_, opt) => setPaStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                      useComboBoxAsMenuWidth
-                    />
-                  </div>
-
-                  {/* Permit Issuer (PI) */}
-                  <div className="col-md-4" style={{ padding: 8 }}>
-                    <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={'piPicker'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={_piPicker}
-                      onChange={items => setPiPicker(items || [])}
-                      inputProps={{ placeholder: 'Enter name or email' }}
-                      pickerSuggestionsProps={suggestionProps}
-                    />
-                    <DatePicker
-                      placeholder="Select date"
-                      value={_piDate ? new Date(_piDate) : undefined}
-                      onSelectDate={d => setPiDate(d ? d.toISOString() : undefined)}
-                    />
-                    <ComboBox
-                      placeholder="Status"
-                      options={statusOptions}
-                      selectedKey={_piStatus}
-                      onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                      useComboBoxAsMenuWidth
-                    />
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* HIGH RISK PTW Approval (if applicable) - visible when submitted and overall risk is High */}
               {isSubmitted && isHighRisk && (
@@ -2407,9 +2697,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Asset Director</Label>
-                    <NormalPeoplePicker
-                      // label='Asset Director'
-                      onResolveSuggestions={_onFilterChanged}
+                    {/* <NormalPeoplePicker
+                      // disabled={!isAssetDirector}
+                      disabled={!stageEnabled.assetDirEnabled}
+                      // onResolveSuggestions={_onFilterChanged}
+                      onResolveSuggestions={_onFilterChangedForGroup('AssetDirectorsGroup')}
                       itemLimit={1}
                       className={'ms-PeoplePicker pb-1'}
                       key={'assetDirectorPicker'}
@@ -2421,13 +2713,26 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(items) => setAssetDirPicker(items || [])}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
+                    /> */}
+                    <ComboBox
+                      placeholder="Select Asset Director"
+                      disabled={!stageEnabled.assetDirEnabled}
+                      options={getOptionsForGroup('AssetDirectorsGroup')}
+                      selectedKey={selectedKeyFromPicker(_assetDirPicker)}
+                      onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items))}
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                      className={'pb-1'}
                     />
                     <DatePicker
+                      disabled={true}
                       placeholder="Select date"
-                      value={_assetDirDate ? new Date(_assetDirDate) : undefined}
+                      value={_assetDirDate ? new Date(_assetDirDate) : new Date()}
                       onSelectDate={d => setAssetDirDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
+                      // disabled={!isAssetDirector}
+                      disabled={!stageEnabled.assetDirEnabled}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_assetDirStatus}
@@ -2438,8 +2743,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>HSE Director</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged}
+                    {/* <NormalPeoplePicker
+                      // disabled={!isHSEDirector}
+                      disabled={!stageEnabled.hseDirEnabled}
+                      // onResolveSuggestions={_onFilterChanged}
+                      onResolveSuggestions={_onFilterChangedForGroup('HSEDirectorGroup')}
                       itemLimit={1}
                       className={'ms-PeoplePicker pb-1'}
                       key={'hseDirectorPicker'}
@@ -2451,13 +2759,26 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(items) => setHseDirPicker(items || [])}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
+                    /> */}
+                    <ComboBox
+                      placeholder="Select HSE Director"
+                      disabled={!stageEnabled.hseDirEnabled}
+                      options={getOptionsForGroup('HSEDirectorGroup')}
+                      selectedKey={selectedKeyFromPicker(_hseDirPicker)}
+                      onChange={onSingleApproverChange('HSEDirectorGroup', (items) => setHseDirPicker(items))}
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                      className={'pb-1'}
                     />
                     <DatePicker
+                      disabled={true}
                       placeholder="Select date"
-                      value={_hseDirDate ? new Date(_hseDirDate) : undefined}
+                      value={_hseDirDate ? new Date(_hseDirDate) : new Date()}
                       onSelectDate={d => setHseDirDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
+                      // disabled={!isHSEDirector}
+                      disabled={!stageEnabled.hseDirEnabled}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_hseDirStatus}
@@ -2482,16 +2803,21 @@ export default function PTWForm(props: IPTWFormProps) {
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
                     <TextField className='pb-1'
-                      value={_PermitOriginator?.[0]?.text || ''} disabled={isOriginator} />
+                      value={_PermitOriginator?.[0]?.text || ''}
+                      disabled={true}
+                    // disabled={!isPermitOriginator && isPermitOriginator} 
+                    />
                     <DatePicker
                       placeholder="Select date"
-                      value={_closurePoDate ? new Date(_closurePoDate) : undefined}
+                      value={_closurePoDate ? new Date(_closurePoDate) : new Date()}
                       onSelectDate={d => setClosurePoDate(d ? d.toISOString() : undefined)}
+                      disabled={true}
                     />
                     <ComboBox
                       placeholder='Status'
                       options={statusOptions}
                       selectedKey={_closurePoStatus}
+                      disabled={!isPermitOriginator}
                       onChange={(_, opt) => setClosurePoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                       useComboBoxAsMenuWidth
                     />
@@ -2499,8 +2825,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Asset Manager</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged}
+                    {/* <NormalPeoplePicker
+                      // disabled={!isAssetManager}
+                      disabled={!stageEnabled.closureEnabled}
+                      // onResolveSuggestions={_onFilterChanged}
+                      onResolveSuggestions={_onFilterChangedForGroup('AssetManagersGroup')}
                       itemLimit={1}
                       className={'ms-PeoplePicker pb-1'}
                       key={'closureTtmPicker'}
@@ -2512,13 +2841,26 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(items) => setClosureAssetManagerPicker(items || [])}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
+                    /> */}
+                    <ComboBox
+                      placeholder="Select Asset Manager"
+                      disabled={!stageEnabled.closureEnabled}
+                      options={getOptionsForGroup('AssetManagersGroup')}
+                      selectedKey={selectedKeyFromPicker(_closureAssetManagerPicker)}
+                      onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items))}
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                      className={'pb-1'}
                     />
                     <DatePicker
+                      disabled={true}
                       placeholder="Select date"
-                      value={_closureAssetManagerDate ? new Date(_closureAssetManagerDate) : undefined}
+                      value={_closureAssetManagerDate ? new Date(_closureAssetManagerDate) : new Date()}
                       onSelectDate={d => setClosureAssetManagerDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
+                      // disabled={!isAssetManager}
+                      disabled={!stageEnabled.closureEnabled}
                       placeholder='Status'
                       options={statusOptions}
                       selectedKey={_closureAssetManagerStatus}
@@ -2549,24 +2891,25 @@ export default function PTWForm(props: IPTWFormProps) {
           // isClosedBySystem={(formsApprovalWorkflow || []).some(r => String(r?.Status?.title || '').toLowerCase().includes('approved') && r.FinalLevel === r.Order)}
           onError={(m) => showBanner(m)}
         />
+
         {(mode === "new" || mode === "saved") &&
           <>
             <DefaultButton text="Save"
               onClick={() => submitForm('save')}
-              disabled={!isOriginator || isBusy}
+              disabled={!isPermitOriginator || isBusy}
             />
 
             <DefaultButton text="Submit"
               onClick={() => submitForm('submit')}
-              disabled={!isOriginator || isBusy}
+              disabled={!isPermitOriginator || isBusy}
             />
           </>
         }
 
-        {(mode === "submitted" && !isOriginator) && (
+        {(mode === "submitted") && (
           <PrimaryButton text="Approve"
             onClick={() => approveForm('approve')}
-            disabled={!isOriginator || isBusy}
+            disabled={!isPermitOriginator || isBusy}
           />
         )}
       </div>

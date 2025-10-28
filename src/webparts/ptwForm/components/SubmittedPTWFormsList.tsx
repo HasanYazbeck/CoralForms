@@ -54,8 +54,12 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const [selectionVersion, setSelectionVersion] = React.useState(0);
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
+  const [isPOEligible, setIsPOEligible] = React.useState<boolean>(false);
+  const currentUserEmail = (context?.pageContext?.user?.email || '').toLowerCase();
+  const webUrl = context.pageContext.web.absoluteUrl;
   const PAGE_SIZE = 50;
   const [formStatusRecord, setFormStatusRecord] = LocalStorageComponent('FormStatusRecord', { value: '' });
+
   const selectionRef = React.useRef(
     new Selection({
       selectionMode: SelectionMode.multiple,
@@ -64,6 +68,30 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   );
 
   const selectedRows = React.useMemo(() => (selectionRef.current.getSelection() as Row[]) || [], [selectionVersion]);
+
+  // NEW: resolve eligibility from SP group membership
+  React.useEffect(() => {
+    let disposed = false;
+    const esc = (s: string) => s.replace(/'/g, "''");
+    const groupName = 'PermitOriginatorGroup';
+
+    async function checkEligibility() {
+      try {
+        const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(groupName)}')/users?$select=EMail,LoginName`;
+        const res = await context.spHttpClient.get(url, SPHttpClient.configurations.v1);
+        if (!res.ok) { if (!disposed) setIsPOEligible(false); return; }
+        const json: any = await res.json();
+        const users: any[] = json?.value || json?.d?.results || [];
+        const found = users.some(u => String(u.EMail || u.Email || u.LoginName || '').toLowerCase() === currentUserEmail);
+        if (!disposed) setIsPOEligible(found);
+      } catch {
+        if (!disposed) setIsPOEligible(false);
+      }
+    }
+
+    if (currentUserEmail) checkEligibility();
+    return () => { disposed = true; };
+  }, [context.spHttpClient, webUrl, currentUserEmail]);
 
   // Build the shared select/expand pieces (without $top so we can append it)
   const baseSelect = React.useMemo(() => (
@@ -271,6 +299,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       {
         key: 'add',
         text: 'Add New',
+        disabled: !isPOEligible,
         iconProps: { iconName: 'Add' },
         onClick: () => (onAddNew ? onAddNew() : navigateWithParams({ mode: 'add' }))
       },
@@ -282,10 +311,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         onClick: () => {
           const row = selectedRows[0];
           if (row) {
+            setFormStatusRecord({ "value": row.FormStatusRecord });
             if (onEdit) onEdit(row.id, row);
             else {
               navigateWithParams({ mode: 'edit', formId: row.id });
-              setFormStatusRecord({ "value": row.FormStatusRecord });
             }
           }
         }

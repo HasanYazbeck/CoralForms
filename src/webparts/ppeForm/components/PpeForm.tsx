@@ -580,7 +580,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         if (approverGroupTitle) {
           const key = approverGroupTitle.toLowerCase();
           if (!membersAccumulator[key]) {
-            const members = await _getGroupMembers(approverGroupTitle);
+            const members = await spCrudRef.current._getSharePointGroupMembers(approverGroupTitle);
             membersAccumulator[key] = members;
           }
           // setGroupMembers(prev => ({ ...prev, [approverGroupTitle.toLowerCase()]: approversPersonas }));
@@ -887,31 +887,31 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     return undefined;
   }, [_employee, _jobTitle, _department, _company, _requester, itemRows, _isReplacementChecked, _isAccidentalChecked, _replacementReason, formsApprovalWorkflow]);
 
-  const _getGroupMembers = useCallback(async (goupName: string): Promise<IPersonaProps[]> => {
-    const members: IPersonaProps[] = [];
-    if (!goupName) return members;
-    const name = String(goupName).trim();
-    const webUrl = props.context.pageContext.web.absoluteUrl;
-    const esc = (s: string) => s.replace(/'/g, "''");
+  // const _getGroupMembers = useCallback(async (goupName: string): Promise<IPersonaProps[]> => {
+  //   const members: IPersonaProps[] = [];
+  //   if (!goupName) return members;
+  //   const name = String(goupName).trim();
+  //   const webUrl = props.context.pageContext.web.absoluteUrl;
+  //   const esc = (s: string) => s.replace(/'/g, "''");
 
-    try {
-      const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
-      const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
-      if (!resp || resp.status !== 200) {
-        members;
-      }
-      const json = await resp.json();
-      const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
-        text: u?.Title || u?.Email || u?.LoginName || '',
-        secondaryText: u?.Email || '',
-        id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
-      } as IPersonaProps)) : [];
-      return personas;
-    }
-    catch (ex) {
-      return members;
-    }
-  }, [props.context]);
+  //   try {
+  //     const url = `${webUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
+  //     const resp: any = await (props.context as any).spHttpClient.get(url, SPHttpClient.configurations.v1);
+  //     if (!resp || resp.status !== 200) {
+  //       members;
+  //     }
+  //     const json = await resp.json();
+  //     const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
+  //       text: u?.Title || u?.Email || u?.LoginName || '',
+  //       secondaryText: u?.Email || '',
+  //       id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
+  //     } as IPersonaProps)) : [];
+  //     return personas;
+  //   }
+  //   catch (ex) {
+  //     return members;
+  //   }
+  // }, [props.context]);
 
   // Initial load of users, PPE items, Coral form config, etc.
   useEffect(() => {
@@ -3112,12 +3112,18 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
                       },
                       {
                         key: 'colDate', name: 'Date', fieldName: 'Date', minWidth: !!exportMode ? 180 : 200, isResizable: true,
-                        onRender: (item: any, idx?: number) => (
-                          <DatePicker value={item.Date ? new Date(item.Date) : undefined}
-                            disabled={prefilledFormId ? true : false}
-                            strings={defaultDatePickerStrings}
-                            styles={datePickerBlackStyles}
-                          />)
+                        onRender: (item: any) => {
+                          const isApproved = String(item?.Status?.title || '').toLowerCase() === 'approved';
+                          const dateValue = isApproved ? (item.Date ? new Date(item.Date) : undefined) : new Date();
+                          return (
+                            <DatePicker
+                              value={dateValue}
+                              disabled={prefilledFormId ? true : false}
+                              strings={defaultDatePickerStrings}
+                              styles={datePickerBlackStyles}
+                            />
+                          );
+                        }
                       }
                     ]}
                     selectionMode={SelectionMode.none}

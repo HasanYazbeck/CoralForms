@@ -1,5 +1,6 @@
 import { IEmployeeProps } from "../PpeForm/IEmployeeProps";
 import { ILKPItemInstructionsForUse } from "../Common/ICommon";
+import { IPersonaProps } from "@fluentui/react";
 
 export interface ICoralForm {
     id?: number;
@@ -19,6 +20,9 @@ export interface ILookupItem {
 
 export interface IAssetsDetails extends ILookupItem {
     assetCategoryId: number;
+    assetManager: IPersonaProps | undefined;
+    assetDirector: IPersonaProps | undefined;
+    hsePartner: IPersonaProps | undefined;
 }
 
 export interface IAssetCategoryDetails extends ILookupItem {

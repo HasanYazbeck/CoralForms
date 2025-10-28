@@ -296,7 +296,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                 <Label style={{ margin: 0 }}>Job Description / Tasks</Label>
                 <DefaultButton
                     iconProps={{ iconName: 'Add' }}
-                    text="Add row"
+                    text="Add Job"
                     onClick={addRow}
                     styles={{ label: { fontWeight: 600 } as any }}
                 />

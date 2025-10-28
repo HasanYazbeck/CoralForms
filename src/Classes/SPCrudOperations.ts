@@ -6,6 +6,7 @@ import {
 import { ISPItem } from "../Interfaces/Common/ISPItem";
 import { IUser } from "../Interfaces/Common/IUser";
 import { FieldTypeKind } from "../Enums/enums";
+import { IPersonaProps } from "@fluentui/react";
 
 export class SPCrudOperations {
   private listName: string;
@@ -396,7 +397,7 @@ export class SPCrudOperations {
 
   // Bulk Delete Items related to a Lookup Field
   public async _deleteLookUPItems(lookupValueId: number, lookupFieldName: string): Promise<void> {
-    const lookupFieldInternal = `${lookupFieldName}Id`; 
+    const lookupFieldInternal = `${lookupFieldName}Id`;
 
     // Step 1: Get all items that match the lookup value
     const getUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items?$filter=${lookupFieldInternal} eq ${lookupValueId}&$select=Id`;
@@ -580,6 +581,32 @@ export class SPCrudOperations {
       return false;
     }
   }
+
+  // Get SharePoint Group Members
+  public async _getSharePointGroupMembers(goupName: string): Promise<IPersonaProps[]> {
+    const members: IPersonaProps[] = [];
+    if (!goupName) return members;
+    const name = String(goupName).trim();
+    const esc = (s: string) => s.replace(/'/g, "''");
+
+    try {
+      const url = `${this.siteUrl}/_api/web/sitegroups/getbyname('${esc(name)}')/users?$select=Id,Title,Email,LoginName`;
+      const resp: any = await this.spHttpClient.get(url, SPHttpClient.configurations.v1);
+      if (!resp || resp.status !== 200) {
+        members;
+      }
+      const json = await resp.json();
+      const personas: IPersonaProps[] = Array.isArray(json?.value) ? json.value.map((u: any) => ({
+        text: u?.Title || u?.Email || u?.LoginName || '',
+        secondaryText: u?.Email || '',
+        id: (u?.Id != null ? String(u.Id) : (u?.LoginName || u?.Title || '')),
+      } as IPersonaProps)) : [];
+      return personas;
+    }
+    catch (ex) {
+      return members;
+    }
+  };
 
   // Resolve a SharePoint user by email/login and return numeric user Id
   public async ensureUserId(loginOrEmail?: string): Promise<number | undefined> {
