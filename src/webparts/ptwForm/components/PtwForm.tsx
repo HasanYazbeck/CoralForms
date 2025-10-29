@@ -136,23 +136,28 @@ export default function PTWForm(props: IPTWFormProps) {
   // Sign-off state
   const [_poDate, setPoDate] = React.useState<string | undefined>(new Date().toISOString());
 
-  const [_poStatus, setPoStatus] = React.useState<SignOffStatus>('Pending');
+  const [_poStatus, setPoStatus] = React.useState<SignOffStatus>('Approved');
 
   const [_paPicker, setPaPicker] = React.useState<IPersonaProps[]>([]);
   const [_paDate, setPaDate] = React.useState<string | undefined>(undefined);
   const [_paStatus, setPaStatus] = React.useState<SignOffStatus>('Pending');
+  const [_paStatusEnabled, setPaStatusEnabled] = React.useState<boolean>(false);
 
   const [_piPicker, setPiPicker] = React.useState<IPersonaProps[]>([]);
   const [_piDate, setPiDate] = React.useState<string | undefined>(undefined);
   const [_piStatus, setPiStatus] = React.useState<SignOffStatus>('Pending');
-
+  const [_piStatusEnabled, setPiStatusEnabled] = React.useState<boolean>(false);
+  const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
+  
   const [_assetDirPicker, setAssetDirPicker] = React.useState<IPersonaProps[]>([]);
   const [_assetDirDate, setAssetDirDate] = React.useState<string | undefined>(undefined);
   const [_assetDirStatus, setAssetDirStatus] = React.useState<SignOffStatus>('Pending');
+  const [_assetDirStatusEnabled, setAssetDirStatusEnabled] = React.useState<boolean>(false);
 
   const [_hseDirPicker, setHseDirPicker] = React.useState<IPersonaProps[]>([]);
   const [_hseDirDate, setHseDirDate] = React.useState<string | undefined>(undefined);
   const [_hseDirStatus, setHseDirStatus] = React.useState<SignOffStatus>('Pending');
+  const [_hseDirStatusEnabled, setHseDirStatusEnabled] = React.useState<boolean>(false);
 
   // PTW Closure state
   const [_closurePoDate, setClosurePoDate] = React.useState<string | undefined>(undefined);
@@ -161,6 +166,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_closureAssetManagerPicker, setClosureAssetManagerPicker] = React.useState<IPersonaProps[]>([]);
   const [_closureAssetManagerDate, setClosureAssetManagerDate] = React.useState<string | undefined>(undefined);
   const [_closureAssetManagerStatus, setClosureAssetManagerStatus] = React.useState<SignOffStatus>('Pending');
+  const [_closureAssetManagerStatusEnabled, setClosureAssetManagerStatusEnabled] = React.useState<boolean>(false);
 
   // const isSubmitted = mode === 'submitted';
   const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
@@ -168,7 +174,6 @@ export default function PTWForm(props: IPTWFormProps) {
   // Determine if current user is the Permit Originator
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
   const permitOriginatorEmail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
-  // const isOriginator = !!permitOriginatorEmail && permitOriginatorEmail === currentUserEmail;
 
   // Resolve eligibility from SP group membership for Permit Originator Group Logged In Users
   React.useEffect(() => {
@@ -333,20 +338,41 @@ export default function PTWForm(props: IPTWFormProps) {
   );
 
   // Factory to update a single-select "picker" state from ComboBox
-  const onSingleApproverChange = React.useCallback(
-    (groupName: string, setPicker: (items: IPersonaProps[]) => void) =>
-      (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
-        if (!opt) { setPicker([]); return; }
-        const emailKey = String(opt.key);
-        const u = (groupMembers[groupName] || [])
-          .find(x => (x.email || String(x.id)) === emailKey);
-        setPicker(u ? [{
-          text: u.title || '',
-          secondaryText: u.email || '',
-          id: String(u.id)
-        }] : []);
-      },
-    [groupMembers]
+  // const onSingleApproverChange = React.useCallback(
+  //   (groupName: string, setPicker: (items: IPersonaProps[]) => void) =>
+  //     (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+  //       if (!opt) { setPicker([]); return; }
+  //       const emailKey = String(opt.key);
+  //       const u = (groupMembers[groupName] || []).find(x => (x.email || String(x.id)) === emailKey);
+  //       // Check here if changed user is same as current user in case he is in the same group then setPaStatusDisabled to false
+  //       if (u && u.email === currentUserEmail) {
+  //       }
+  //       else {
+  //       }
+  //       setPicker(u ? [{
+  //         text: u.title || '',
+  //         secondaryText: u.email || '',
+  //         id: String(u.id)
+  //       }] : []);
+  //     },
+  //   [groupMembers]
+  // );
+
+  const onSingleApproverChange = React.useCallback((groupName: string, setPicker: (items: IPersonaProps[]) => void, setStatusEnabled?: (enabled: boolean) => void) =>
+    (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+      if (!opt) { setPicker([]); setStatusEnabled?.(false); return; }
+      const emailKey = String(opt.key);
+      const u = (groupMembers[groupName] || []).find(x => (x.email || String(x.id)) === emailKey);
+      const selectedEmail = (u?.email || '').toLowerCase();
+      const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
+      setStatusEnabled?.(isCurrentUser);
+      setPicker(u ? [{
+        text: u.title || '',
+        secondaryText: u.email || '',
+        id: String(u.id)
+      }] : []);
+    },
+    [groupMembers, currentUserEmail]
   );
 
   const stageEnabled = React.useMemo(() => {
@@ -436,6 +462,7 @@ export default function PTWForm(props: IPTWFormProps) {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
   const isSubmitted = (formStatus || mode) === 'submitted';
   // const isSaved = (formStatus || mode) === 'saved';
 
@@ -1196,6 +1223,31 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [goBackToHost]);
 
   React.useEffect(() => {
+    const selectedEmail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    setPaStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+  }, [_paPicker, currentUserEmail]);
+
+  React.useEffect(() => {
+    const selectedEmail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    setPiStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+  }, [_piPicker, currentUserEmail]);
+
+  React.useEffect(() => {
+    const selectedEmail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    setAssetDirStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+  }, [_assetDirPicker, currentUserEmail]);
+
+  React.useEffect(() => {
+    const selectedEmail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    setHseDirStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+  }, [_hseDirPicker, currentUserEmail]);
+
+  React.useEffect(() => {
+    const selectedEmail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+    setClosureAssetManagerStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+  }, [_closureAssetManagerPicker, currentUserEmail]);
+
+  React.useEffect(() => {
     // If selected permit types is unchecked, clear the permit payload
     if (!workPermitRequired) {
       setPermitPayload([]);
@@ -1328,7 +1380,35 @@ export default function PTWForm(props: IPTWFormProps) {
       if (!payload.projectTitle?.trim()) missing.push('Project Title');
       if (!payload.company?.id?.toString().trim()) missing.push('Company');
       if (!payload.permitTypes || payload.permitTypes.length === 0) missing.push('At least one Permit Type');
-      if (!payload.permitRows || payload.permitRows.length === 0) missing.push('At least one Permit Row in Permit Schedule');
+      if (!payload.permitRows || payload.permitRows.length === 0) {
+        missing.push('At least one Permit Row in Permit Schedule');
+      } else {
+        const selectedNewPermitRows = payload.permitRows.filter(r => r.isChecked && r.type === 'new');
+
+        if (selectedNewPermitRows.length >= 1) {
+          const newRowDateIso = selectedNewPermitRows[0].date;
+
+          if (!newRowDateIso) {
+            missing.push('New Permit Row Date');
+          } else {
+            const permitDate = new Date(newRowDateIso);
+            if (isNaN(permitDate.getTime())) {
+              missing.push('New Permit Row Date (invalid)');
+            } else {
+              const now = new Date();
+              const ms24h = 24 * 60 * 60 * 1000;
+              const isAtLeast24hAfterNow = (permitDate.getTime() - now.getTime()) >= ms24h;
+
+              if (!isAtLeast24hAfterNow) {
+                missing.push('New Permit Row Date must be at least 24 hours after the current submission date/time.');
+              }
+            }
+          }
+        }
+      }
+
+
+
       if (!payload.hacWorkAreaId?.toString().trim()) missing.push('HAC Work Area');
 
       // Tasks required when 3+ hazards: list rows missing a task
@@ -2500,191 +2580,160 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Toolbox Talk (TBT) */}
-              <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
-                <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
-                  <Checkbox
-                    label="Toolbox Talk (TBT); complete details if applicable"
-                    checked={!!_selectedToolboxTalk}
-                    onChange={(_, chk) => {
-                      const isChecked = !!chk;
-                      setToolboxTalk(isChecked);
-                      if (!isChecked) {
-                        setToolboxConductedBy([]);
-                        setToolboxHSEReference('');
-                        setToolboxTalkDate(undefined);
-                      }
-                    }}
-                    disabled={!isPermitOriginator && !isPerformingAuthority}
-                  />
-                </div>
-
-                <div className="col-md-4">
-                  <Label>Conducted By (Title)</Label>
-                  <NormalPeoplePicker
-                    onResolveSuggestions={_onFilterChanged}
-                    itemLimit={1}
-                    className={'ms-PeoplePicker'}
-                    key={'toolboxConductedBy'}
-                    removeButtonAriaLabel={'Remove'}
-                    onInputChange={onInputChange}
-                    resolveDelay={150}
-                    styles={peoplePickerBlackStyles}
-                    selectedItems={_selectedToolboxConductedBy}
-                    onChange={(items) => setToolboxConductedBy(items || [])}
-                    inputProps={{ placeholder: 'Enter name or email' }}
-                    pickerSuggestionsProps={suggestionProps}
-                    disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <Label>HSE TBT Reference</Label>
-                  <TextField
-                    placeholder="Enter reference"
-                    value={String(_toolboxHSEReference || '')}
-                    onChange={(_, v) => setToolboxHSEReference(v || '')}
-                    disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
-                  />
-                </div>
-
-                <div className="col-md-2">
-                  <Label>Date</Label>
-                  <DatePicker
-                    placeholder="Select date"
-                    value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
-                    onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
-                    disabled={(!isPermitOriginator && !isPerformingAuthority)}
-                  />
-                </div>
-              </div>
-
-              {/* PTW Sign Off and Approval - visible when submitted */}
-              {isSubmitted &&
-                (
-                  <div className="row pb-3" id="ptwSignOffSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
-                    <div className="col-md-12" style={{ paddingTop: 8 }}>
-                      <Label style={{ fontWeight: 600 }}>PTW Sign Off and Approval</Label>
-                    </div>
-
-                    {/* Permit Originator (PO) */}
-                    <div className="col-md-4" style={{ padding: 8 }}>
-                      <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
-                      <TextField className='pb-1'
-                        value={_PermitOriginator?.[0]?.text || ''}
-                        disabled={true}
-                      // disabled={!isPermitOriginator && isPermitOriginator} 
-                      />
-                      <DatePicker
-                        disabled={true}
-                        placeholder="Select date"
-                        value={_poDate ? new Date(_poDate) : new Date()}
-                        onSelectDate={d => setPoDate(d ? d.toISOString() : undefined)}
-                      />
-                      <ComboBox
-                        placeholder="Status"
-                        options={statusOptions}
-                        selectedKey={_poStatus}
-                        onChange={(_, opt) => setPoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                        useComboBoxAsMenuWidth
-                        disabled={isPermitOriginator}
+              {
+                isSubmitted && (
+                  <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
+                    <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
+                      <Checkbox
+                        label="Toolbox Talk (TBT); complete details if applicable"
+                        checked={!!_selectedToolboxTalk}
+                        onChange={(_, chk) => {
+                          const isChecked = !!chk;
+                          setToolboxTalk(isChecked);
+                          if (!isChecked) {
+                            setToolboxConductedBy([]);
+                            setToolboxHSEReference('');
+                            setToolboxTalkDate(undefined);
+                          }
+                        }}
+                        disabled={!isPermitOriginator && !isPerformingAuthority}
                       />
                     </div>
 
-                    {/* Performing Authority (PA) */}
-                    <div className="col-md-4" style={{ padding: 8 }}>
-                      <Label style={{ fontWeight: 600 }}>Performing Authority (PA)</Label>
-                      {/* <NormalPeoplePicker
-                        // disabled={!isPerformingAuthority}
-                        disabled={!stageEnabled.paEnabled}
-                        // onResolveSuggestions={_onFilterChanged}
-                        onResolveSuggestions={_onFilterChangedForGroup('PerformingAuthorityGroup')}
+                    <div className="col-md-4">
+                      <Label>Conducted By (Title)</Label>
+                      <NormalPeoplePicker
+                        onResolveSuggestions={_onFilterChanged}
                         itemLimit={1}
-                        className={'ms-PeoplePicker pb-1'}
-                        key={'paPicker'}
+                        className={'ms-PeoplePicker'}
+                        key={'toolboxConductedBy'}
                         removeButtonAriaLabel={'Remove'}
                         onInputChange={onInputChange}
                         resolveDelay={150}
                         styles={peoplePickerBlackStyles}
-                        selectedItems={_paPicker}
-                        onChange={items => setPaPicker(items || [])}
+                        selectedItems={_selectedToolboxConductedBy}
+                        onChange={(items) => setToolboxConductedBy(items || [])}
                         inputProps={{ placeholder: 'Enter name or email' }}
                         pickerSuggestionsProps={suggestionProps}
-                      /> */}
-                      <ComboBox
-                        placeholder="Select Performing Authority"
-                        disabled={!stageEnabled.paEnabled}
-                        options={getOptionsForGroup('PerformingAuthorityGroup')}
-                        selectedKey={selectedKeyFromPicker(_paPicker)}
-                        onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => setPaPicker(items))}
-                        useComboBoxAsMenuWidth
-                        styles={comboBoxBlackStyles}
-                        className={'pb-1'}
-                      />
-                      <DatePicker
-                        disabled={true}
-                        placeholder="Select date"
-                        value={_paDate ? new Date(_paDate) : new Date()}
-                        onSelectDate={d => setPaDate(d ? d.toISOString() : undefined)}
-                      />
-                      <ComboBox
-                        // disabled={!isPerformingAuthority}
-                        disabled={!stageEnabled.paEnabled}
-                        placeholder="Status"
-                        options={statusOptions}
-                        selectedKey={_paStatus}
-                        onChange={(_, opt) => setPaStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                        useComboBoxAsMenuWidth
+                        disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
                       />
                     </div>
 
-                    {/* Permit Issuer (PI) */}
-                    <div className="col-md-4" style={{ padding: 8 }}>
-                      <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
-                      {/* <NormalPeoplePicker
-                        // disabled={!isPermitIssuer}
-                        disabled={!stageEnabled.piEnabled}
-                        onResolveSuggestions={_onFilterChangedForGroup('PermitIssuerGroup')}
-                        // onResolveSuggestions={_onFilterChanged}
-                        itemLimit={1}
-                        className={'ms-PeoplePicker pb-1'}
-                        key={'piPicker'}
-                        removeButtonAriaLabel={'Remove'}
-                        onInputChange={onInputChange}
-                        resolveDelay={150}
-                        styles={peoplePickerBlackStyles}
-                        selectedItems={_piPicker}
-                        onChange={items => setPiPicker(items || [])}
-                        inputProps={{ placeholder: 'Enter name or email' }}
-                        pickerSuggestionsProps={suggestionProps}
-                      /> */}
-                      <ComboBox
-                        placeholder="Select Permit Issuer"
-                        disabled={!stageEnabled.piEnabled}
-                        options={getOptionsForGroup('PermitIssuerGroup')}
-                        selectedKey={selectedKeyFromPicker(_piPicker)}
-                        onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items))}
-                        useComboBoxAsMenuWidth
-                        styles={comboBoxBlackStyles}
-                        className={'pb-1'}
+                    <div className="col-md-3">
+                      <Label>HSE TBT Reference</Label>
+                      <TextField
+                        placeholder="Enter reference"
+                        value={String(_toolboxHSEReference || '')}
+                        onChange={(_, v) => setToolboxHSEReference(v || '')}
+                        disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
                       />
+                    </div>
+
+                    <div className="col-md-2">
+                      <Label>Date</Label>
                       <DatePicker
-                        disabled={true}
                         placeholder="Select date"
-                        value={_piDate ? new Date(_piDate) : new Date()}
-                        onSelectDate={d => setPiDate(d ? d.toISOString() : undefined)}
-                      />
-                      <ComboBox
-                        // disabled={!isPermitIssuer}
-                        disabled={!stageEnabled.piEnabled}
-                        placeholder="Status"
-                        options={statusOptions}
-                        selectedKey={_piStatus}
-                        onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                        useComboBoxAsMenuWidth
+                        value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
+                        onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
+                        disabled={(!isPermitOriginator && !isPerformingAuthority)}
                       />
                     </div>
                   </div>
-                )}
+                )
+              }
+
+              {/* PTW Sign Off and Approval - visible when submitted */}
+              {/* {isSubmitted &&
+                (  */}
+              <div className="row pb-3" id="ptwSignOffSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
+                <div className="col-md-12" style={{ paddingTop: 8 }}>
+                  <Label style={{ fontWeight: 600 }}>PTW Sign Off and Approval</Label>
+                </div>
+
+                {/* Permit Originator (PO) */}
+                <div className="col-md-4" style={{ padding: 8 }}>
+                  <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
+                  <TextField className='pb-1'
+                    value={_PermitOriginator?.[0]?.text || ''}
+                    disabled={true}
+                  // disabled={!isPermitOriginator && isPermitOriginator} 
+                  />
+                  <DatePicker
+                    disabled={true}
+                    placeholder="Select date"
+                    value={_poDate ? new Date(_poDate) : new Date()}
+                    onSelectDate={d => setPoDate(d ? d.toISOString() : undefined)}
+                  />
+                  {/* <ComboBox
+                    placeholder="Status"
+                    options={statusOptions}
+                    selectedKey={_poStatus}
+                    onChange={(_, opt) => setPoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                    useComboBoxAsMenuWidth
+                    disabled={isPermitOriginator}
+                  /> */}
+                </div>
+
+                {/* Performing Authority (PA) */}
+                <div className="col-md-4" style={{ padding: 8 }}>
+                  <Label style={{ fontWeight: 600 }}>Performing Authority (PA)</Label>
+                  <ComboBox
+                    placeholder="Select Performing Authority"
+                    disabled={!stageEnabled.paEnabled}
+                    options={getOptionsForGroup('PerformingAuthorityGroup')}
+                    selectedKey={selectedKeyFromPicker(_paPicker)}
+                    onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => setPaPicker(items), setPaStatusEnabled)}
+                    useComboBoxAsMenuWidth
+                    styles={comboBoxBlackStyles}
+                    className={'pb-1'}
+                  />
+                  <DatePicker
+                    disabled={true}
+                    placeholder="Select date"
+                    value={_paDate ? new Date(_paDate) : new Date()}
+                    onSelectDate={d => setPaDate(d ? d.toISOString() : undefined)}
+                  />
+                  <ComboBox
+                    // disabled={!isPerformingAuthority}
+                    disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
+                    placeholder="Status"
+                    options={statusOptions}
+                    selectedKey={_paStatus}
+                    onChange={(_, opt) => setPaStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                    useComboBoxAsMenuWidth
+                  />
+                </div>
+
+                {/* Permit Issuer (PI) */}
+                <div className="col-md-4" style={{ padding: 8 }}>
+                  <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
+                  <ComboBox
+                    placeholder="Select Permit Issuer"
+                    disabled={!stageEnabled.piEnabled}
+                    options={getOptionsForGroup('PermitIssuerGroup')}
+                    selectedKey={selectedKeyFromPicker(_piPicker)}
+                    onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items), setPiStatusEnabled)}
+                    useComboBoxAsMenuWidth
+                    styles={comboBoxBlackStyles}
+                    className={'pb-1'}
+                  />
+                  <DatePicker
+                    disabled={true}
+                    placeholder="Select date"
+                    value={_piDate ? new Date(_piDate) : new Date()}
+                    onSelectDate={d => setPiDate(d ? d.toISOString() : undefined)}
+                  />
+                  <ComboBox
+                    disabled={!stageEnabled.piEnabled || !_piStatusEnabled}
+                    placeholder="Status"
+                    options={statusOptions}
+                    selectedKey={_piStatus}
+                    onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                    useComboBoxAsMenuWidth
+                  />
+                </div>
+              </div>
+              {/* )} */}
 
               {/* HIGH RISK PTW Approval (if applicable) - visible when submitted and overall risk is High */}
               {isSubmitted && isHighRisk && (
@@ -2697,29 +2746,12 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Asset Director</Label>
-                    {/* <NormalPeoplePicker
-                      // disabled={!isAssetDirector}
-                      disabled={!stageEnabled.assetDirEnabled}
-                      // onResolveSuggestions={_onFilterChanged}
-                      onResolveSuggestions={_onFilterChangedForGroup('AssetDirectorsGroup')}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={'assetDirectorPicker'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={_assetDirPicker}
-                      onChange={(items) => setAssetDirPicker(items || [])}
-                      inputProps={{ placeholder: 'Enter name or email' }}
-                      pickerSuggestionsProps={suggestionProps}
-                    /> */}
                     <ComboBox
                       placeholder="Select Asset Director"
                       disabled={!stageEnabled.assetDirEnabled}
                       options={getOptionsForGroup('AssetDirectorsGroup')}
                       selectedKey={selectedKeyFromPicker(_assetDirPicker)}
-                      onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items))}
+                      onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items), setAssetDirStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -2731,8 +2763,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       onSelectDate={d => setAssetDirDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
-                      // disabled={!isAssetDirector}
-                      disabled={!stageEnabled.assetDirEnabled}
+                      disabled={!stageEnabled.assetDirEnabled || !_assetDirStatusEnabled}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_assetDirStatus}
@@ -2743,29 +2774,12 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>HSE Director</Label>
-                    {/* <NormalPeoplePicker
-                      // disabled={!isHSEDirector}
-                      disabled={!stageEnabled.hseDirEnabled}
-                      // onResolveSuggestions={_onFilterChanged}
-                      onResolveSuggestions={_onFilterChangedForGroup('HSEDirectorGroup')}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={'hseDirectorPicker'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={_hseDirPicker}
-                      onChange={(items) => setHseDirPicker(items || [])}
-                      inputProps={{ placeholder: 'Enter name or email' }}
-                      pickerSuggestionsProps={suggestionProps}
-                    /> */}
                     <ComboBox
                       placeholder="Select HSE Director"
                       disabled={!stageEnabled.hseDirEnabled}
                       options={getOptionsForGroup('HSEDirectorGroup')}
                       selectedKey={selectedKeyFromPicker(_hseDirPicker)}
-                      onChange={onSingleApproverChange('HSEDirectorGroup', (items) => setHseDirPicker(items))}
+                      onChange={onSingleApproverChange('HSEDirectorGroup', (items) => setHseDirPicker(items), setHseDirStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -2778,7 +2792,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <ComboBox
                       // disabled={!isHSEDirector}
-                      disabled={!stageEnabled.hseDirEnabled}
+                      disabled={!stageEnabled.hseDirEnabled || !_hseDirStatusEnabled}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_hseDirStatus}
@@ -2788,7 +2802,6 @@ export default function PTWForm(props: IPTWFormProps) {
                   </div>
                 </div>
               )}
-
 
               {/* PTW Closure */}
               {isSubmitted && (
@@ -2805,7 +2818,6 @@ export default function PTWForm(props: IPTWFormProps) {
                     <TextField className='pb-1'
                       value={_PermitOriginator?.[0]?.text || ''}
                       disabled={true}
-                    // disabled={!isPermitOriginator && isPermitOriginator} 
                     />
                     <DatePicker
                       placeholder="Select date"
@@ -2825,29 +2837,13 @@ export default function PTWForm(props: IPTWFormProps) {
 
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Asset Manager</Label>
-                    {/* <NormalPeoplePicker
-                      // disabled={!isAssetManager}
-                      disabled={!stageEnabled.closureEnabled}
-                      // onResolveSuggestions={_onFilterChanged}
-                      onResolveSuggestions={_onFilterChangedForGroup('AssetManagersGroup')}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={'closureTtmPicker'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={_closureAssetManagerPicker}
-                      onChange={(items) => setClosureAssetManagerPicker(items || [])}
-                      inputProps={{ placeholder: 'Enter name or email' }}
-                      pickerSuggestionsProps={suggestionProps}
-                    /> */}
                     <ComboBox
                       placeholder="Select Asset Manager"
                       disabled={!stageEnabled.closureEnabled}
                       options={getOptionsForGroup('AssetManagersGroup')}
                       selectedKey={selectedKeyFromPicker(_closureAssetManagerPicker)}
-                      onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items))}
+                      // onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items))}
+                      onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items), setClosureAssetManagerStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -2860,7 +2856,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <ComboBox
                       // disabled={!isAssetManager}
-                      disabled={!stageEnabled.closureEnabled}
+                      disabled={!stageEnabled.closureEnabled || !_closureAssetManagerStatusEnabled}
                       placeholder='Status'
                       options={statusOptions}
                       selectedKey={_closureAssetManagerStatus}

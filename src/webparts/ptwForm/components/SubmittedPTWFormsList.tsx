@@ -301,7 +301,11 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         text: 'Add New',
         disabled: !isPOEligible,
         iconProps: { iconName: 'Add' },
-        onClick: () => (onAddNew ? onAddNew() : navigateWithParams({ mode: 'add' }))
+        onClick: () => {
+          setFormStatusRecord({ "value": "new" });
+          (onAddNew ? onAddNew() : navigateWithParams({ mode: 'add' }))
+        }
+
       },
       {
         key: 'edit',
