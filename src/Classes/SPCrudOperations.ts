@@ -409,36 +409,34 @@ export class SPCrudOperations {
       const items = await getResponse.json();
       const totalItems = items.value.length;
 
-      if (totalItems === 0) {
-        console.log(`No items found with ${lookupFieldInternal} = ${lookupValueId}`);
-        return;
-      }
+      if (totalItems > 0) {
 
-      // Step 2: Loop and delete each item
-      for (const item of items.value) {
-        const deleteUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items(${item.Id})`;
+        // Step 2: Loop and delete each item
+        for (const item of items.value) {
+          const deleteUrl = `${this.siteUrl}/_api/web/lists/getByTitle('${this.listName}')/items(${item.Id})`;
 
-        const spHttpClientOptions: ISPHttpClientOptions = {
-          headers: {
-            "X-HTTP-Method": "DELETE",
-            "IF-MATCH": "*",
-          },
-        };
+          const spHttpClientOptions: ISPHttpClientOptions = {
+            headers: {
+              "X-HTTP-Method": "DELETE",
+              "IF-MATCH": "*",
+            },
+          };
 
-        const deleteResponse: SPHttpClientResponse = await this.spHttpClient.post(
-          deleteUrl,
-          SPHttpClient.configurations.v1,
-          spHttpClientOptions
-        );
+          const deleteResponse: SPHttpClientResponse = await this.spHttpClient.post(
+            deleteUrl,
+            SPHttpClient.configurations.v1,
+            spHttpClientOptions
+          );
 
-        if (deleteResponse.ok) {
-          console.log(`Deleted item ID ${item.Id}`);
-        } else {
-          console.error(`Failed to delete item ID ${item.Id}: ${deleteResponse.status}`);
+          if (deleteResponse.ok) {
+            console.log(`Deleted item ID ${item.Id}`);
+          } else {
+            console.error(`Failed to delete item ID ${item.Id}: ${deleteResponse.status}`);
+          }
         }
+        console.log(`✅ Successfully deleted ${totalItems} items linked to ${lookupFieldInternal} = ${lookupValueId}`);
       }
-
-      console.log(`✅ Successfully deleted ${totalItems} items linked to ${lookupFieldInternal} = ${lookupValueId}`);
+      
     } catch (error) {
       console.error("Error during bulk delete:", error);
       throw error;

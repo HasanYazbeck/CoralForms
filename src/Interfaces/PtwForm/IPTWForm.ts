@@ -35,7 +35,6 @@ export interface IWorkCategory extends ILookupItem {
     isChecked: boolean;
 }
 
-
 export interface ISagefaurdsItem extends ILookupItem {
     workCategoryId: number;
     workCategoryTitle: string;
@@ -76,4 +75,31 @@ export interface IPTWForm {
     residualRisk?: string[];
     personnalInvolved: IEmployeePeronellePassport[];
     issuanceInstrunctions: ILKPItemInstructionsForUse[];
+}
+
+export interface IPTWWorkflow  {
+    id: number | undefined;
+    PTWFormId: number | undefined;
+    CoralReferenceNumber: string | undefined;
+    POApprover: IPersonaProps | undefined;
+    POApprovalDate: Date | undefined;
+    POStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    PAApprover: IPersonaProps | undefined;
+    PAApprovalDate: Date | undefined;
+    PAStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    PIApprover: IPersonaProps | undefined;
+    PIApprovalDate: Date | undefined;
+    PIStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    AssetDirectorApprover: IPersonaProps | undefined;
+    AssetDirectorApprovalDate: Date | undefined;
+    AssetDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    HSEDirectorApprover: IPersonaProps | undefined;
+    HSEDirectorApprovalDate: Date | undefined;
+    HSEDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    POClosureApprover: IPersonaProps | undefined;
+    POClosureDate: Date | undefined;
+    POClosureStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    AssetManagerApprover: IPersonaProps | undefined;
+    AssetManagerApprovalDate: Date | undefined;
+    AssetManagerStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
 }

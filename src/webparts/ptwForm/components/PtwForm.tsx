@@ -24,13 +24,13 @@ import {
   DatePicker
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
-import { IGraphResponse, IGraphUserResponse, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
+import { ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
 import { MSGraphClientV3 } from '@microsoft/sp-http-msgraph';
 import { SPHttpClient } from '@microsoft/sp-http';
 import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
-import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, ISagefaurdsItem, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
+import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IPTWWorkflow, ISagefaurdsItem, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
 import { CheckBoxDistributerComponent } from './CheckBoxDistributerComponent';
 import RiskAssessmentList, { IRiskTaskRow } from './RiskAssessmentList';
 import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
@@ -74,6 +74,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const webUrl = props.context.pageContext.web.absoluteUrl;
   const [assetCategoriesList, setAssetCategoriesList] = React.useState<ILookupItem[] | undefined>([]);
   const [assetCategoriesDetailsList, setAssetCategoriesDetailsList] = React.useState<IAssetsDetails[] | undefined>([]);
+  const [, setPtwApprovalWorkflow] = React.useState<IPTWWorkflow | undefined>(undefined);
 
   // Form State to used on update or submit
   const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
@@ -81,7 +82,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_assetId, setAssetId] = React.useState<string>('');
   const [_selectedCompany, setSelectedCompany] = React.useState<ILookupItem | undefined>(undefined);
   const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<number | undefined>(undefined);
-  const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<number | undefined>(undefined);
+  const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<number | undefined>(0);
   const [_projectTitle, setProjectTitle] = React.useState<string>('');
   const [_selectedPermitTypeList, setSelectedPermitTypeList] = React.useState<IWorkCategory[]>([]);
   const [_permitPayload, setPermitPayload] = React.useState<IPermitScheduleRow[]>([]);
@@ -135,7 +136,6 @@ export default function PTWForm(props: IPTWFormProps) {
 
   // Sign-off state
   const [_poDate, setPoDate] = React.useState<string | undefined>(new Date().toISOString());
-
   const [_poStatus, setPoStatus] = React.useState<SignOffStatus>('Approved');
 
   const [_paPicker, setPaPicker] = React.useState<IPersonaProps[]>([]);
@@ -147,7 +147,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_piDate, setPiDate] = React.useState<string | undefined>(undefined);
   const [_piStatus, setPiStatus] = React.useState<SignOffStatus>('Pending');
   const [_piStatusEnabled, setPiStatusEnabled] = React.useState<boolean>(false);
-  // const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
+  const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
 
   const [_assetDirPicker, setAssetDirPicker] = React.useState<IPersonaProps[]>([]);
   const [_assetDirDate, setAssetDirDate] = React.useState<string | undefined>(undefined);
@@ -336,36 +336,25 @@ export default function PTWForm(props: IPTWFormProps) {
     (picker?: IPersonaProps[]) => picker?.[0]?.secondaryText || undefined,
     []
   );
-
-  // Factory to update a single-select "picker" state from ComboBox
-  // const onSingleApproverChange = React.useCallback(
-  //   (groupName: string, setPicker: (items: IPersonaProps[]) => void) =>
-  //     (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
-  //       if (!opt) { setPicker([]); return; }
-  //       const emailKey = String(opt.key);
-  //       const u = (groupMembers[groupName] || []).find(x => (x.email || String(x.id)) === emailKey);
-  //       // Check here if changed user is same as current user in case he is in the same group then setPaStatusDisabled to false
-  //       if (u && u.email === currentUserEmail) {
-  //       }
-  //       else {
-  //       }
-  //       setPicker(u ? [{
-  //         text: u.title || '',
-  //         secondaryText: u.email || '',
-  //         id: String(u.id)
-  //       }] : []);
-  //     },
-  //   [groupMembers]
-  // );
-
+  // Handler for single-approver ComboBox change
   const onSingleApproverChange = React.useCallback((groupName: string, setPicker: (items: IPersonaProps[]) => void, setStatusEnabled?: (enabled: boolean) => void) =>
     (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
-      if (!opt) { setPicker([]); setStatusEnabled?.(false); return; }
+      if (!opt) {
+        setPicker([]);
+        setStatusEnabled?.(false);
+        if (groupName === 'PerformingAuthorityGroup') setPiUnlockedByPA(false)
+        return;
+      }
       const emailKey = String(opt.key);
       const u = (groupMembers[groupName] || []).find(x => (x.email || String(x.id)) === emailKey);
       const selectedEmail = (u?.email || '').toLowerCase();
       const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
       setStatusEnabled?.(isCurrentUser);
+      // If PA equals the logged-in user, unlock the PI section (ComboBox + Status gating)
+      if (groupName === 'PerformingAuthorityGroup') {
+        setPiUnlockedByPA(isCurrentUser);
+      }
+
       setPicker(u ? [{
         text: u.title || '',
         secondaryText: u.email || '',
@@ -378,7 +367,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const stageEnabled = React.useMemo(() => {
     const poEnabled = isPermitOriginator; // Originator signs first
     const paEnabled = isPerformingAuthority && _poStatus === 'Approved';
-    const piEnabled = isPermitIssuer && _paStatus === 'Approved';
+    const piEnabled = (isPermitIssuer && _paStatus === 'Approved') || _piUnlockedByPA;
     // High risk requires AD then HSE; otherwise skip to closure after PI
     const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus === 'Approved';
     const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus === 'Approved';
@@ -388,7 +377,7 @@ export default function PTWForm(props: IPTWFormProps) {
     return { poEnabled, paEnabled, piEnabled, assetDirEnabled, hseDirEnabled, closureEnabled };
   }, [
     isPermitOriginator, isPerformingAuthority, isPermitIssuer, isAssetDirector, isHSEDirector, isAssetManager,
-    _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk
+    _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk, _piUnlockedByPA
   ]);
 
   // State for controlling conditional rendering of sections
@@ -471,7 +460,6 @@ export default function PTWForm(props: IPTWFormProps) {
   //   return formStatus === "Closed";
   // },[localStorage]);
 
-
   const ptwStructureSelect = React.useMemo(() => (
     `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,` +
     `CoralFormId/Title,CoralFormId/ArabicTitle,` +
@@ -486,44 +474,99 @@ export default function PTWForm(props: IPTWFormProps) {
     `ProtectiveSafetyEquiment`
   ), []);
 
-  const _getUsers = React.useCallback(async (EMail?: string, displayName?: string): Promise<IUser[]> => {
-    let fetched: IUser[] = [];
-    let endpoint: string | null = "/users?$select=id,displayName,mail,department,jobTitle,mobilePhone,officeLocation&$expand=manager($select=id,displayName)";
+  // const _getUsers = React.useCallback(async (EMail?: string, displayName?: string): Promise<IUser[]> => {
+  //   let fetched: IUser[] = [];
+  //   let endpoint: string | null = "/users?$select=id,displayName,mail,department,jobTitle,mobilePhone,officeLocation&$expand=manager($select=id,displayName)";
+
+  //   try {
+  //     do {
+  //       const client: MSGraphClientV3 = await (props.context as any).msGraphClientFactory.getClient("3");
+  //       const response: IGraphResponse = await client.api(endpoint).get();
+  //       if (response?.value && Array.isArray(response.value)) {
+  //         const seenIds = new Set<string>();
+  //         const mappedUsers = response.value
+  //           .filter((u: IGraphUserResponse) => u.mail)
+  //           .filter((user) => user.mail && !user.mail?.toLowerCase().includes("healthmailbox") && !user.mail?.toLowerCase().includes("softflow-intl.com") && !user.mail?.toLowerCase().includes("sync"))
+  //           .filter(user => {
+  //             if (seenIds.has(user.id)) return false;
+  //             seenIds.add(user.id);
+  //             return true;
+  //           })
+  //           .map((user: IGraphUserResponse) => ({
+  //             id: user.id,
+  //             displayName: user.displayName,
+  //             email: user.mail,
+  //             jobTitle: user.jobTitle,
+  //             department: user.department,
+  //             officeLocation: user.officeLocation,
+  //             mobilePhone: user.mobilePhone,
+  //             profileImageUrl: undefined,
+  //             isSelected: false,
+  //             manager: user.manager ? { id: user.manager.id, displayName: user.manager.displayName } : undefined,
+  //           } as IUser));
+  //         fetched.push(...mappedUsers);
+  //         endpoint = (response as any)["@odata.nextLink"] || null;
+  //       } else {
+  //         endpoint = null;
+  //       }
+  //     } while (endpoint);
+  //     if (fetched.length > 0) setUsers(fetched);
+  //     return fetched;
+  //   } catch (error) {
+  //     // console.error("Error fetching users:", error);
+  //     setUsers([]);
+  //     return [];
+  //   }
+  // }, [props.context]);
+
+  const _getUsers = React.useCallback(async (EMail?: string, displayName?: string, top: number = 25): Promise<IUser[]> => {
+    const termRaw = (displayName || EMail || '').trim();
+    if (!termRaw) return [];
+    const term = termRaw.replace(/"/g, '');
 
     try {
-      do {
-        const client: MSGraphClientV3 = await (props.context as any).msGraphClientFactory.getClient("3");
-        const response: IGraphResponse = await client.api(endpoint).get();
-        if (response?.value && Array.isArray(response.value)) {
-          const seenIds = new Set<string>();
-          const mappedUsers = response.value
-            .filter((u: IGraphUserResponse) => u.mail)
-            .filter((user) => user.mail && !user.mail?.toLowerCase().includes("healthmailbox") && !user.mail?.toLowerCase().includes("softflow-intl.com") && !user.mail?.toLowerCase().includes("sync"))
-            .filter(user => {
-              if (seenIds.has(user.id)) return false;
-              seenIds.add(user.id);
-              return true;
-            })
-            .map((user: IGraphUserResponse) => ({
-              id: user.id,
-              displayName: user.displayName,
-              email: user.mail,
-              jobTitle: user.jobTitle,
-              department: user.department,
-              officeLocation: user.officeLocation,
-              mobilePhone: user.mobilePhone,
-              profileImageUrl: undefined,
-              isSelected: false,
-              manager: user.manager ? { id: user.manager.id, displayName: user.manager.displayName } : undefined,
-            } as IUser));
-          fetched.push(...mappedUsers);
-          endpoint = (response as any)["@odata.nextLink"] || null;
-        } else {
-          endpoint = null;
-        }
-      } while (endpoint);
-      if (fetched.length > 0) setUsers(fetched);
-      return fetched;
+      const client: MSGraphClientV3 = await (props.context as any).msGraphClientFactory.getClient("3");
+      let res: any;
+      // Try ranked search first (needs ConsistencyLevel: eventual)
+      try {
+        res = await client
+          .api('/users')
+          .header('ConsistencyLevel', 'eventual')
+          .search(`"displayName:${term}" OR "mail:${term}"`)
+          .select('id,displayName,mail,department,jobTitle,mobilePhone,officeLocation')
+          .top(top)
+          .get();
+      } catch {
+        // Fallback to $filter startswith
+        const t = term.toLowerCase();
+        const filter = `startswith(tolower(displayName),'${t}') or startswith(tolower(mail),'${t}') or startswith(tolower(userPrincipalName),'${t}')`;
+        res = await client
+          .api(`/users?$select=id,displayName,mail,department,jobTitle,mobilePhone,officeLocation&$filter=${encodeURIComponent(filter)}&$top=${top}`)
+          .get();
+      }
+
+      const seen = new Set<string>();
+      const mapped: IUser[] = (res?.value || [])
+        .filter((u: any) => u.mail)
+        .filter((u: any) => {
+          const m = (u.mail || '').toLowerCase();
+          return !m.includes('healthmailbox') && !m.includes('softflow-intl.com') && !m.includes('sync');
+        })
+        .filter((u: any) => !seen.has(u.id) && seen.add(u.id))
+        .map((u: any) => ({
+          id: u.id,
+          displayName: u.displayName,
+          email: u.mail,
+          jobTitle: u.jobTitle,
+          department: u.department,
+          officeLocation: u.officeLocation,
+          mobilePhone: u.mobilePhone,
+          profileImageUrl: undefined,
+          isSelected: false,
+          manager: undefined
+        } as IUser));
+      setUsers(mapped);
+      return mapped;
     } catch (error) {
       // console.error("Error fetching users:", error);
       setUsers([]);
@@ -862,13 +905,100 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, [props.context]);
 
+  const _getPTWWorkflow = React.useCallback(async (): Promise<IPTWWorkflow> => {
+    try {
+      const query: string = `?$select=Id,PTWForm/Id,PTWForm/CoralReferenceNumber,POStatus,PAStatus,PIStatus,AssetDirectorStatus,HSEDirectorStatus,POClosureStatus,AssetManagerStatus,` +
+        `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerDate,` +
+        `POApprover/Id,POApprover/EMail,` +
+        `PAApprover/Id,PAApprover/EMail,` +
+        `PIApprover/Id,PIApprover/EMail,` +
+        `AssetDirectorApprover/Id,AssetDirectorApprover/EMail,` +
+        `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,` +
+        `POClosureApprover/Id,POClosureApprover/EMail,` +
+        `AssetManagerApprover/Id,AssetManagerApprover/EMail,` +
+        `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,HSEDirectorApprover,POClosureApprover,AssetManagerApprover`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      let result: IPTWWorkflow = {} as IPTWWorkflow;
+
+      if (data && data.length > 0) {
+        const obj = data[0];
+        result = {
+          id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+          PTWFormId: obj.PTWForm?.Id !== undefined && obj.PTWForm?.Id !== null ? obj.PTWForm.Id : undefined,
+          CoralReferenceNumber: obj.PTWForm?.CoralReferenceNumber !== undefined && obj.PTWForm?.CoralReferenceNumber !== null ? obj.PTWForm.CoralReferenceNumber : undefined,
+          POApprover: obj.POApprover !== undefined && obj.POApprover !== null ? toPersona(obj.POApprover) : undefined,
+          POApprovalDate: obj.POApprovalDate !== undefined && obj.POApprovalDate !== null ? obj.POApprovalDate : undefined,
+          POStatus: obj.POStatus !== undefined && obj.POStatus !== null ? obj.POStatus : undefined,
+
+          PAApprover: obj.PAApprover !== undefined && obj.PAApprover !== null ? toPersona(obj.PAApprover) : undefined,
+          PAApprovalDate: obj.PAApprovalDate !== undefined && obj.PAApprovalDate !== null ? obj.PAApprovalDate : undefined,
+          PAStatus: obj.PAStatus !== undefined && obj.PAStatus !== null ? obj.PAStatus : undefined,
+
+          PIApprover: obj.PIApprover !== undefined && obj.PIApprover !== null ? toPersona(obj.PIApprover) : undefined,
+          PIApprovalDate: obj.PIApprovalDate !== undefined && obj.PIApprovalDate !== null ? obj.PIApprovalDate : undefined,
+          PIStatus: obj.PIStatus !== undefined && obj.PIStatus !== null ? obj.PIStatus : undefined,
+
+          AssetDirectorApprover: obj.AssetDirectorApprover !== undefined && obj.AssetDirectorApprover !== null ? toPersona(obj.AssetDirectorApprover) : undefined,
+          AssetDirectorApprovalDate: obj.AssetDirectorApprovalDate !== undefined && obj.AssetDirectorApprovalDate !== null ? obj.AssetDirectorApprovalDate : undefined,
+          AssetDirectorStatus: obj.AssetDirectorStatus !== undefined && obj.AssetDirectorStatus !== null ? obj.AssetDirectorStatus : undefined,
+
+          HSEDirectorApprover: obj.HSEDirectorApprover !== undefined && obj.HSEDirectorApprover !== null ? toPersona(obj.HSEDirectorApprover) : undefined,
+          HSEDirectorApprovalDate: obj.HSEDirectorApprovalDate !== undefined && obj.HSEDirectorApprovalDate !== null ? obj.HSEDirectorApprovalDate : undefined,
+          HSEDirectorStatus: obj.HSEDirectorStatus !== undefined && obj.HSEDirectorStatus !== null ? obj.HSEDirectorStatus : undefined,
+
+          POClosureApprover: obj.POClosureApprover !== undefined && obj.POClosureApprover !== null ? toPersona(obj.POClosureApprover) : undefined,
+          POClosureDate: obj.POClosureDate !== undefined && obj.POClosureDate !== null ? obj.POClosureDate : undefined,
+          POClosureStatus: obj.POClosureStatus !== undefined && obj.POClosureStatus !== null ? obj.POClosureStatus : undefined,
+
+          AssetManagerApprover: obj.AssetManagerApprover !== undefined && obj.AssetManagerApprover !== null ? toPersona(obj.AssetManagerApprover) : undefined,
+          AssetManagerApprovalDate: obj.AssetManagerApprovalDate !== undefined && obj.AssetManagerApprovalDate !== null ? obj.AssetManagerApprovalDate : undefined,
+          AssetManagerStatus: obj.AssetManagerStatus !== undefined && obj.AssetManagerStatus !== null ? obj.AssetManagerStatus : undefined,
+        };
+
+        setPermitOriginator(result.POApprover ? [{ text: result.POApprover.text || '', secondaryText: result.POApprover.secondaryText || '', id: result.POApprover.id || '' }] : []);
+        setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate).toISOString() : undefined);
+        setPoStatus((result.POStatus as SignOffStatus) ?? undefined);
+
+        setPaPicker(result.PAApprover ? [{ text: result.PAApprover.text || '', secondaryText: result.PAApprover.secondaryText || '', id: result.PAApprover.id || '' }] : []);
+        setPaDate(result.PAApprovalDate ? new Date(result.PAApprovalDate).toISOString() : undefined);
+        setPaStatus((result.PAStatus as SignOffStatus) ?? undefined);
+
+        setPiPicker(result.PIApprover ? [{ text: result.PIApprover.text || '', secondaryText: result.PIApprover.secondaryText || '', id: result.PIApprover.id || '' }] : []);
+        setPiDate(result.PIApprovalDate ? new Date(result.PIApprovalDate).toISOString() : undefined);
+        setPiStatus((result.PIStatus as SignOffStatus) ?? undefined);
+
+        setAssetDirPicker(result.AssetDirectorApprover ? [{ text: result.AssetDirectorApprover.text || '', secondaryText: result.AssetDirectorApprover.secondaryText || '', id: result.AssetDirectorApprover.id || '' }] : []);
+        setAssetDirDate(result.AssetDirectorApprovalDate ? new Date(result.AssetDirectorApprovalDate).toISOString() : undefined);
+        setAssetDirStatus((result.AssetDirectorStatus as SignOffStatus) ?? undefined);
+
+        setHseDirPicker(result.HSEDirectorApprover ? [{ text: result.HSEDirectorApprover.text || '', secondaryText: result.HSEDirectorApprover.secondaryText || '', id: result.HSEDirectorApprover.id || '' }] : []);
+        setHseDirDate(result.HSEDirectorApprovalDate ? new Date(result.HSEDirectorApprovalDate).toISOString() : undefined);
+        setHseDirStatus((result.HSEDirectorStatus as SignOffStatus) ?? undefined);
+
+        setClosurePoStatus((result.POClosureStatus as SignOffStatus) ?? undefined);
+        setClosurePoDate(result.POClosureDate ? new Date(result.POClosureDate).toISOString() : undefined);
+
+        setClosureAssetManagerPicker(result.AssetManagerApprover ? [{ text: result.AssetManagerApprover.text || '', secondaryText: result.AssetManagerApprover.secondaryText || '', id: result.AssetManagerApprover.id || '' }] : []);
+        setClosureAssetManagerDate(result.AssetManagerApprovalDate ? new Date(result.AssetManagerApprovalDate).toISOString() : undefined);
+        setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
+      }
+      setPtwApprovalWorkflow(result);
+      return result;
+    } catch (error) {
+      setPtwApprovalWorkflow({} as IPTWWorkflow);
+      return {} as IPTWWorkflow;
+    }
+  }, [props.context]);
 
   // Initial load of users
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const fetchedUsers = await _getUsers();
+      // const fetchedUsers = await _getUsers();
+      const meEmail = props.context?.pageContext?.user?.email;
+      const fetchedUsers = meEmail ? await _getUsers(meEmail) : [];
       const coralListResult = await _getCoralFormsList();
       await _getPTWFormStructure();
       await _getAssetCategories();
@@ -882,8 +1012,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
       if (!cancelled) {
         try {
-          const currentUserEmail = props.context.pageContext.user.email;
-          const current = fetchedUsers.find(u => u.email === currentUserEmail);
+          // const currentUserEmail = props.context.pageContext.user.email;
+          const current = meEmail ? fetchedUsers.find(u => (u.email || '').toLowerCase() === meEmail.toLowerCase()) : undefined;
           if (current) setPermitOriginator([{ text: current.displayName || '', secondaryText: current.email || '', id: current.id }]);
         } catch (e) {
           // ignore if context not available
@@ -906,52 +1036,45 @@ export default function PTWForm(props: IPTWFormProps) {
     suggestionsContainerAriaLabel: 'Suggested contacts'
   };
 
-  const _onFilterChanged = (filterText: string, currentPersonas: IPersonaProps[]): IPersonaProps[] | Promise<IPersonaProps[]> => {
-    if (filterText) {
-      let filteredPersonas: IPersonaProps[] = [];
-      if (_users && _users.length > 0) {
-        filteredPersonas = _users
-          .filter(user =>
-            user.displayName?.toLowerCase().includes(filterText.toLowerCase()) ||
-            user.email?.toLowerCase().includes(filterText.toLowerCase())
-          )
-          .map(user => ({
-            text: user.displayName || '',
-            secondaryText: user.email || '',
-            id: user.id
-          }));
-      }
-      return filteredPersonas.filter(persona =>
-        !currentPersonas.some(currentPersona => currentPersona.id === persona.id)
-      );
-    } else {
-      return [];
-    }
+  const _onFilterChanged = (filterText: string, currentPersonas: IPersonaProps[]): Promise<IPersonaProps[]> => {
+    const term = (filterText || '').trim();
+    if (term.length < 2) return Promise.resolve([]);
+    return _getUsers(undefined, term, 25).then(users =>
+      users
+        .map(u => ({ text: u.displayName || '', secondaryText: u.email || '', id: u.id } as IPersonaProps))
+        .filter(p => !currentPersonas.some(cp => cp.id === p.id))
+    );
   };
-
-  // const _onFilterChangedForGroup = (groupName: string) =>
-  //   (filterText: string, currentPersonas: IPersonaProps[]) => {
-  //     if (!filterText) return [];
-  //     const allowed = new Set((groupMembers[groupName] || []).map(m => (m.email || '').toLowerCase()));
-  //     return (_users || [])
-  //       .filter(u =>
-  //         (u.displayName?.toLowerCase().includes(filterText.toLowerCase()) ||
-  //           u.email?.toLowerCase().includes(filterText.toLowerCase())) &&
-  //         (u.email && allowed.has(u.email.toLowerCase()))
-  //       )
-  //       .map(u => ({ text: u.displayName || '', secondaryText: u.email || '', id: u.id }))
-  //       .filter(p => !currentPersonas.some(cp => cp.id === p.id));
-  //   };
 
   // Handle asset category change
   const onAssetCategoryChange = (event: React.FormEvent<IComboBox>, item: IDropdownOption | undefined): void => {
     setSelectedAssetCategory(item ? Number(item.key) : undefined);
-    setSelectedAssetDetails(undefined);
+    setSelectedAssetDetails(0);
+    setPiPicker([]);
   };
 
   // Handle asset details change
   const onAssetDetailsChange = (event: React.FormEvent<HTMLDivElement>, item: IDropdownOption | undefined): void => {
-    setSelectedAssetDetails(item ? Number(item.key) : undefined);
+    const selectedId = item ? Number(item.key) : undefined;
+    setSelectedAssetDetails(selectedId);
+    if (selectedId) {
+      // Find the selected asset detail and use its HSEPartner as the Permit Issuer
+      const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selectedId);
+      const hsePartnerPersona = detail?.hsePartner; // IPersonaProps set in _getAssetDetails
+
+      if (hsePartnerPersona) {
+        setPiPicker([hsePartnerPersona]);
+        // Enable PI status only if selected PI is the logged-in user
+        setPiStatusEnabled(((hsePartnerPersona.secondaryText || '').toLowerCase() === currentUserEmail));
+      } else {
+        setPiPicker([]);
+        setPiStatusEnabled(false);
+      }
+    } else {
+      // Cleared asset details; clear PI selection/status
+      setPiPicker([]);
+      setPiStatusEnabled(false);
+    }
   };
 
   // Asset details options (filtered by selected category)
@@ -1225,6 +1348,7 @@ export default function PTWForm(props: IPTWFormProps) {
   React.useEffect(() => {
     const selectedEmail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
     setPaStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
+    setPaStatus(!!selectedEmail && selectedEmail === currentUserEmail ? 'Approved' : 'Pending');
   }, [_paPicker, currentUserEmail]);
 
   React.useEffect(() => {
@@ -1406,8 +1530,6 @@ export default function PTWForm(props: IPTWFormProps) {
           }
         }
       }
-
-
 
       if (!payload.hacWorkAreaId?.toString().trim()) missing.push('HAC Work Area');
 
@@ -1631,7 +1753,7 @@ export default function PTWForm(props: IPTWFormProps) {
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
     };
-
+    debugger;
     // OData v4 style for multi-lookup fields: array + @odata.type
     if (payload.permitTypes?.length) {
       body['WorkCategoryId@odata.type'] = 'Collection(Edm.Int32)';
@@ -1675,9 +1797,9 @@ export default function PTWForm(props: IPTWFormProps) {
           throw new Error('Failed to create PTW Work Permits');
         }
       }
-
-      if (mode === 'submit' && isPermitOriginator) {
-        const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), _coralReferenceNumber, originatorId);
+      debugger;
+      if (mode === 'submit') {
+        const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), originatorId);
 
         if (!_createdWorkflow) {
           throw new Error('Failed to create PTW Form Approval Workflow');
@@ -1763,20 +1885,46 @@ export default function PTWForm(props: IPTWFormProps) {
     return results;
   }, [props.context.spHttpClient]);
 
-  const _createPTWFormApprovalWorkflow = React.useCallback(async (parentId: number, coralReferenceNumber: string, originatorId: number | undefined) => {
-    if (originatorId === undefined || !coralReferenceNumber) return;
+  const _createPTWFormApprovalWorkflow = React.useCallback(async (parentId: number, originatorId: number | undefined) => {
+
+    if (originatorId === undefined) return;
     const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', '');
+    let _paStatusForPOPA = '';
+    debugger;
+    if (originatorId === _paPicker?.length ? await ops.ensureUserId(_paPicker[0].secondaryText) : null) {
+      _paStatusForPOPA = _paStatus === 'Approved' ? _paStatus : 'Approved';
+    } else {
+      _paStatusForPOPA = _paStatus || 'Pending';
+    }
 
     try {
-      const body: any = {
+      let body: any = {
         PTWFormId: parentId,
-        Title: coralReferenceNumber,
-        ApproverGroupOrUserId: originatorId ?? null,
         StatusRecord: 'New',
         IsFinalApprover: false,
-        ApproversNameId: originatorId ?? null,
-        OrderRecord: 1
+
+        POApproverId: originatorId ?? null,
+        POApprovalDate: _poDate || null,
+        POStatus: _poStatus || 'Approved',
+
+        PAApproverId: _paPicker?.length ? await ops.ensureUserId(_paPicker[0].secondaryText) : null,
+        PAStatus: _paStatusForPOPA,
+        PAApprovalDate: _paDate || null,
+
+        PIApproverId: _piPicker?.length ? await ops.ensureUserId(_piPicker[0].secondaryText) : null,
+        PIStatus: _piStatus || 'Pending',
+        PIApprovalDate: _piDate || null,
       };
+
+      if (_overAllRiskAssessment && _overAllRiskAssessment.toLowerCase() === 'high') {
+        body.AssetDirectorApproverId = _assetDirPicker?.length ? await ops.ensureUserId(_assetDirPicker[0].secondaryText) : null;
+        body.AssetDirectorStatus = _assetDirStatus || 'Pending';
+        body.AssetDirectorApprovalDate = _assetDirDate || null;
+
+        body.HSEDirectorApproverId = _hseDirPicker?.length ? await ops.ensureUserId(_hseDirPicker[0].secondaryText) : null;
+        body.HSEDirectorStatus = _hseDirStatus || 'Pending';
+        body.HSEDirectorApprovalDate = _hseDirDate || null;
+      }
 
       const data = ops._insertItem(body);
       if (!data) throw new Error('Failed to create PTW Form Approval Workflow.');
@@ -1861,8 +2009,8 @@ export default function PTWForm(props: IPTWFormProps) {
       }
     }
 
-    if (mode === 'submit' && isPermitOriginator) {
-      const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(id), _coralReferenceNumber, originatorId);
+    if (mode === 'submit') {
+      const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(id), originatorId);
 
       if (!_createdWorkflow) {
         throw new Error('Failed to create PTW Form Approval Workflow');
@@ -2073,6 +2221,7 @@ export default function PTWForm(props: IPTWFormProps) {
           }
         }
 
+        await _getPTWWorkflow();
         if (!cancelled) setPrefilledFormId(formId);
       } catch (e) {
         showBanner('An error occurred while loading the form for editing.', { autoHideMs: 5000, fade: true, kind: 'error' });
@@ -2190,7 +2339,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
             <div className={`form-group col-md-6`}>
               <TextField label="PTW Ref #"
-                disabled
+                readOnly
                 value={_coralReferenceNumber}
               // styles={{ root: { color: '#000', fontWeight: 500, backgroundColor: '#f4f4f4' } }}
               // onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')}
@@ -2655,7 +2804,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
                   <TextField className='pb-1'
                     value={_PermitOriginator?.[0]?.text || ''}
-                    disabled={true}
+                    readOnly
                   // disabled={!isPermitOriginator && isPermitOriginator} 
                   />
                   <DatePicker
