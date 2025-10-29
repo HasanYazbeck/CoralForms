@@ -147,8 +147,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_piDate, setPiDate] = React.useState<string | undefined>(undefined);
   const [_piStatus, setPiStatus] = React.useState<SignOffStatus>('Pending');
   const [_piStatusEnabled, setPiStatusEnabled] = React.useState<boolean>(false);
-  const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
-  
+  // const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
+
   const [_assetDirPicker, setAssetDirPicker] = React.useState<IPersonaProps[]>([]);
   const [_assetDirDate, setAssetDirDate] = React.useState<string | undefined>(undefined);
   const [_assetDirStatus, setAssetDirStatus] = React.useState<SignOffStatus>('Pending');
