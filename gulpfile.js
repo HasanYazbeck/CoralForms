@@ -12,10 +12,12 @@ build.rig.getTasks = function () {
 
   return result;
 };
-build.configureWebpack.mergeConfig({
-  additionalConfiguration: (config) => {
-    config.devtool = false; // turn off source maps in development
-    return config;
-  }
-});
+
+// build.configureWebpack.mergeConfig({
+//   additionalConfiguration: (config) => {
+//     config.devtool = false; // turn off source maps in development
+//     return config;
+//   }
+// });
+
 build.initialize(require('gulp'));
