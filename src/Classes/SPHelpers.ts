@@ -126,14 +126,14 @@ export class SPHelpers {
   }
 
   public async generateCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string,
-    finalRecord: { Id: number; Created?: string | Date }, companyTitle?: string): Promise<string> {
+    finalRecord: { Id: number; Created?: string | Date }, companyTitle?: string , formName?:string): Promise<string> {
     const companyCode = this.getCompanyCode(companyTitle);
     const createdDate = finalRecord?.Created
       ? new Date(finalRecord.Created as any)
       : new Date();
 
     const yyyymmdd = this.formatYYYYMMDD(createdDate);
-    const prefix = `${companyCode}-HSE-PPE-${yyyymmdd}-`;
+    const prefix = `${companyCode}-HSE-${formName}-${yyyymmdd}-`;
     const esc = (s: string) => s.replace(/'/g, "''");
 
     // Get the last reference for this date and prefix, then increment NN
@@ -158,14 +158,15 @@ export class SPHelpers {
 
   // Convenience: compute and immediately update the item’s CoralReferenceNumber
   public async assignCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string, finalRecord: { Id: number; Created?: string | Date },
-    companyTitle?: string
+    companyTitle?: string , formName?:string
   ): Promise<string> {
     const coralRef = await this.generateCoralReferenceNumber(
       spHttpClient,
       webUrl,
       listTitle,
       finalRecord,
-      companyTitle
+      companyTitle,
+      formName
     );
 
     const updater = new SPCrudOperations(spHttpClient, webUrl, listTitle, '');

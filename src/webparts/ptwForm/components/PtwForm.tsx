@@ -52,6 +52,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const overlayRef = React.useRef<HTMLDivElement>(null);
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
+  const payloadRef = React.useRef<any>(null);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [mode, setMode] = React.useState<'saved' | 'submitted' | 'approved' | 'new'>('new');
@@ -74,7 +75,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const webUrl = props.context.pageContext.web.absoluteUrl;
   const [assetCategoriesList, setAssetCategoriesList] = React.useState<ILookupItem[] | undefined>([]);
   const [assetCategoriesDetailsList, setAssetCategoriesDetailsList] = React.useState<IAssetsDetails[] | undefined>([]);
-  const [, setPtwApprovalWorkflow] = React.useState<IPTWWorkflow | undefined>(undefined);
 
   // Form State to used on update or submit
   const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
@@ -135,45 +135,43 @@ export default function PTWForm(props: IPTWFormProps) {
   const [groupMembers, setGroupMembers] = React.useState<Record<string, SPGroupUser[]>>({});
 
   // Sign-off state
-  const [_poDate, setPoDate] = React.useState<string | undefined>(new Date().toISOString());
+  const [_poDate, setPoDate] = React.useState<Date | undefined>(new Date());
   const [_poStatus, setPoStatus] = React.useState<SignOffStatus>('Approved');
 
   const [_paPicker, setPaPicker] = React.useState<IPersonaProps[]>([]);
-  const [_paDate, setPaDate] = React.useState<string | undefined>(undefined);
+  const [_paDate, setPaDate] = React.useState<Date | undefined>(new Date());
   const [_paStatus, setPaStatus] = React.useState<SignOffStatus>('Pending');
   const [_paStatusEnabled, setPaStatusEnabled] = React.useState<boolean>(false);
 
   const [_piPicker, setPiPicker] = React.useState<IPersonaProps[]>([]);
-  const [_piDate, setPiDate] = React.useState<string | undefined>(undefined);
+  const [_piDate, setPiDate] = React.useState<Date | undefined>(new Date());
   const [_piStatus, setPiStatus] = React.useState<SignOffStatus>('Pending');
   const [_piStatusEnabled, setPiStatusEnabled] = React.useState<boolean>(false);
   const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
 
   const [_assetDirPicker, setAssetDirPicker] = React.useState<IPersonaProps[]>([]);
-  const [_assetDirDate, setAssetDirDate] = React.useState<string | undefined>(undefined);
+  const [_assetDirDate, setAssetDirDate] = React.useState<Date | undefined>(new Date());
   const [_assetDirStatus, setAssetDirStatus] = React.useState<SignOffStatus>('Pending');
   const [_assetDirStatusEnabled, setAssetDirStatusEnabled] = React.useState<boolean>(false);
 
   const [_hseDirPicker, setHseDirPicker] = React.useState<IPersonaProps[]>([]);
-  const [_hseDirDate, setHseDirDate] = React.useState<string | undefined>(undefined);
+  const [_hseDirDate, setHseDirDate] = React.useState<Date | undefined>(new Date());
   const [_hseDirStatus, setHseDirStatus] = React.useState<SignOffStatus>('Pending');
   const [_hseDirStatusEnabled, setHseDirStatusEnabled] = React.useState<boolean>(false);
 
   // PTW Closure state
-  const [_closurePoDate, setClosurePoDate] = React.useState<string | undefined>(undefined);
+  const [_closurePoDate, setClosurePoDate] = React.useState<Date | undefined>(new Date());
   const [_closurePoStatus, setClosurePoStatus] = React.useState<SignOffStatus>('Pending');
 
   const [_closureAssetManagerPicker, setClosureAssetManagerPicker] = React.useState<IPersonaProps[]>([]);
-  const [_closureAssetManagerDate, setClosureAssetManagerDate] = React.useState<string | undefined>(undefined);
+  const [_closureAssetManagerDate, setClosureAssetManagerDate] = React.useState<Date | undefined>(new Date());
   const [_closureAssetManagerStatus, setClosureAssetManagerStatus] = React.useState<SignOffStatus>('Pending');
   const [_closureAssetManagerStatusEnabled, setClosureAssetManagerStatusEnabled] = React.useState<boolean>(false);
 
-  // const isSubmitted = mode === 'submitted';
   const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
 
   // Determine if current user is the Permit Originator
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
-  const permitOriginatorEmail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
 
   // Resolve eligibility from SP group membership for Permit Originator Group Logged In Users
   React.useEffect(() => {
@@ -311,7 +309,9 @@ export default function PTWForm(props: IPTWFormProps) {
         );
         if (!disposed) {
           const map: Record<string, SPGroupUser[]> = {};
-          entries.forEach(([name, users]) => { map[name] = users; });
+          entries.forEach(([name, users]) => {
+            map[name] = users;
+          });
           setGroupMembers(map);
         }
       } catch {
@@ -325,17 +325,12 @@ export default function PTWForm(props: IPTWFormProps) {
   const getOptionsForGroup = React.useCallback(
     (groupName: string): IDropdownOption[] =>
       (groupMembers[groupName] || []).map(m => ({
-        key: m.email || String(m.id),
-        text: m.title || m.email || String(m.id)
+        key: String(m.id) || m.email,
+        text: m.title || m.email
       })),
     [groupMembers]
   );
 
-  // Current selected email from a PeoplePicker-like state
-  const selectedKeyFromPicker = React.useCallback(
-    (picker?: IPersonaProps[]) => picker?.[0]?.secondaryText || undefined,
-    []
-  );
   // Handler for single-approver ComboBox change
   const onSingleApproverChange = React.useCallback((groupName: string, setPicker: (items: IPersonaProps[]) => void, setStatusEnabled?: (enabled: boolean) => void) =>
     (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
@@ -345,8 +340,8 @@ export default function PTWForm(props: IPTWFormProps) {
         if (groupName === 'PerformingAuthorityGroup') setPiUnlockedByPA(false)
         return;
       }
-      const emailKey = String(opt.key);
-      const u = (groupMembers[groupName] || []).find(x => (x.email || String(x.id)) === emailKey);
+      const idKey = opt.key;
+      const u = (groupMembers[groupName] || []).find(x => x.id === Number(idKey));
       const selectedEmail = (u?.email || '').toLowerCase();
       const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
       setStatusEnabled?.(isCurrentUser);
@@ -363,22 +358,6 @@ export default function PTWForm(props: IPTWFormProps) {
     },
     [groupMembers, currentUserEmail]
   );
-
-  const stageEnabled = React.useMemo(() => {
-    const poEnabled = isPermitOriginator; // Originator signs first
-    const paEnabled = isPerformingAuthority && _poStatus === 'Approved';
-    const piEnabled = (isPermitIssuer && _paStatus === 'Approved') || _piUnlockedByPA;
-    // High risk requires AD then HSE; otherwise skip to closure after PI
-    const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus === 'Approved';
-    const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus === 'Approved';
-    const closureEnabled = isAssetManager && (
-      (isHighRisk ? _hseDirStatus === 'Approved' : _piStatus === 'Approved')
-    );
-    return { poEnabled, paEnabled, piEnabled, assetDirEnabled, hseDirEnabled, closureEnabled };
-  }, [
-    isPermitOriginator, isPerformingAuthority, isPermitIssuer, isAssetDirector, isHSEDirector, isAssetManager,
-    _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk, _piUnlockedByPA
-  ]);
 
   // State for controlling conditional rendering of sections
   const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
@@ -473,51 +452,6 @@ export default function PTWForm(props: IPTWFormProps) {
     `&$expand=CoralFormId,CompanyRecord,WorkCategory,HACWorkArea,WorkHazards,Machinery,PrecuationItems,` +
     `ProtectiveSafetyEquiment`
   ), []);
-
-  // const _getUsers = React.useCallback(async (EMail?: string, displayName?: string): Promise<IUser[]> => {
-  //   let fetched: IUser[] = [];
-  //   let endpoint: string | null = "/users?$select=id,displayName,mail,department,jobTitle,mobilePhone,officeLocation&$expand=manager($select=id,displayName)";
-
-  //   try {
-  //     do {
-  //       const client: MSGraphClientV3 = await (props.context as any).msGraphClientFactory.getClient("3");
-  //       const response: IGraphResponse = await client.api(endpoint).get();
-  //       if (response?.value && Array.isArray(response.value)) {
-  //         const seenIds = new Set<string>();
-  //         const mappedUsers = response.value
-  //           .filter((u: IGraphUserResponse) => u.mail)
-  //           .filter((user) => user.mail && !user.mail?.toLowerCase().includes("healthmailbox") && !user.mail?.toLowerCase().includes("softflow-intl.com") && !user.mail?.toLowerCase().includes("sync"))
-  //           .filter(user => {
-  //             if (seenIds.has(user.id)) return false;
-  //             seenIds.add(user.id);
-  //             return true;
-  //           })
-  //           .map((user: IGraphUserResponse) => ({
-  //             id: user.id,
-  //             displayName: user.displayName,
-  //             email: user.mail,
-  //             jobTitle: user.jobTitle,
-  //             department: user.department,
-  //             officeLocation: user.officeLocation,
-  //             mobilePhone: user.mobilePhone,
-  //             profileImageUrl: undefined,
-  //             isSelected: false,
-  //             manager: user.manager ? { id: user.manager.id, displayName: user.manager.displayName } : undefined,
-  //           } as IUser));
-  //         fetched.push(...mappedUsers);
-  //         endpoint = (response as any)["@odata.nextLink"] || null;
-  //       } else {
-  //         endpoint = null;
-  //       }
-  //     } while (endpoint);
-  //     if (fetched.length > 0) setUsers(fetched);
-  //     return fetched;
-  //   } catch (error) {
-  //     // console.error("Error fetching users:", error);
-  //     setUsers([]);
-  //     return [];
-  //   }
-  // }, [props.context]);
 
   const _getUsers = React.useCallback(async (EMail?: string, displayName?: string, top: number = 25): Promise<IUser[]> => {
     const termRaw = (displayName || EMail || '').trim();
@@ -902,92 +836,6 @@ export default function PTWForm(props: IPTWFormProps) {
       setSafeguards([]);
       setFilteredSafeguards([]);
       return [];
-    }
-  }, [props.context]);
-
-  const _getPTWWorkflow = React.useCallback(async (): Promise<IPTWWorkflow> => {
-    try {
-      const query: string = `?$select=Id,PTWForm/Id,PTWForm/CoralReferenceNumber,POStatus,PAStatus,PIStatus,AssetDirectorStatus,HSEDirectorStatus,POClosureStatus,AssetManagerStatus,` +
-        `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerDate,` +
-        `POApprover/Id,POApprover/EMail,` +
-        `PAApprover/Id,PAApprover/EMail,` +
-        `PIApprover/Id,PIApprover/EMail,` +
-        `AssetDirectorApprover/Id,AssetDirectorApprover/EMail,` +
-        `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,` +
-        `POClosureApprover/Id,POClosureApprover/EMail,` +
-        `AssetManagerApprover/Id,AssetManagerApprover/EMail,` +
-        `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,HSEDirectorApprover,POClosureApprover,AssetManagerApprover`;
-      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', query);
-      const data = await spCrudRef.current._getItemsWithQuery();
-      let result: IPTWWorkflow = {} as IPTWWorkflow;
-
-      if (data && data.length > 0) {
-        const obj = data[0];
-        result = {
-          id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-          PTWFormId: obj.PTWForm?.Id !== undefined && obj.PTWForm?.Id !== null ? obj.PTWForm.Id : undefined,
-          CoralReferenceNumber: obj.PTWForm?.CoralReferenceNumber !== undefined && obj.PTWForm?.CoralReferenceNumber !== null ? obj.PTWForm.CoralReferenceNumber : undefined,
-          POApprover: obj.POApprover !== undefined && obj.POApprover !== null ? toPersona(obj.POApprover) : undefined,
-          POApprovalDate: obj.POApprovalDate !== undefined && obj.POApprovalDate !== null ? obj.POApprovalDate : undefined,
-          POStatus: obj.POStatus !== undefined && obj.POStatus !== null ? obj.POStatus : undefined,
-
-          PAApprover: obj.PAApprover !== undefined && obj.PAApprover !== null ? toPersona(obj.PAApprover) : undefined,
-          PAApprovalDate: obj.PAApprovalDate !== undefined && obj.PAApprovalDate !== null ? obj.PAApprovalDate : undefined,
-          PAStatus: obj.PAStatus !== undefined && obj.PAStatus !== null ? obj.PAStatus : undefined,
-
-          PIApprover: obj.PIApprover !== undefined && obj.PIApprover !== null ? toPersona(obj.PIApprover) : undefined,
-          PIApprovalDate: obj.PIApprovalDate !== undefined && obj.PIApprovalDate !== null ? obj.PIApprovalDate : undefined,
-          PIStatus: obj.PIStatus !== undefined && obj.PIStatus !== null ? obj.PIStatus : undefined,
-
-          AssetDirectorApprover: obj.AssetDirectorApprover !== undefined && obj.AssetDirectorApprover !== null ? toPersona(obj.AssetDirectorApprover) : undefined,
-          AssetDirectorApprovalDate: obj.AssetDirectorApprovalDate !== undefined && obj.AssetDirectorApprovalDate !== null ? obj.AssetDirectorApprovalDate : undefined,
-          AssetDirectorStatus: obj.AssetDirectorStatus !== undefined && obj.AssetDirectorStatus !== null ? obj.AssetDirectorStatus : undefined,
-
-          HSEDirectorApprover: obj.HSEDirectorApprover !== undefined && obj.HSEDirectorApprover !== null ? toPersona(obj.HSEDirectorApprover) : undefined,
-          HSEDirectorApprovalDate: obj.HSEDirectorApprovalDate !== undefined && obj.HSEDirectorApprovalDate !== null ? obj.HSEDirectorApprovalDate : undefined,
-          HSEDirectorStatus: obj.HSEDirectorStatus !== undefined && obj.HSEDirectorStatus !== null ? obj.HSEDirectorStatus : undefined,
-
-          POClosureApprover: obj.POClosureApprover !== undefined && obj.POClosureApprover !== null ? toPersona(obj.POClosureApprover) : undefined,
-          POClosureDate: obj.POClosureDate !== undefined && obj.POClosureDate !== null ? obj.POClosureDate : undefined,
-          POClosureStatus: obj.POClosureStatus !== undefined && obj.POClosureStatus !== null ? obj.POClosureStatus : undefined,
-
-          AssetManagerApprover: obj.AssetManagerApprover !== undefined && obj.AssetManagerApprover !== null ? toPersona(obj.AssetManagerApprover) : undefined,
-          AssetManagerApprovalDate: obj.AssetManagerApprovalDate !== undefined && obj.AssetManagerApprovalDate !== null ? obj.AssetManagerApprovalDate : undefined,
-          AssetManagerStatus: obj.AssetManagerStatus !== undefined && obj.AssetManagerStatus !== null ? obj.AssetManagerStatus : undefined,
-        };
-
-        setPermitOriginator(result.POApprover ? [{ text: result.POApprover.text || '', secondaryText: result.POApprover.secondaryText || '', id: result.POApprover.id || '' }] : []);
-        setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate).toISOString() : undefined);
-        setPoStatus((result.POStatus as SignOffStatus) ?? undefined);
-
-        setPaPicker(result.PAApprover ? [{ text: result.PAApprover.text || '', secondaryText: result.PAApprover.secondaryText || '', id: result.PAApprover.id || '' }] : []);
-        setPaDate(result.PAApprovalDate ? new Date(result.PAApprovalDate).toISOString() : undefined);
-        setPaStatus((result.PAStatus as SignOffStatus) ?? undefined);
-
-        setPiPicker(result.PIApprover ? [{ text: result.PIApprover.text || '', secondaryText: result.PIApprover.secondaryText || '', id: result.PIApprover.id || '' }] : []);
-        setPiDate(result.PIApprovalDate ? new Date(result.PIApprovalDate).toISOString() : undefined);
-        setPiStatus((result.PIStatus as SignOffStatus) ?? undefined);
-
-        setAssetDirPicker(result.AssetDirectorApprover ? [{ text: result.AssetDirectorApprover.text || '', secondaryText: result.AssetDirectorApprover.secondaryText || '', id: result.AssetDirectorApprover.id || '' }] : []);
-        setAssetDirDate(result.AssetDirectorApprovalDate ? new Date(result.AssetDirectorApprovalDate).toISOString() : undefined);
-        setAssetDirStatus((result.AssetDirectorStatus as SignOffStatus) ?? undefined);
-
-        setHseDirPicker(result.HSEDirectorApprover ? [{ text: result.HSEDirectorApprover.text || '', secondaryText: result.HSEDirectorApprover.secondaryText || '', id: result.HSEDirectorApprover.id || '' }] : []);
-        setHseDirDate(result.HSEDirectorApprovalDate ? new Date(result.HSEDirectorApprovalDate).toISOString() : undefined);
-        setHseDirStatus((result.HSEDirectorStatus as SignOffStatus) ?? undefined);
-
-        setClosurePoStatus((result.POClosureStatus as SignOffStatus) ?? undefined);
-        setClosurePoDate(result.POClosureDate ? new Date(result.POClosureDate).toISOString() : undefined);
-
-        setClosureAssetManagerPicker(result.AssetManagerApprover ? [{ text: result.AssetManagerApprover.text || '', secondaryText: result.AssetManagerApprover.secondaryText || '', id: result.AssetManagerApprover.id || '' }] : []);
-        setClosureAssetManagerDate(result.AssetManagerApprovalDate ? new Date(result.AssetManagerApprovalDate).toISOString() : undefined);
-        setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
-      }
-      setPtwApprovalWorkflow(result);
-      return result;
-    } catch (error) {
-      setPtwApprovalWorkflow({} as IPTWWorkflow);
-      return {} as IPTWWorkflow;
     }
   }, [props.context]);
 
@@ -1477,27 +1325,56 @@ export default function PTWForm(props: IPTWFormProps) {
       attachmentsDetails: _attachmentsResult,
       machineryIds: _selectedMachineryIds || [],
       personnelIds: _selectedPersonnelIds || [],
-      originator: _PermitOriginator?.[0]?.secondaryText || '',
+      originator: _PermitOriginator?.[0]?.id || '',
+      toolboxTalk: _selectedToolboxTalk !== undefined && _selectedToolboxTalk ? true : false,
+      toolboxTalkDate: _selectedToolboxTalkDate || '',
+      toolboxTalkConductedById: _selectedToolboxConductedBy?.[0]?.id || '',
+      toolboxHSEReference: _toolboxHSEReference || '',
+      poApprovalDate: _poDate || '',
+      poStatus: _poStatus || '',
+      paPickerId: _paPicker?.[0]?.id || '',
+      paApprovalDate: _paDate || '',
+      paStatus: _paStatus || '',
+      piPickerId: _piPicker?.[0]?.id || '',
+      piApprovalDate: _piDate || '',
+      piStatus: _piStatus || '',
+      assetDirPickerId: _assetDirPicker?.[0]?.id || '',
+      assetDirApprovalDate: _assetDirDate || '',
+      assetDirStatus: _assetDirStatus || '',
+      hseDirPickerId: _hseDirPicker?.[0]?.id || '',
+      hseDirApprovalDate: _hseDirDate || '',
+      hseDirStatus: _hseDirStatus || '',
+      closureAssetManagerPickerId: _closureAssetManagerPicker?.[0]?.id || '',
+      closureAssetManagerApprovalDate: _closureAssetManagerDate || '',
+      closureAssetManagerStatus: _closureAssetManagerStatus || '',
+      closurePOPicker: _PermitOriginator?.[0]?.id || '',
+      closurePOApprovalDate: _closurePoDate || '',
+      closurePOStatus: _closurePoStatus || '',
     };
-  }, [
-    _coralReferenceNumber, _assetId, _selectedAssetCategory, _selectedAssetDetails, _projectTitle,
+  }, [_coralReferenceNumber, _assetId, _selectedAssetCategory, _selectedAssetDetails, _projectTitle,
     _selectedPermitTypeList, _permitPayload, _selectedHacWorkAreaId,
     _selectedWorkHazardIds, _selectedPrecautionIds, _selectedProtectiveEquipmentIds,
     _gasTestValue, _gasTestResult, _fireWatchValue, _fireWatchAssigned, _protectiveEquipmentsOtherText, _precautionsOtherText,
-    _attachmentsValue, _attachmentsResult, _selectedMachineryIds, _selectedPersonnelIds, permitOriginatorEmail,
-    _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment
+    _attachmentsValue, _attachmentsResult, _selectedMachineryIds, _selectedPersonnelIds, _PermitOriginator,
+    _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment,
+    _poDate, _poStatus, _paPicker, _paDate, _paStatus, _piPicker, _piDate, _piStatus,
+    _assetDirPicker, _assetDirDate, _assetDirStatus,
+    _hseDirPicker, _hseDirDate, _hseDirStatus,
+    _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
+    _closurePoDate, _closurePoStatus
   ]);
 
   const validateBeforeSubmit = React.useCallback((mode: 'save' | 'submit' | 'approve'): string | undefined => {
     const missing: string[] = [];
     const payload = buildPayload();
+    payloadRef.current = payload;
 
     if (!payload.originator.trim()) {
       missing.push('Permit Originator');
       return `Please fill in the required fields: ${missing.join(', ')}.`;
     };
 
-    if (isPermitOriginator && (mode === 'submit')) {
+    if ((mode === 'submit')) {
       if (!payload?.assetId?.trim()) missing.push('Asset ID');
       if (!payload.assetCategoryId?.toString().trim()) missing.push('Asset Category');
       if (!payload.assetDetailsId?.toString().trim()) missing.push('Asset Details');
@@ -1529,6 +1406,9 @@ export default function PTWForm(props: IPTWFormProps) {
             }
           }
         }
+        else if (selectedNewPermitRows.length === 0) {
+          missing.push('At least one Permit Row in Permit Schedule required for New Permit.');
+        }
       }
 
       if (!payload.hacWorkAreaId?.toString().trim()) missing.push('HAC Work Area');
@@ -1540,10 +1420,9 @@ export default function PTWForm(props: IPTWFormProps) {
         if (rows.length === 0) {
           missing.push('At least one Task / Job Description');
         } else {
-          const missingTaskRows = rows
-            .map((row, idx) => ({ idx, hasTask: !!String(row?.task || '').trim() }))
+          const missingTaskRows = rows.map((row, idx) => ({ idx, hasTask: !!String(row?.task || '').trim() }))
             .filter(x => !x.hasTask)
-            .map(x => x.idx + 1); // 1-based
+            .map(x => x.idx + 1);
           if (missingTaskRows.length) {
             missing.push(`Task / Job Description missing for row(s): ${missingTaskRows.join(', ')}`);
           }
@@ -1563,13 +1442,10 @@ export default function PTWForm(props: IPTWFormProps) {
       }
 
       // NEW: Attachments validation
-      // if (!payload.attachmentsProvided || String(payload.attachmentsProvided).trim() === '') {
-      //   missing.push('Attachment(s) provided');
-      // }
-      // const isAttachmentYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
-      // if (isAttachmentYes && !String(payload.attachmentsDetails || '').trim()) {
-      //   missing.push('Attachment(s) details');
-      // }
+      const isAttachmentYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
+      if (isAttachmentYes && !String(payload.attachmentsDetails || '').trim()) {
+        missing.push('Attachment(s) details');
+      }
 
       // NEW: Ensure at least one Protective & Safety Equipment selected
       if (!payload.protectiveEquipmentIds || payload.protectiveEquipmentIds.length === 0) {
@@ -1589,6 +1465,12 @@ export default function PTWForm(props: IPTWFormProps) {
       if (missing.length) {
         return `Please fill in the required fields: ${missing.join(', ')}.`;
       }
+
+    }
+
+    if (isPerformingAuthority && (mode === 'submit' || mode === 'approve')) {
+
+
     }
 
     // TODO: Check if is PermitAuthority and mode is approve
@@ -1597,66 +1479,66 @@ export default function PTWForm(props: IPTWFormProps) {
     // }
 
     // TODO: Check if is PermistIssuer and mode is approve , validate for 
-    // if (isPermitIssuer && (mode === 'approve')) {
-    //   // Add any approval-specific validations here
+    if (isPermitIssuer && (mode === 'approve')) {
+      // Add any approval-specific validations here
 
-    // Tasks required when 3+ hazards: list rows missing a task
-    // const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
-    // if (hazardsCount >= 3) {
-    //   const rows = Array.isArray(payload.workTaskLists) ? payload.workTaskLists : [];
-    //   if (rows.length >= 1) {
-    //     // Initial Risk required per row
-    //     const missingInitialRiskRows = rows
-    //       .map((row, idx) => ({ idx, ok: !!String((row as any)?.initialRisk || '').trim() }))
-    //       .filter(x => !x.ok)
-    //       .map(x => x.idx + 1);
-    //     if (missingInitialRiskRows.length) {
-    //       missing.push(`Initial Risk missing for row(s): ${missingInitialRiskRows.join(', ')}`);
-    //     }
+      // Tasks required when 3 + hazards: list rows missing a task
+      const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
+      if (hazardsCount >= 3) {
+        const rows = Array.isArray(payload.workTaskLists) ? payload.workTaskLists : [];
+        if (rows.length >= 1) {
+          // Initial Risk required per row
+          const missingInitialRiskRows = rows
+            .map((row, idx) => ({ idx, ok: !!String((row as any)?.initialRisk || '').trim() }))
+            .filter(x => !x.ok)
+            .map(x => x.idx + 1);
+          if (missingInitialRiskRows.length) {
+            missing.push(`Initial Risk missing for row(s): ${missingInitialRiskRows.join(', ')}`);
+          }
 
-    //     // Residual Risk required per row
-    //     const missingResidualRiskRows = rows
-    //       .map((row, idx) => ({ idx, ok: !!String((row as any)?.residualRisk || '').trim() }))
-    //       .filter(x => !x.ok)
-    //       .map(x => x.idx + 1);
-    //     if (missingResidualRiskRows.length) {
-    //       missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
-    //     }
-    //   }
+          // Residual Risk required per row
+          const missingResidualRiskRows = rows
+            .map((row, idx) => ({ idx, ok: !!String((row as any)?.residualRisk || '').trim() }))
+            .filter(x => !x.ok)
+            .map(x => x.idx + 1);
+          if (missingResidualRiskRows.length) {
+            missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
+          }
+        }
 
-    //   // Overall Risk Assessment required
-    //   if (!String(payload.overallRiskAssessment || '').trim()) {
-    //     missing.push('Overall Risk Assessment');
-    //   }
+        // Overall Risk Assessment required
+        if (!String(payload.overallRiskAssessment || '').trim()) {
+          missing.push('Overall Risk Assessment');
+        }
 
-    //   // Detailed L2: if checked, require Ref Number
-    //   const l2Required = !!payload.detailedRiskAssessment;
-    //   if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
-    //     missing.push('Risk Assessment Ref Number (Detailed L2)');
-    //   }
-    // }
+        // Detailed L2: if checked, require Ref Number
+        const l2Required = !!payload.detailedRiskAssessment;
+        if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
+          missing.push('Risk Assessment Ref Number (Detailed L2)');
+        }
+      }
 
-    // // Gas Test: if Yes, require result
-    // if (String(payload.gasTestRequired || '').toLowerCase() === 'yes' &&
-    //   !String(payload.gasTestResult || '').trim()) {
-    //   missing.push('Gas Test Result');
-    // }
+      // Gas Test: if Yes, require result
+      if (String(payload.gasTestRequired || '').toLowerCase() === 'yes' &&
+        !String(payload.gasTestResult || '').trim()) {
+        missing.push('Gas Test Result');
+      }
 
-    // // Fire Watch: if Yes, require assigned
-    // if (String(payload.fireWatchNeeded || '').toLowerCase() === 'yes' &&
-    //   !String(payload.fireWatchAssigned || '').trim()) {
-    //   missing.push('Firewatch Assigned');
-    // }
+      // Fire Watch: if Yes, require assigned
+      if (String(payload.fireWatchNeeded || '').toLowerCase() === 'yes' &&
+        !String(payload.fireWatchAssigned || '').trim()) {
+        missing.push('Firewatch Assigned');
+      }
 
-    // // Attachments
-    // if (!payload.attachmentsProvided || String(payload.attachmentsProvided).trim() === '') {
-    //   missing.push('Attachment(s) provided');
-    // }
-    // const isAttachmentYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
-    // if (isAttachmentYes && !String(payload.attachmentsDetails || '').trim()) {
-    //   missing.push('Attachment(s) details');
-    // }
-    // }
+      // Attachments
+      // if (!payload.attachmentsProvided || String(payload.attachmentsProvided).trim() === '') {
+      //   missing.push('Attachment(s) provided');
+      // }
+      const isAttachmentYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
+      if (isAttachmentYes && !String(payload.attachmentsDetails || '').trim()) {
+        missing.push('Attachment(s) details');
+      }
+    }
 
     return undefined;
   }, [buildPayload, ptwFormStructure?.workHazardosList]);
@@ -1684,7 +1566,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
     setBusyLabel(mode === 'save' ? 'Saving form…' : 'Submitting form…');
     try {
-      // const payload = buildPayload();
+      const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+      const originatorId = await spOps.ensureUserId(_PermitOriginator?.[0]?.secondaryText || '');
+
       const validationError = validateBeforeSubmit(mode);
       if (validationError) {
         showBanner(validationError);
@@ -1694,7 +1578,7 @@ export default function PTWForm(props: IPTWFormProps) {
         const formStatusRecord = JSON.parse(localStorage.getItem('FormStatusRecord') || '{}');
 
         if (editFormId === undefined) {
-          const savedId = await _createPTWForm(mode);
+          const savedId = await _createPTWForm(mode, originatorId);
           if (savedId) {
             // await new Promise(res => setTimeout(res, 1000));
             if (mode === 'save') {
@@ -1726,19 +1610,20 @@ export default function PTWForm(props: IPTWFormProps) {
     } finally {
       setIsBusy(false);
     }
-  }, [isPermitOriginator, buildPayload]);
+  }, [isPermitOriginator, validateBeforeSubmit, props.formId]);
 
   // Create parent PTWForm item and return its Id
-  const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<number> => {
-    const payload = buildPayload();
+  const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit', spOriginatorId?: number): Promise<number> => {
+    const payload = payloadRef.current;
+
     if (!payload) throw new Error('Form payload is not available');
 
-    const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-    const originatorId = await spOps.ensureUserId(payload.originator);
+    // const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+    // const originatorId = await spOps.ensureUserId(payload.originator);
 
     const body: any = {
-      PermitOriginatorId: originatorId ?? null,
-      Title: 'PTW Form' + (originatorId ? ` - ${payload.originator}` : ''),
+      PermitOriginatorId: spOriginatorId ?? null,
+      Title: 'PTW Form' + (spOriginatorId ? ` - ${payload.originator}` : ''),
       AssetID: payload.assetId ?? null,
       AssetCategoryId: payload.assetCategoryId ? Number(payload.assetCategoryId) : null,
       AssetDetailsId: payload.assetDetailsId ? Number(payload.assetDetailsId) : null,
@@ -1753,7 +1638,7 @@ export default function PTWForm(props: IPTWFormProps) {
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
     };
-    debugger;
+
     // OData v4 style for multi-lookup fields: array + @odata.type
     if (payload.permitTypes?.length) {
       body['WorkCategoryId@odata.type'] = 'Collection(Edm.Int32)';
@@ -1785,21 +1670,21 @@ export default function PTWForm(props: IPTWFormProps) {
 
     try {
       const coralReferenceNumber = await spHelpers.assignCoralReferenceNumber(props.context.spHttpClient,
-        webUrl, 'PTW_Form', { Id: Number(newId) }, payload.company?.title);
+        webUrl, 'PTW_Form', { Id: Number(newId) }, payload.company?.title, 'PTW');
       if (!coralReferenceNumber) throw new Error('Failed to generate Coral Reference Number. Please try again later.');
 
       setCoralReferenceNumber(coralReferenceNumber);
 
-      if (payload.permitRows?.length && payload.permitRows.some(r => r.isChecked)) {
+      if (payload.permitRows?.length && payload.permitRows.some((r: IPermitScheduleRow) => r.isChecked)) {
         const _createdPermits = await _createPTWWorkPermits(Number(newId), payload.permitRows);
 
         if (!_createdPermits?.length) {
           throw new Error('Failed to create PTW Work Permits');
         }
       }
-      debugger;
+
       if (mode === 'submit') {
-        const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), originatorId);
+        const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), spOriginatorId);
 
         if (!_createdWorkflow) {
           throw new Error('Failed to create PTW Form Approval Workflow');
@@ -1819,7 +1704,7 @@ export default function PTWForm(props: IPTWFormProps) {
     }
 
     return newId as number;
-  }, [buildPayload, props.context.spHttpClient]);
+  }, [props.context.spHttpClient, payloadRef.current]);
 
   const _createPTWWorkPermits = React.useCallback(async (parentId: number, permitRows: IPermitScheduleRow[]) => {
     const opsDelete = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
@@ -1886,15 +1771,20 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [props.context.spHttpClient]);
 
   const _createPTWFormApprovalWorkflow = React.useCallback(async (parentId: number, originatorId: number | undefined) => {
-
+    const payload = payloadRef.current;
     if (originatorId === undefined) return;
     const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', '');
     let _paStatusForPOPA = '';
-    debugger;
-    if (originatorId === _paPicker?.length ? await ops.ensureUserId(_paPicker[0].secondaryText) : null) {
-      _paStatusForPOPA = _paStatus === 'Approved' ? _paStatus : 'Approved';
+    let _paDateForPOPA = new Date();
+
+    console.log('Payload', payload);
+
+    if (originatorId === payload.paPickerId) {
+      _paStatusForPOPA = payload.paStatus === 'Approved' ? payload.paStatus : 'Approved';
+      _paDateForPOPA = _paDateForPOPA;
     } else {
-      _paStatusForPOPA = _paStatus || 'Pending';
+      _paStatusForPOPA = payload.paStatus || 'Pending';
+      _paDateForPOPA = payload.paApprovalDate;
     }
 
     try {
@@ -1903,27 +1793,27 @@ export default function PTWForm(props: IPTWFormProps) {
         StatusRecord: 'New',
         IsFinalApprover: false,
 
-        POApproverId: originatorId ?? null,
-        POApprovalDate: _poDate || null,
-        POStatus: _poStatus || 'Approved',
+        POApproverId: originatorId,
+        POApprovalDate: payload.poApprovalDate || null,
+        POStatus: payload.poStatus || 'Approved',
 
-        PAApproverId: _paPicker?.length ? await ops.ensureUserId(_paPicker[0].secondaryText) : null,
+        PAApproverId: payload.paPickerId ? Number(payload.paPickerId) : undefined,
         PAStatus: _paStatusForPOPA,
-        PAApprovalDate: _paDate || null,
+        PAApprovalDate: _paStatusForPOPA !== 'Pending' ? _paDateForPOPA : null,
 
-        PIApproverId: _piPicker?.length ? await ops.ensureUserId(_piPicker[0].secondaryText) : null,
-        PIStatus: _piStatus || 'Pending',
-        PIApprovalDate: _piDate || null,
+        PIApproverId: payload.piPickerId ? Number(payload.piPickerId) : undefined,
+        PIStatus: payload.piStatus || 'Pending',
+        PIApprovalDate: payload.piStatus !== 'Pending' ? payload.piApprovalDate : null,
       };
 
       if (_overAllRiskAssessment && _overAllRiskAssessment.toLowerCase() === 'high') {
-        body.AssetDirectorApproverId = _assetDirPicker?.length ? await ops.ensureUserId(_assetDirPicker[0].secondaryText) : null;
-        body.AssetDirectorStatus = _assetDirStatus || 'Pending';
-        body.AssetDirectorApprovalDate = _assetDirDate || null;
+        body.AssetDirectorApproverId = payload.assetDirPickerId ? Number(payload.assetDirPickerId) : undefined;
+        body.AssetDirectorStatus = payload.assetDirStatus || 'Pending';
+        body.AssetDirectorApprovalDate = payload.assetDirStatus !== 'Pending' ? payload.assetDirApprovalDate : null;
 
-        body.HSEDirectorApproverId = _hseDirPicker?.length ? await ops.ensureUserId(_hseDirPicker[0].secondaryText) : null;
-        body.HSEDirectorStatus = _hseDirStatus || 'Pending';
-        body.HSEDirectorApprovalDate = _hseDirDate || null;
+        body.HSEDirectorApproverId = payload.hseDirPickerId ? Number(payload.hseDirPickerId) : undefined;
+        body.HSEDirectorStatus = payload.hseDirStatus || 'Pending';
+        body.HSEDirectorApprovalDate = payload.hseDirStatus !== 'Pending' ? payload.hseDirApprovalDate : null;
       }
 
       const data = ops._insertItem(body);
@@ -1933,10 +1823,10 @@ export default function PTWForm(props: IPTWFormProps) {
     catch (e) {
       console.warn('Failed to create PTW Form Approval Workflow', e);
     }
-  }, [props.context.spHttpClient]);
+  }, [props.context.spHttpClient, payloadRef.current]);
 
   const _updatePTWForm = React.useCallback(async (id: number, mode: 'save' | 'submit'): Promise<boolean> => {
-    const payload = buildPayload();
+    const payload = payloadRef.current;
     if (!payload) throw new Error('Form payload is not available');
 
     const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
@@ -2001,7 +1891,7 @@ export default function PTWForm(props: IPTWFormProps) {
       return false;
     }
 
-    if (payload.permitRows?.length && payload.permitRows.some(r => r.isChecked)) {
+    if (payload.permitRows?.length && payload.permitRows.some((r: IPermitScheduleRow) => r.isChecked)) {
       const _createdPermits = await _createPTWWorkPermits(Number(id), payload.permitRows);
 
       if (!_createdPermits?.length) {
@@ -2026,14 +1916,12 @@ export default function PTWForm(props: IPTWFormProps) {
     }
 
     return true;
-  }, [buildPayload, props.context.spHttpClient]);
+  }, [props.context.spHttpClient, payloadRef.current]);
 
   // ---------------------------
   // Render
   // ---------------------------
-
   const [prefilledFormId, setPrefilledFormId] = React.useState<number | undefined>(undefined);
-
   // Prefill when editing an existing form
   React.useEffect(() => {
     const formId = props.formId;
@@ -2044,9 +1932,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
     let cancelled = false;
 
-    const toPersona = (obj?: { Id?: any; Title?: string; EMail?: string; FullName?: string }): IPersonaProps | undefined => {
+    const toPersona = (obj?: { Id?: any; EMail?: string; displayName?: string }): IPersonaProps | undefined => {
       if (!obj) return undefined;
-      const text = obj.FullName || obj.Title || '';
+      const text = obj.displayName || '';
       const email = obj.EMail || '';
       const id = obj.Id != null ? String(obj.Id) : text;
       return { text, secondaryText: email, id } as IPersonaProps;
@@ -2091,6 +1979,18 @@ export default function PTWForm(props: IPTWFormProps) {
           `&$expand=PTWForm,Safeguards` +
           `&$filter=PTWForm/Id eq '${formId}'`;
 
+        const workflow: string = `?$select=Id,PTWForm/Id,PTWForm/CoralReferenceNumber,POStatus,PAStatus,PIStatus,AssetDirectorStatus,HSEDirectorStatus,POClosureStatus,AssetManagerStatus,` +
+          `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerApprovalDate,` +
+          `POApprover/Id,POApprover/EMail,POApprover/Title,` +
+          `PAApprover/Id,PAApprover/EMail,PAApprover/Title,` +
+          `PIApprover/Id,PIApprover/EMail,PIApprover/Title,` +
+          `AssetDirectorApprover/Id,AssetDirectorApprover/EMail,AssetDirectorApprover/Title,` +
+          `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,HSEDirectorApprover/Title,` +
+          `POClosureApprover/Id,POClosureApprover/EMail,POClosureApprover/Title,` +
+          `AssetManagerApprover/Id,AssetManagerApprover/EMail,AssetManagerApprover/Title` +
+          `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,HSEDirectorApprover,POClosureApprover,AssetManagerApprover`;
+        `&$filter=PTWForm/Id eq '${formId}'`;
+
         const formCrudFirstSelect = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', ptwFirstSelect);
         const headerItemsFirstSelect = await formCrudFirstSelect._getItemsWithQuery();
         const headerFirstSelect = Array.isArray(headerItemsFirstSelect) ? headerItemsFirstSelect[0] : undefined;
@@ -2107,14 +2007,17 @@ export default function PTWForm(props: IPTWFormProps) {
         const headerItemsTaskDescription = await formCrudTaskDescription._getItemsWithQuery();
         const headerTaskDescription = Array.isArray(headerItemsTaskDescription) ? headerItemsTaskDescription : undefined;
 
+        const formWorkflow = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Approval_Workflow', workflow);
+        const headerItemsWorkflow = await formWorkflow._getItemsWithQuery();
+        const headerWorkflow = Array.isArray(headerItemsWorkflow) ? headerItemsWorkflow[0] : undefined;
+
         if (headerFirstSelect && !cancelled && headerSecondSelect) {
           // Top-level fields prefill
           if (headerFirstSelect?.FormStatusRecord) {
             setMode(headerFirstSelect?.FormStatusRecord.toLowerCase());
           }
 
-          const permitOriginator = toPersona({ Id: headerFirstSelect?.PermitOriginator?.Id, FullName: headerFirstSelect?.PermitOriginator?.Title, EMail: headerFirstSelect?.PermitOriginator?.EMail });
-          // setPermitOriginator([{ text: permitOriginator?.Title || '', secondaryText: permitOriginator.email || '', id: permitOriginator.id }]);
+          const permitOriginator = toPersona({ Id: headerFirstSelect?.PermitOriginator?.Id, displayName: headerFirstSelect?.PermitOriginator?.Title, EMail: headerFirstSelect?.PermitOriginator?.EMail });
           setPermitOriginator(permitOriginator ? [permitOriginator] : []);
           setCoralReferenceNumber(headerFirstSelect?.CoralReferenceNumber || '');
           setAssetId(headerFirstSelect?.AssetID);
@@ -2157,8 +2060,8 @@ export default function PTWForm(props: IPTWFormProps) {
           setToolboxTalk(headerSecondSelect?.ToolboxTalk || '');
           setToolboxHSEReference(headerSecondSelect?.ToolboxTalkHSEReference || '');
           setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? spHelpers.toISO(headerSecondSelect?.ToolBoxTalkDate) : undefined);
-          const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, Title: headerSecondSelect?.ToolboxConductedBy?.Title, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
-          setToolboxConductedBy(toolboxConductedBy ? [toolboxConductedBy] : undefined);
+          const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, displayName: headerSecondSelect?.ToolboxConductedBy?.displayName, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
+          setToolboxConductedBy(toolboxConductedBy && toolboxConductedBy?.id ? [toolboxConductedBy] : undefined);
 
           if (headerTaskDescription && headerTaskDescription.length > 0) {
             const tasksList: IRiskTaskRow[] = [];
@@ -2219,9 +2122,70 @@ export default function PTWForm(props: IPTWFormProps) {
           } else {
             setPermitPayload([]);
           }
+
+          if (headerWorkflow) {
+            debugger;
+            const result: IPTWWorkflow = {
+              id: headerWorkflow.Id !== undefined && headerWorkflow.Id !== null ? headerWorkflow.Id : undefined,
+              PTWFormId: headerWorkflow.PTWForm?.Id !== undefined && headerWorkflow.PTWForm?.Id !== null ? headerWorkflow.PTWForm.Id : undefined,
+              CoralReferenceNumber: headerWorkflow.PTWForm?.CoralReferenceNumber !== undefined && headerWorkflow.PTWForm?.CoralReferenceNumber !== null ? headerWorkflow.PTWForm.CoralReferenceNumber : undefined,
+              POApprover: headerWorkflow.POApprover !== undefined && headerWorkflow.POApprover !== null ? toPersona(headerWorkflow.POApprover) : undefined,
+              POApprovalDate: headerWorkflow.POApprovalDate !== undefined && headerWorkflow.POApprovalDate !== null ? headerWorkflow.POApprovalDate : undefined,
+              POStatus: headerWorkflow.POStatus !== undefined && headerWorkflow.POStatus !== null ? headerWorkflow.POStatus : undefined,
+
+              PAApprover: headerWorkflow.PAApprover !== undefined && headerWorkflow.PAApprover !== null ? toPersona(headerWorkflow.PAApprover) : undefined,
+              PAApprovalDate: headerWorkflow.PAApprovalDate !== undefined && headerWorkflow.PAApprovalDate !== null ? headerWorkflow.PAApprovalDate : undefined,
+              PAStatus: headerWorkflow.PAStatus !== undefined && headerWorkflow.PAStatus !== null ? headerWorkflow.PAStatus : undefined,
+
+              PIApprover: headerWorkflow.PIApprover !== undefined && headerWorkflow.PIApprover !== null ? toPersona(headerWorkflow.PIApprover) : undefined,
+              PIApprovalDate: headerWorkflow.PIApprovalDate !== undefined && headerWorkflow.PIApprovalDate !== null ? headerWorkflow.PIApprovalDate : undefined,
+              PIStatus: headerWorkflow.PIStatus !== undefined && headerWorkflow.PIStatus !== null ? headerWorkflow.PIStatus : undefined,
+
+              AssetDirectorApprover: headerWorkflow.AssetDirectorApprover !== undefined && headerWorkflow.AssetDirectorApprover !== null ? toPersona(headerWorkflow.AssetDirectorApprover) : undefined,
+              AssetDirectorApprovalDate: headerWorkflow.AssetDirectorApprovalDate !== undefined && headerWorkflow.AssetDirectorApprovalDate !== null ? headerWorkflow.AssetDirectorApprovalDate : undefined,
+              AssetDirectorStatus: headerWorkflow.AssetDirectorStatus !== undefined && headerWorkflow.AssetDirectorStatus !== null ? headerWorkflow.AssetDirectorStatus : undefined,
+
+              HSEDirectorApprover: headerWorkflow.HSEDirectorApprover !== undefined && headerWorkflow.HSEDirectorApprover !== null ? toPersona(headerWorkflow.HSEDirectorApprover) : undefined,
+              HSEDirectorApprovalDate: headerWorkflow.HSEDirectorApprovalDate !== undefined && headerWorkflow.HSEDirectorApprovalDate !== null ? headerWorkflow.HSEDirectorApprovalDate : undefined,
+              HSEDirectorStatus: headerWorkflow.HSEDirectorStatus !== undefined && headerWorkflow.HSEDirectorStatus !== null ? headerWorkflow.HSEDirectorStatus : undefined,
+
+              POClosureApprover: headerWorkflow.POClosureApprover !== undefined && headerWorkflow.POClosureApprover !== null ? toPersona(headerWorkflow.POClosureApprover) : undefined,
+              POClosureDate: headerWorkflow.POClosureDate !== undefined && headerWorkflow.POClosureDate !== null ? headerWorkflow.POClosureDate : undefined,
+              POClosureStatus: headerWorkflow.POClosureStatus !== undefined && headerWorkflow.POClosureStatus !== null ? headerWorkflow.POClosureStatus : undefined,
+
+              AssetManagerApprover: headerWorkflow.AssetManagerApprover !== undefined && headerWorkflow.AssetManagerApprover !== null ? toPersona(headerWorkflow.AssetManagerApprover) : undefined,
+              AssetManagerApprovalDate: headerWorkflow.AssetManagerApprovalDate !== undefined && headerWorkflow.AssetManagerApprovalDate !== null ? headerWorkflow.AssetManagerApprovalDate : undefined,
+              AssetManagerStatus: headerWorkflow.AssetManagerStatus !== undefined && headerWorkflow.AssetManagerStatus !== null ? headerWorkflow.AssetManagerStatus : undefined,
+            };
+
+            setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate) : undefined);
+            setPoStatus((result.POStatus as SignOffStatus) ?? undefined);
+
+            setPaPicker(result.PAApprover ? [{ text: result.PAApprover.text || '', secondaryText: result.PAApprover.secondaryText || '', id: result.PAApprover.id || '' }] : []);
+            setPaDate(result.PAApprovalDate ? new Date(result.PAApprovalDate) : undefined);
+            setPaStatus((result.PAStatus as SignOffStatus) ?? undefined);
+
+            setPiPicker(result.PIApprover ? [{ text: result.PIApprover.text || '', secondaryText: result.PIApprover.secondaryText || '', id: result.PIApprover.id || '' }] : []);
+            setPiDate(result.PIApprovalDate ? new Date(result.PIApprovalDate) : undefined);
+            setPiStatus((result.PIStatus as SignOffStatus) ?? undefined);
+
+            setAssetDirPicker(result.AssetDirectorApprover ? [{ text: result.AssetDirectorApprover.text || '', secondaryText: result.AssetDirectorApprover.secondaryText || '', id: result.AssetDirectorApprover.id || '' }] : []);
+            setAssetDirDate(result.AssetDirectorApprovalDate ? new Date(result.AssetDirectorApprovalDate) : undefined);
+            setAssetDirStatus((result.AssetDirectorStatus as SignOffStatus) ?? undefined);
+
+            setHseDirPicker(result.HSEDirectorApprover ? [{ text: result.HSEDirectorApprover.text || '', secondaryText: result.HSEDirectorApprover.secondaryText || '', id: result.HSEDirectorApprover.id || '' }] : []);
+            setHseDirDate(result.HSEDirectorApprovalDate ? new Date(result.HSEDirectorApprovalDate) : undefined);
+            setHseDirStatus((result.HSEDirectorStatus as SignOffStatus) ?? undefined);
+
+            setClosurePoStatus((result.POClosureStatus as SignOffStatus) ?? undefined);
+            setClosurePoDate(result.POClosureDate ? new Date(result.POClosureDate) : undefined);
+
+            setClosureAssetManagerPicker(result.AssetManagerApprover ? [{ text: result.AssetManagerApprover.text || '', secondaryText: result.AssetManagerApprover.secondaryText || '', id: result.AssetManagerApprover.id || '' }] : []);
+            setClosureAssetManagerDate(result.AssetManagerApprovalDate ? new Date(result.AssetManagerApprovalDate) : undefined);
+            setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
+          }
         }
 
-        await _getPTWWorkflow();
         if (!cancelled) setPrefilledFormId(formId);
       } catch (e) {
         showBanner('An error occurred while loading the form for editing.', { autoHideMs: 5000, fade: true, kind: 'error' });
@@ -2233,6 +2197,23 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => { cancelled = true; };
   }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
 
+
+  const stageEnabled = React.useMemo(() => {
+    const poEnabled = isPermitOriginator; // Originator signs first
+    const paEnabled = (isPerformingAuthority && _poStatus.toString() != 'Approved') || !isSubmitted;
+    const piEnabled = (isPermitIssuer && _paStatus.toString() != 'Approved') || _piUnlockedByPA;
+    // High risk requires AD then HSE; otherwise skip to closure after PI
+    const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus.toString() != 'Approved';
+    const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus.toString() != 'Approved';
+    const closureEnabled = isAssetManager && (
+      (isHighRisk ? _hseDirStatus.toString() != 'Approved' : _piStatus.toString() != 'Approved')
+    );
+    return { poEnabled, paEnabled, piEnabled, assetDirEnabled, hseDirEnabled, closureEnabled };
+  }, [
+    isPermitOriginator, isPerformingAuthority, isPermitIssuer, isAssetDirector, isHSEDirector, isAssetManager,
+    _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk, _piUnlockedByPA, isSubmitted
+  ]);
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -2242,7 +2223,7 @@ export default function PTWForm(props: IPTWFormProps) {
   }
 
   // const delayResults = false;
-  const logoUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/coral-logo.png`;
+  const logoUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/cor-leaste.png`;
   // const logoPTWUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/ptw-logo.png`;
   // const peopleList: IPersonaProps[] = users.map(user => ({ text: user.displayName || '', secondaryText: user.email || '', id: user.id }));
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
@@ -2740,7 +2721,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           const isChecked = !!chk;
                           setToolboxTalk(isChecked);
                           if (!isChecked) {
-                            setToolboxConductedBy([]);
+                            setToolboxConductedBy(undefined);
                             setToolboxHSEReference('');
                             setToolboxTalkDate(undefined);
                           }
@@ -2761,10 +2742,10 @@ export default function PTWForm(props: IPTWFormProps) {
                         resolveDelay={150}
                         styles={peoplePickerBlackStyles}
                         selectedItems={_selectedToolboxConductedBy}
-                        onChange={(items) => setToolboxConductedBy(items || [])}
+                        onChange={(items) => setToolboxConductedBy(items || undefined)}
                         inputProps={{ placeholder: 'Enter name or email' }}
                         pickerSuggestionsProps={suggestionProps}
-                        disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
+                        disabled={_selectedToolboxTalk ? false : true}
                       />
                     </div>
 
@@ -2774,7 +2755,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         placeholder="Enter reference"
                         value={String(_toolboxHSEReference || '')}
                         onChange={(_, v) => setToolboxHSEReference(v || '')}
-                        disabled={(!isPermitOriginator && !isPerformingAuthority) || !_selectedToolboxTalk}
+                        disabled={_selectedToolboxTalk ? false : true}
                       />
                     </div>
 
@@ -2784,7 +2765,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         placeholder="Select date"
                         value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
                         onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
-                        disabled={(!isPermitOriginator && !isPerformingAuthority)}
+                        disabled={_selectedToolboxTalk ? false : true}
                       />
                     </div>
                   </div>
@@ -2804,14 +2785,12 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
                   <TextField className='pb-1'
                     value={_PermitOriginator?.[0]?.text || ''}
-                    readOnly
-                  // disabled={!isPermitOriginator && isPermitOriginator} 
+                    disabled={true}
                   />
                   <DatePicker
                     disabled={true}
                     placeholder="Select date"
-                    value={_poDate ? new Date(_poDate) : new Date()}
-                    onSelectDate={d => setPoDate(d ? d.toISOString() : undefined)}
+                    value={_poDate ? _poDate : new Date()}
                   />
                   {/* <ComboBox
                     placeholder="Status"
@@ -2830,8 +2809,11 @@ export default function PTWForm(props: IPTWFormProps) {
                     placeholder="Select Performing Authority"
                     disabled={!stageEnabled.paEnabled}
                     options={getOptionsForGroup('PerformingAuthorityGroup')}
-                    selectedKey={selectedKeyFromPicker(_paPicker)}
-                    onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => setPaPicker(items), setPaStatusEnabled)}
+                    selectedKey={_paPicker?.[0]?.id || undefined}
+                    onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => {
+                      const selectedPersona = { id: items[0].id, displayName: items[0].text, secondaryText: items[0].secondaryText } as IPersonaProps;
+                      setPaPicker(selectedPersona ? [selectedPersona] : []);
+                    }, setPaStatusEnabled)}
                     useComboBoxAsMenuWidth
                     styles={comboBoxBlackStyles}
                     className={'pb-1'}
@@ -2840,10 +2822,8 @@ export default function PTWForm(props: IPTWFormProps) {
                     disabled={true}
                     placeholder="Select date"
                     value={_paDate ? new Date(_paDate) : new Date()}
-                    onSelectDate={d => setPaDate(d ? d.toISOString() : undefined)}
                   />
                   <ComboBox
-                    // disabled={!isPerformingAuthority}
                     disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
                     placeholder="Status"
                     options={statusOptions}
@@ -2854,33 +2834,35 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
 
                 {/* Permit Issuer (PI) */}
-                <div className="col-md-4" style={{ padding: 8 }}>
-                  <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
-                  <ComboBox
-                    placeholder="Select Permit Issuer"
-                    disabled={!stageEnabled.piEnabled}
-                    options={getOptionsForGroup('PermitIssuerGroup')}
-                    selectedKey={selectedKeyFromPicker(_piPicker)}
-                    onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items), setPiStatusEnabled)}
-                    useComboBoxAsMenuWidth
-                    styles={comboBoxBlackStyles}
-                    className={'pb-1'}
-                  />
-                  <DatePicker
-                    disabled={true}
-                    placeholder="Select date"
-                    value={_piDate ? new Date(_piDate) : new Date()}
-                    onSelectDate={d => setPiDate(d ? d.toISOString() : undefined)}
-                  />
-                  <ComboBox
-                    disabled={!stageEnabled.piEnabled || !_piStatusEnabled}
-                    placeholder="Status"
-                    options={statusOptions}
-                    selectedKey={_piStatus}
-                    onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
-                    useComboBoxAsMenuWidth
-                  />
-                </div>
+                {_paStatus != 'Pending' && (
+                  <div className="col-md-4" style={{ padding: 8 }}>
+                    <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
+                    <ComboBox
+                      placeholder="Select Permit Issuer"
+                      disabled={!stageEnabled.piEnabled}
+                      options={getOptionsForGroup('PermitIssuerGroup')}
+                      selectedKey={_piPicker?.[0]?.id || undefined}
+                      onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items), setPiStatusEnabled)}
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                      className={'pb-1'}
+                    />
+                    <DatePicker
+                      disabled={true}
+                      placeholder="Select date"
+                      value={_piDate ? new Date(_piDate) : new Date()}
+                    />
+                    <ComboBox
+                      disabled={!stageEnabled.piEnabled}
+                      placeholder="Status"
+                      options={statusOptions}
+                      selectedKey={_piStatus}
+                      onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                      useComboBoxAsMenuWidth
+                    />
+                  </div>
+                )}
+
               </div>
               {/* )} */}
 
@@ -2899,7 +2881,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       placeholder="Select Asset Director"
                       disabled={!stageEnabled.assetDirEnabled}
                       options={getOptionsForGroup('AssetDirectorsGroup')}
-                      selectedKey={selectedKeyFromPicker(_assetDirPicker)}
+                      selectedKey={_assetDirPicker?.[0]?.id || undefined}
                       onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items), setAssetDirStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
@@ -2909,7 +2891,6 @@ export default function PTWForm(props: IPTWFormProps) {
                       disabled={true}
                       placeholder="Select date"
                       value={_assetDirDate ? new Date(_assetDirDate) : new Date()}
-                      onSelectDate={d => setAssetDirDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
                       disabled={!stageEnabled.assetDirEnabled || !_assetDirStatusEnabled}
@@ -2927,7 +2908,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       placeholder="Select HSE Director"
                       disabled={!stageEnabled.hseDirEnabled}
                       options={getOptionsForGroup('HSEDirectorGroup')}
-                      selectedKey={selectedKeyFromPicker(_hseDirPicker)}
+                      selectedKey={_hseDirPicker?.[0]?.id || undefined}
                       onChange={onSingleApproverChange('HSEDirectorGroup', (items) => setHseDirPicker(items), setHseDirStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
@@ -2937,7 +2918,6 @@ export default function PTWForm(props: IPTWFormProps) {
                       disabled={true}
                       placeholder="Select date"
                       value={_hseDirDate ? new Date(_hseDirDate) : new Date()}
-                      onSelectDate={d => setHseDirDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
                       // disabled={!isHSEDirector}
@@ -2953,7 +2933,7 @@ export default function PTWForm(props: IPTWFormProps) {
               )}
 
               {/* PTW Closure */}
-              {isSubmitted && (
+              {isSubmitted && _paStatus == 'Approved' && _piStatus == 'Approved' && (
                 <div className="row pb-3" id="ptwClosureSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
                     <Label style={{ fontWeight: 600 }}>PTW Closure</Label>
@@ -2971,7 +2951,6 @@ export default function PTWForm(props: IPTWFormProps) {
                     <DatePicker
                       placeholder="Select date"
                       value={_closurePoDate ? new Date(_closurePoDate) : new Date()}
-                      onSelectDate={d => setClosurePoDate(d ? d.toISOString() : undefined)}
                       disabled={true}
                     />
                     <ComboBox
@@ -2990,8 +2969,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       placeholder="Select Asset Manager"
                       disabled={!stageEnabled.closureEnabled}
                       options={getOptionsForGroup('AssetManagersGroup')}
-                      selectedKey={selectedKeyFromPicker(_closureAssetManagerPicker)}
-                      // onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items))}
+                      selectedKey={_closureAssetManagerPicker?.[0]?.id || undefined}
                       onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items), setClosureAssetManagerStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
@@ -3001,7 +2979,6 @@ export default function PTWForm(props: IPTWFormProps) {
                       disabled={true}
                       placeholder="Select date"
                       value={_closureAssetManagerDate ? new Date(_closureAssetManagerDate) : new Date()}
-                      onSelectDate={d => setClosureAssetManagerDate(d ? d.toISOString() : undefined)}
                     />
                     <ComboBox
                       // disabled={!isAssetManager}
@@ -3015,7 +2992,6 @@ export default function PTWForm(props: IPTWFormProps) {
                   </div>
                 </div>
               )}
-
             </div>
           )}
         </div>
@@ -3033,7 +3009,6 @@ export default function PTWForm(props: IPTWFormProps) {
           exportMode={exportMode}
           onExportModeChange={setExportMode}
           onBusyChange={setIsExportingPdf}
-          // isClosedBySystem={(formsApprovalWorkflow || []).some(r => String(r?.Status?.title || '').toLowerCase().includes('approved') && r.FinalLevel === r.Order)}
           onError={(m) => showBanner(m)}
         />
 

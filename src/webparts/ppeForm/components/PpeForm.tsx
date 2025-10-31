@@ -2127,16 +2127,6 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
         setIsSubmitting(true);
         try {
           let savedSomething = false;
-          // const loggedInUserEmail = props.context.pageContext?.user?.email
-          //   ? String(props.context.pageContext?.user?.email).toLowerCase()
-          //   : '';
-          // const isFirstStageApprover = formsApprovalWorkflow.length === 1 && formsApprovalWorkflow.find(
-          //   (r) => r.Order === 1 && Object.values(r.ApproversNamesList || {}).some((list) =>
-          //     list.some((p) => (p.secondaryText || '').toLowerCase() === loggedInUserEmail)));
-
-          // if (isHSEApprovalLevel || isFirstStageApprover) {
-
-          // }
           const payload = formPayload('Submitted');
           await _replacePPEItemDetailsRows(editFormId, payload);
           if (withapprovalflag) {
@@ -2254,7 +2244,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     try {
       const coralReferenceNumber = await spHelpers.assignCoralReferenceNumber(props.context.spHttpClient,
-        props.context.pageContext.web.absoluteUrl, 'PPE_Form', { Id: Number(newId) }, _company?.title);
+        props.context.pageContext.web.absoluteUrl, 'PPE_Form', { Id: Number(newId) }, _company?.title , 'PPE');
 
       setCoralReferenceNumber(coralReferenceNumber);
     } catch (e) {
@@ -3194,66 +3184,3 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
     </div>
   );
 }
-
-{/* <p>Dear <b>Team Member</b>,</p>
-<p>You have a new PPE requisition update:</p>
-
-<table cellpadding="8" cellspacing="0" style="margin-top: 15px; border-collapse: collapse; border-radius: 6px; overflow: hidden; font-size: 13px; table-layout: auto; width: 100%; max-width: 600px;">
-
-<table cellpadding="0" cellspacing="0" style="border-collapse: collapse; max-width: 600px; border-radius: 8px; border: 1px solid #e2e2e2; width: 100%; font-family: 'Segoe UI', Arial, sans-serif;">
-  <tbody><tr>
-    <td style="padding: 20px;">
-      <!-- Header Section -->
-      <table cellpadding="0" cellspacing="0">
-        <tbody><tr>
-          <td style="font-size: 18px; font-weight: bold; color: #004085;">
-            🦺 PPE Request Summary
-          </td>
-        </tr>
-      </tbody></table>
-
-      <!-- Request Details -->
-      <table cellpadding="0" cellspacing="0" style="margin-top: 10px; font-size: 14px; color: #333;">
-        <tbody><tr><td><b>Reference Number:</b> @{items('For_each_11')?['CoralReferenceNumber']}</td></tr>
-        <tr><td><b>Requester:</b> @{items('For_each_11')?['RequesterName/DisplayName']}</td></tr>
-        <tr><td><b>Department:</b> @{items('For_each_11')?['DepartmentRecord/Value']}</td></tr>
-        <tr>
-          <td>
-            <b>Status:</b>
-            <span style="color: #28a745; font-weight: bold;">● Closed</span>
-          </td>
-        </tr>
-      </tbody>
-</table>
-
-      <!-- Action Button -->
-      <div style="padding-top: 15px; text-align: center;">
-        <a href="@{variables('BaseURl')}@{triggerBody()?['PPEForm/Id']}" style="background-color: #28a745; color: #ffffff; text-decoration: none; 
-                 padding: 10px 25px; border-radius: 6px; font-weight: bold; display: inline-block;">
-          REVIEW PPE REQUEST
-        </a>
-      </div>
-    </td>
-  </tr>
-</tbody>
-</table>
-
-<!-- Item Summary Table -->
-  <table cellpadding="8" cellspacing="0" style="margin-top: 15px; border-collapse: collapse; border-radius: 6px; overflow: hidden; font-size: 13px; table-layout: auto; width: 100%; max-width: 600px;">
-  <thead>
-    <tr style="background-color: #e9f5ee; color: #215c4a; text-align: left; border-bottom: 2px solid #c6e6d3;">
-      <th style="padding: 10px; white-space: normal;">Item</th>
-      <th style="padding: 10px; white-space: normal;">Detail</th>
-      <th style="padding: 10px; white-space: normal;">Quantity</th>
-      <th style="padding: 10px; white-space: normal;">Brand</th>
-        <th style="padding: 10px; white-space: normal;">Modifed By</th>
-      <th style="padding: 10px; white-space: normal;">Added By</th>
-    </tr>
-  </thead>
-  <tbody style="background-color: #ffffff; color: #333;"></tbody>
-</table>
-
-<!--Footer -->
-  <p style="font-style: italic; color: #215c4a; font-size: 14px; margin-top: 20px; text-align: center;">
-    ‘Safety is not an option but a commitment to ourselves, the public, and the environment.’
-  </p> */}

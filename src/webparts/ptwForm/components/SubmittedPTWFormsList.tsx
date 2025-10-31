@@ -6,7 +6,8 @@ import {
   DetailsList, DetailsListLayoutMode, IColumn, Selection, SelectionMode, MarqueeSelection, CommandBar, ICommandBarItemProps, Stack, Text, Spinner, DefaultButton,
   IPersonaProps,
   PersonaSize,
-  Persona
+  Persona,
+  Overlay
 } from '@fluentui/react';
 
 
@@ -55,6 +56,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const [nextLink, setNextLink] = React.useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = React.useState<boolean>(false);
   const [isPOEligible, setIsPOEligible] = React.useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = React.useState<boolean>(false);
   const currentUserEmail = (context?.pageContext?.user?.email || '').toLowerCase();
   const webUrl = context.pageContext.web.absoluteUrl;
   const PAGE_SIZE = 50;
@@ -226,6 +228,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     const confirmMsg = `Delete ${ids.length} item(s)? This cannot be undone.`;
     if (!window.confirm(confirmMsg)) return;
 
+    setIsDeleting(true);
     try {
       const base = `${context.pageContext.web.absoluteUrl}/_api/web/lists(guid'${listGuid}')/items`;
       await Promise.all(
@@ -250,12 +253,14 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         })
       );
       onDelete?.(ids);
-      // await loadItems();
       setNextLink(undefined);
       setHasMore(false);
       loadItems(view, true);
     } catch (e: any) {
       setError(`Delete error: ${e?.message || e}`);
+    }
+    finally {
+      setIsDeleting(false);
     }
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
 
@@ -299,7 +304,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       {
         key: 'add',
         text: 'Add New',
-        disabled: !isPOEligible,
+        disabled: !isPOEligible || isDeleting,
         iconProps: { iconName: 'Add' },
         onClick: () => {
           setFormStatusRecord({ "value": "new" });
@@ -311,7 +316,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         key: 'edit',
         text: 'Edit',
         iconProps: { iconName: 'Edit' },
-        disabled: editDisabled,
+        disabled: editDisabled || isDeleting,
         onClick: () => {
           const row = selectedRows[0];
           if (row) {
@@ -327,12 +332,13 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         key: 'delete',
         text: 'Delete',
         iconProps: { iconName: 'Delete' },
-        disabled: delDisabled,
+        disabled: delDisabled || isDeleting,
         onClick: deleteSelected
       },
       {
         key: 'refresh',
         text: 'Refresh',
+        disabled: isDeleting,
         iconProps: { iconName: 'Refresh' },
         onClick: () => {
           setNextLink(undefined);
@@ -343,6 +349,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       {
         key: 'view',
         text: `${viewLabel}`,
+        disabled: isDeleting,
         iconProps: { iconName: 'View' },
         subMenuProps: {
           items: [
@@ -374,7 +381,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         },
       },
     ];
-  }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems, view]);
+  }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems, view, isDeleting]);
 
   return (
     <Stack tokens={{ childrenGap: 8 }}>
@@ -400,7 +407,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         {hasMore && !loading && (
           <DefaultButton
             text={loadingMore ? 'Loading…' : 'Load more'}
-            disabled={loadingMore}
+            disabled={loadingMore || isDeleting}
             onClick={() => loadItems(view, false)}
           />
         )}
@@ -409,9 +416,15 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           <Text styles={{ root: { color: '#605e5c' } }}>No More Results</Text>
         )}
       </Stack>
+      {isDeleting && (
+        <Overlay>
+          <Stack verticalFill verticalAlign="center" horizontalAlign="center">
+            <Spinner label="Deleting..." />
+          </Stack>
+        </Overlay>
+      )}
     </Stack>
   );
-
 };
 
 export default SubmittedPTWFormsList;
