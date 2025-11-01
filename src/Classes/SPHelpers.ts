@@ -1,3 +1,4 @@
+import { IPersonaProps } from "@fluentui/react";
 import { SPCrudOperations } from "./SPCrudOperations";
 import { SPHttpClient } from '@microsoft/sp-http';
 
@@ -126,7 +127,7 @@ export class SPHelpers {
   }
 
   public async generateCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string,
-    finalRecord: { Id: number; Created?: string | Date }, companyTitle?: string , formName?:string): Promise<string> {
+    finalRecord: { Id: number; Created?: string | Date }, companyTitle?: string, formName?: string): Promise<string> {
     const companyCode = this.getCompanyCode(companyTitle);
     const createdDate = finalRecord?.Created
       ? new Date(finalRecord.Created as any)
@@ -158,7 +159,7 @@ export class SPHelpers {
 
   // Convenience: compute and immediately update the item’s CoralReferenceNumber
   public async assignCoralReferenceNumber(spHttpClient: SPHttpClient, webUrl: string, listTitle: string, finalRecord: { Id: number; Created?: string | Date },
-    companyTitle?: string , formName?:string
+    companyTitle?: string, formName?: string
   ): Promise<string> {
     const coralRef = await this.generateCoralReferenceNumber(
       spHttpClient,
@@ -249,4 +250,23 @@ export class SPHelpers {
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
   };
+
+  public toPersona = (obj?: { Id?: any; Title?: string; EMail?: string; FullName?: string; displayName?: string }): IPersonaProps | undefined => {
+    if (!obj) return undefined;
+    const text = obj.FullName || obj.Title || obj.displayName || '';
+    const email = obj.EMail || '';
+    const id = obj.Id != null ? String(obj.Id) : text;
+    return { text, secondaryText: email, id } as IPersonaProps;
+  };
+
+  // Helper: normalize SP person field (single, array, or {results:[]}) to IPersonaProps[]
+  public toPersonaArray = (val: any): IPersonaProps[] => {
+    if (!val) return [];
+    const mapOne = (o: any) => this.toPersona(o);
+    if (Array.isArray(val)) return val.map(mapOne).filter(Boolean) as IPersonaProps[];
+    if (Array.isArray(val?.results)) return val.results.map(mapOne).filter(Boolean) as IPersonaProps[];
+    const one = mapOne(val);
+    return one ? [one] : [];
+  };
+
 }

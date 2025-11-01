@@ -20,9 +20,9 @@ export interface ILookupItem {
 
 export interface IAssetsDetails extends ILookupItem {
     assetCategoryId: number;
-    assetManager: IPersonaProps | undefined;
-    assetDirector: IPersonaProps | undefined;
-    hsePartner: IPersonaProps | undefined;
+    assetManager?: IPersonaProps[] | undefined;
+    assetDirector?: IPersonaProps[] | undefined;
+    hsePartner?: IPersonaProps[] | undefined;
 }
 
 export interface IAssetCategoryDetails extends ILookupItem {
