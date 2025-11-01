@@ -214,29 +214,44 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [props.context.spHttpClient, webUrl, currentUserEmail]);
 
   // Resolve eligibility from SP group membership for Permit Issuer Group Logged In Users
+  // React.useEffect(() => {
+  //   let disposed = false;
+  //   async function PermitIssuerGroup() {
+  //     try {
+  //       const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+  //       const isEligibleGroup = await spOps._IsUserInSPGroup('PermitIssuerGroup', currentUserEmail);
+  //       if (!isEligibleGroup) { if (!disposed) setIsPermitIssuer(false); return; }
+  //       if (!disposed) setIsPermitIssuer(isEligibleGroup);
+  //     } catch {
+  //       if (!disposed) setIsPermitIssuer(false);
+  //     }
+  //   }
+
+  //   if (currentUserEmail) PermitIssuerGroup();
+  //   return () => { disposed = true; };
+  // }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+
+  // Determine eligibility for Permit Issuer based on selected asset details (hsePartner)
   React.useEffect(() => {
     let disposed = false;
-    async function PermitIssuerGroup() {
-      try {
-        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-        const isEligibleGroup = await spOps._IsUserInSPGroup('PermitIssuerGroup', currentUserEmail);
-        if (!isEligibleGroup) { if (!disposed) setIsPermitIssuer(false); return; }
-        if (!disposed) setIsPermitIssuer(isEligibleGroup);
-      } catch {
-        if (!disposed) setIsPermitIssuer(false);
-      }
-    }
+    try {
+      const selId = _selectedAssetDetails != null ? Number(_selectedAssetDetails) : NaN;
+      const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
+      const hsePartners: IPersonaProps[] = detail?.hsePartner || _assetDirFilteredByCategory || [];
 
-    if (currentUserEmail) PermitIssuerGroup();
+      const isPI = (hsePartners || []).some(p => (p.secondaryText || '').toLowerCase() === currentUserEmail);
+      if (!disposed) setIsPermitIssuer(isPI);
+    } catch {
+      if (!disposed) setIsPermitIssuer(false);
+    }
     return () => { disposed = true; };
-  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+  }, [assetCategoriesDetailsList, _selectedAssetDetails, _piHsePartnerFilteredByCategory, currentUserEmail]);
 
   // Determine eligibility for Asset Director based on selected asset details (people field)
   React.useEffect(() => {
     let disposed = false;
     try {
       const selId = _selectedAssetDetails != null ? Number(_selectedAssetDetails) : NaN;
-
       // Prefer the selected asset details; fall back to the filtered list if needed
       const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
       const directors: IPersonaProps[] = detail?.assetDirector || _assetDirFilteredByCategory || [];
@@ -354,6 +369,32 @@ export default function PTWForm(props: IPTWFormProps) {
       }] : []);
     },
     [groupMembers, currentUserEmail]
+  );
+
+  const onPermitIssuerChange = React.useCallback((setPicker: (items: IPersonaProps[]) => void, setStatusEnabled?: (enabled: boolean) => void) =>
+    (_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+      if (!opt) {
+        setPicker([]);
+        setStatusEnabled?.(false);
+        return;
+      }
+      const idKey = opt.key;
+      const u = _piHsePartnerFilteredByCategory.find(x => x.id == idKey);
+      const selectedEmail = (u?.secondaryText || '').toLowerCase();
+      const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
+      setStatusEnabled?.(isCurrentUser);
+      // If PA equals the logged-in user, unlock the PI section (ComboBox + Status gating)
+      if (_paPicker?.[0].id == u?.id) {
+        setPiUnlockedByPA(isCurrentUser);
+      }
+
+      setPicker(u ? [{
+        text: u.title || '',
+        secondaryText: u.secondaryText || '',
+        id: String(u.id)
+      }] : []);
+    },
+    [_piHsePartnerFilteredByCategory, currentUserEmail, _paPicker]
   );
 
   // State for controlling conditional rendering of sections
@@ -1551,8 +1592,45 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [buildPayload, ptwFormStructure?.workHazardosList]);
 
   const approveForm = React.useCallback(async (mode: 'approve') => {
+    // if (mode !== 'approve' || !(mode === 'approve')) return;
 
-  }, []);
+    // // Allow PA to approve PA stage, PI to approve PI stage
+    // const isPA = isPerformingAuthority && _paStatus !== 'Approved';
+    // const isPI = isPermitIssuer && _piStatus !== 'Approved';
+    // const role = isPA ? 'PA' : (isPI ? 'PI' : undefined);
+    // if (!role) return;
+
+    // setIsBusy(true);
+    // try {
+    //   const ops = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Approval_Workflow', '');
+
+    //   // Find workflow item for this form
+    //   const formId = Number(props.formId);
+    //   const wfQuery = `?$select=Id&$filter=PTWForm/Id eq ${formId}`;
+    //   const wfList = await new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Approval_Workflow', wfQuery)._getItemsWithQuery();
+    //   const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
+    //   if (!wfItemId) throw new Error('Workflow item not found.');
+
+    //   const nowIso = new Date().toISOString();
+    //   const body = role === 'PA'
+    //     ? { PAStatus: 'Approved', PAApprovalDate: nowIso }
+    //     : { PIStatus: 'Approved', PIApprovalDate: nowIso };
+
+    //   // Optimistic UI update so the button hides immediately
+    //   if (role === 'PA') { setPaStatus('Approved'); setPaDate(new Date(nowIso)); }
+    //   if (role === 'PI') { setPiStatus('Approved'); setPiDate(new Date(nowIso)); }
+
+    //   const res = await ops._updateItem(String(wfItemId), body);
+    //   if (!res.ok) throw new Error('Failed to update workflow status.');
+
+    //   showBanner(`${role} approved successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
+    // } catch (e) {
+    //   showBanner('Failed to approve. Please try again.', { autoHideMs: 5000, fade: true, kind: 'error' });
+    // } finally {
+    //   setIsBusy(false);
+    // }
+  }, [isPerformingAuthority, isPermitIssuer, _paStatus, _piStatus, props.formId, webUrl, props.context.spHttpClient]);
+
 
   const submitForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<boolean> => {
     if (!isPermitOriginator) {
@@ -1665,7 +1743,7 @@ export default function PTWForm(props: IPTWFormProps) {
       body['MachineryInvolvedId'] = payload.machineryIds.map(Number);
     }
     if (payload.personnelIds?.length) {
-      body['PersonnelInvolvedId'] = _selectedPersonnelIds?.map(Number);
+      body['PersonnelInvolvedId'] = payload.personnelIds.map(Number);
     }
 
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
@@ -1992,8 +2070,8 @@ export default function PTWForm(props: IPTWFormProps) {
           `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,HSEDirectorApprover/Title,` +
           `POClosureApprover/Id,POClosureApprover/EMail,POClosureApprover/Title,` +
           `AssetManagerApprover/Id,AssetManagerApprover/EMail,AssetManagerApprover/Title` +
-          `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,HSEDirectorApprover,POClosureApprover,AssetManagerApprover`;
-        `&$filter=PTWForm/Id eq '${formId}'`;
+          `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,HSEDirectorApprover,POClosureApprover,AssetManagerApprover` +
+          `&$filter=PTWForm/Id eq '${formId}'`;
 
         const formCrudFirstSelect = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', ptwFirstSelect);
         const headerItemsFirstSelect = await formCrudFirstSelect._getItemsWithQuery();
@@ -2044,6 +2122,49 @@ export default function PTWForm(props: IPTWFormProps) {
           setFireWatchAssigned(headerSecondSelect?.FireWatchAssigned ? String(headerSecondSelect.FireWatchAssigned.FullName) : '');
           setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
           setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
+
+          if (headerFirstSelect?.AssetDetails) {
+            const assetDetailId = Number(headerFirstSelect.AssetDetails.Id);
+            const cached = (assetCategoriesDetailsList || []).find(d => Number(d.id) === assetDetailId);
+
+            const setFromDetail = (detail: any) => {
+              setPiHsePartnerFilteredByCategory(detail?.HSEPartner || []);
+              setAssetDirFilteredByCategory(detail?.AssetDirector || []);
+              setAssetManagerFilteredByCategory(detail?.AssetManager || []);
+            };
+
+            if (cached) {
+              setFromDetail({
+                HSEPartner: cached.hsePartner,
+                AssetDirector: cached.assetDirector,
+                AssetManager: cached.assetManager
+              });
+            }
+            else {
+              // Fallback: fetch this asset detail directly
+              try {
+                const query = `?$select=Id,` +
+                  `AssetDirector/Id,AssetDirector/Title,AssetDirector/EMail,` +
+                  `AssetManager/Id,AssetManager/Title,AssetManager/EMail,` +
+                  `HSEPartner/Id,HSEPartner/Title,HSEPartner/EMail` +
+                  `&$expand=AssetDirector,AssetManager,HSEPartner` +
+                  `&$filter=Id eq ${assetDetailId}`;
+                const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_Asset_Details', query);
+                const arr = await ops._getItemsWithQuery();
+                const item = Array.isArray(arr) ? arr[0] : undefined;
+                if (item) setFromDetail(item);
+                else {
+                  setPiHsePartnerFilteredByCategory([]);
+                  setAssetDirFilteredByCategory([]);
+                  setAssetManagerFilteredByCategory([]);
+                }
+              } catch {
+                setPiHsePartnerFilteredByCategory([]);
+                setAssetDirFilteredByCategory([]);
+                setAssetManagerFilteredByCategory([]);
+              }
+            }
+          }
 
           if (headerSecondSelect.ProtectiveSafetyEquipments.length > 0) {
             setSelectedProtectiveEquipmentIds(headerSecondSelect.ProtectiveSafetyEquipments.map(
@@ -2141,7 +2262,7 @@ export default function PTWForm(props: IPTWFormProps) {
               PAApprovalDate: headerWorkflow.PAApprovalDate !== undefined && headerWorkflow.PAApprovalDate !== null ? headerWorkflow.PAApprovalDate : undefined,
               PAStatus: headerWorkflow.PAStatus !== undefined && headerWorkflow.PAStatus !== null ? headerWorkflow.PAStatus : undefined,
 
-              PIApprover: headerWorkflow.PIApprover !== undefined && headerWorkflow.PIApprover !== null ? toPersona(headerWorkflow.PIApprover) : undefined,
+              PIApprover: headerWorkflow.PIApprover !== undefined && headerWorkflow.PIApprover !== null ? spHelpers.toPersona(headerWorkflow.PIApprover) : undefined,
               PIApprovalDate: headerWorkflow.PIApprovalDate !== undefined && headerWorkflow.PIApprovalDate !== null ? headerWorkflow.PIApprovalDate : undefined,
               PIStatus: headerWorkflow.PIStatus !== undefined && headerWorkflow.PIStatus !== null ? headerWorkflow.PIStatus : undefined,
 
@@ -2450,7 +2571,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       residualRiskOptions={ptwFormStructure?.residualRisk || []}
                       safeguards={filteredSafeguards || []}
                       overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
-                      disableRiskControls={!isPermitIssuer && !isSubmitted}
+                      disableRiskControls={!isPermitIssuer || !isSubmitted}
                       defaultRows={_riskAssessmentsTasks?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
                       onChange={handleRiskTasksChange}
                     />
@@ -2718,7 +2839,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Toolbox Talk (TBT) */}
-              {isSubmitted && !isPermitIssuer && (
+              {isSubmitted && isPermitIssuer && (
                 <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
                     <Checkbox
@@ -2823,8 +2944,8 @@ export default function PTWForm(props: IPTWFormProps) {
                     value={_paDate ? new Date(_paDate) : new Date()}
                   />
                   <ComboBox
-                    // disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
-                    disabled={!isPerformingAuthority}
+                    disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
+                    // disabled={!isPerformingAuthority}
                     placeholder="Status"
                     options={statusOptions}
                     selectedKey={_paStatus}
@@ -2840,15 +2961,14 @@ export default function PTWForm(props: IPTWFormProps) {
                     <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
                     <ComboBox
                       placeholder="Select Permit Issuer"
-                      // disabled={!stageEnabled.piEnabled}
-                      disabled={!isPermitIssuer && !isSubmitted}
-                      // options={getOptionsForGroup('PermitIssuerGroup')}
+                      disabled={!stageEnabled.piEnabled}
+                      // disabled={!isPermitIssuer && !isSubmitted}
                       options={_piHsePartnerFilteredByCategory?.map(m => ({
                         key: String(m.id),
                         text: m.title || m.text || ''
                       }))}
                       selectedKey={_piPicker?.[0]?.id || undefined}
-                      onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items), setPiStatusEnabled)}
+                      onChange={onPermitIssuerChange((items) => setPiPicker(items), setPiStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -2859,7 +2979,8 @@ export default function PTWForm(props: IPTWFormProps) {
                       value={_piDate ? new Date(_piDate) : new Date()}
                     />
                     <ComboBox
-                      disabled={!isPermitIssuer && !isSubmitted}
+                      // disabled={!stageEnabled.piEnabled }
+                      disabled={!isPermitIssuer}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_piStatus}
@@ -3039,10 +3160,14 @@ export default function PTWForm(props: IPTWFormProps) {
         }
 
         {(mode === "submitted") && (
-          <PrimaryButton text="Approve"
-            onClick={() => approveForm('approve')}
-            disabled={!isPermitOriginator || isBusy}
-          />
+          ((isPerformingAuthority && _paStatus !== "Approved") ||
+            (isPermitIssuer && _piStatus !== "Approved")) && (
+            <PrimaryButton
+              text="Approve"
+              onClick={() => approveForm('approve')}
+              disabled={isBusy}
+            />
+          )
         )}
       </div>
 

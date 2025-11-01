@@ -92,6 +92,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     };
 
     const handleInitialRiskChange = (id: string, option?: IComboBoxOption) => {
+        if (disableRiskControls) return;
         setRows(prev => prev.map(r => (r.id === id ? { ...r, initialRisk: option?.key as string | undefined } : r)));
     };
 
@@ -135,6 +136,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     }, [setRows]);
 
     const handleResidualRiskChange = (id: string, option?: IComboBoxOption) => {
+        if (disableRiskControls) return;
         setRows(prev => prev.map(r => (r.id === id ? { ...r, residualRisk: option?.key as string | undefined } : r)));
     };
 
@@ -159,6 +161,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     value={row.task}
                     onChange={(_, v) => handleTaskChange(row.id, v)}
                     placeholder="Enter task"
+
                 />
             )
         },
@@ -260,7 +263,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                 />
             )
         }
-    ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow]);
+    ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow, disableRiskControls]);
 
     const overallOptions: IChoiceGroupOption[] = (overallRiskOptions || []).map(o => {
         const { bg, fg } = getRiskColors(o);
