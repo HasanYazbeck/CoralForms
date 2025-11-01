@@ -1325,7 +1325,8 @@ export default function PTWForm(props: IPTWFormProps) {
       attachmentsDetails: _attachmentsResult,
       machineryIds: _selectedMachineryIds || [],
       personnelIds: _selectedPersonnelIds || [],
-      originator: _PermitOriginator?.[0]?.id || '',
+      originatorId: _PermitOriginator?.[0]?.id || '',
+      originatorEMail: _PermitOriginator?.[0]?.secondaryText || '',
       toolboxTalk: _selectedToolboxTalk !== undefined && _selectedToolboxTalk ? true : false,
       toolboxTalkDate: _selectedToolboxTalkDate || '',
       toolboxTalkConductedById: _selectedToolboxConductedBy?.[0]?.id || '',
@@ -1369,7 +1370,7 @@ export default function PTWForm(props: IPTWFormProps) {
     const payload = buildPayload();
     payloadRef.current = payload;
 
-    if (!payload.originator.trim()) {
+    if (!payload.originatorId.trim()) {
       missing.push('Permit Originator');
       return `Please fill in the required fields: ${missing.join(', ')}.`;
     };
@@ -1461,6 +1462,8 @@ export default function PTWForm(props: IPTWFormProps) {
       if (!payload.personnelIds || payload.personnelIds.length === 0) {
         missing.push('At least one Personnel Involved');
       }
+
+      if (isPermitOriginator && !payload.paPickerId?.toString().trim()) missing.push('Performing Authority');
 
       if (missing.length) {
         return `Please fill in the required fields: ${missing.join(', ')}.`;
@@ -1618,12 +1621,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
     if (!payload) throw new Error('Form payload is not available');
 
-    // const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-    // const originatorId = await spOps.ensureUserId(payload.originator);
-
     const body: any = {
       PermitOriginatorId: spOriginatorId ?? null,
-      Title: 'PTW Form' + (spOriginatorId ? ` - ${payload.originator}` : ''),
+      Title: 'PTW Form' + (spOriginatorId ? ` - ${payload.originatorId}` : ''),
       AssetID: payload.assetId ?? null,
       AssetCategoryId: payload.assetCategoryId ? Number(payload.assetCategoryId) : null,
       AssetDetailsId: payload.assetDetailsId ? Number(payload.assetDetailsId) : null,
@@ -1830,7 +1830,7 @@ export default function PTWForm(props: IPTWFormProps) {
     if (!payload) throw new Error('Form payload is not available');
 
     const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-    const originatorId = await spOps.ensureUserId(payload.originator);
+    const originatorId = await spOps.ensureUserId(payload.originatorEMail || '');
 
     const body: any = {
       PermitOriginatorId: originatorId ?? null,
@@ -2124,7 +2124,7 @@ export default function PTWForm(props: IPTWFormProps) {
           }
 
           if (headerWorkflow) {
-            debugger;
+
             const result: IPTWWorkflow = {
               id: headerWorkflow.Id !== undefined && headerWorkflow.Id !== null ? headerWorkflow.Id : undefined,
               PTWFormId: headerWorkflow.PTWForm?.Id !== undefined && headerWorkflow.PTWForm?.Id !== null ? headerWorkflow.PTWForm.Id : undefined,
@@ -2446,7 +2446,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       residualRiskOptions={ptwFormStructure?.residualRisk || []}
                       safeguards={filteredSafeguards || []}
                       overallRiskOptions={ptwFormStructure?.overallRiskAssessment || []}
-                      disableRiskControls={isPermitOriginator}
+                      disableRiskControls={!isPermitIssuer}
                       defaultRows={_riskAssessmentsTasks?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
                       onChange={handleRiskTasksChange}
                     />
@@ -2473,104 +2473,108 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               <Separator />
-              <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
-                {/* Gas Test Required Section */}
-                <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
-                  <div className='col-md-3'><Label>Gas Test Required</Label></div>
-                  <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: "30px" }}>
-                      {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
-                        <div key={i}>
-                          <Checkbox
-                            label={gas}
-                            checked={_gasTestValue === gas}
-                            // onChange={() => setGasTestValue(gas)}
-                            onChange={() => {
-                              setGasTestValue(prev => (prev === gas ? '' : gas));
-                              setGasTestResult('');
-                            }
-                            }
-                            disabled={!isPermitIssuer}
+              {isSubmitted && !isPermitIssuer && (
+                <>
+                  <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
+                    {/* Gas Test Required Section */}
+                    <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
+                      <div className='col-md-3'><Label>Gas Test Required</Label></div>
+                      <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: "30px" }}>
+                          {ptwFormStructure?.gasTestRequired?.map((gas, i) => (
+                            <div key={i}>
+                              <Checkbox
+                                label={gas}
+                                checked={_gasTestValue === gas}
+                                // onChange={() => setGasTestValue(gas)}
+                                onChange={() => {
+                                  setGasTestValue(prev => (prev === gas ? '' : gas));
+                                  setGasTestResult('');
+                                }
+                                }
+                                disabled={!isPermitIssuer}
+                              />
+                            </div>
+                          ))}
+
+                          <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
+                        </div>
+                        <div style={{ flex: '1' }}>
+                          <TextField
+                            type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            placeholder="Enter result"
+                            disabled={!isPermitIssuer || _gasTestValue !== 'Yes'}
+                            value={_gasTestResult}
+                            onChange={(e, newValue) => setGasTestResult(newValue || '')}
                           />
                         </div>
-                      ))}
-
-                      <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
+                      </div>
                     </div>
-                    <div style={{ flex: '1' }}>
-                      <TextField
-                        type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                        placeholder="Enter result"
-                        disabled={!isPermitIssuer || _gasTestValue !== 'Yes'}
-                        value={_gasTestResult}
-                        onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                {/* Fire Watch Needed Section */}
-                <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
-                  <div className='col-md-3'><Label>Fire Watch Needed</Label></div>
-                  <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: "30px" }}>
-                      {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
-                        <div key={i}>
-                          <Checkbox
-                            label={item}
-                            checked={_fireWatchValue === item}
-                            // onChange={() => setFireWatchValue(item)}
-                            onChange={() => {
-                              setFireWatchValue(prev => (prev === item ? '' : item));
-                              setFireWatchAssigned('');
-                            }}
-                            disabled={!isPermitIssuer}
+                    {/* Fire Watch Needed Section */}
+                    <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+                      <div className='col-md-3'><Label>Fire Watch Needed</Label></div>
+                      <div className="col-md-9" style={{ display: "flex", alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: "30px" }}>
+                          {ptwFormStructure?.fireWatchNeeded?.map((item, i) => (
+                            <div key={i}>
+                              <Checkbox
+                                label={item}
+                                checked={_fireWatchValue === item}
+                                // onChange={() => setFireWatchValue(item)}
+                                onChange={() => {
+                                  setFireWatchValue(prev => (prev === item ? '' : item));
+                                  setFireWatchAssigned('');
+                                }}
+                                disabled={!isPermitIssuer}
+                              />
+                            </div>
+                          ))}
+                          <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
+                        </div>
+                        <div style={{ flex: '1' }}>
+                          <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            placeholder="Enter name"
+                            disabled={!isPermitIssuer || _fireWatchValue !== 'Yes'}
+                            value={_fireWatchAssigned}
+                            onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
                           />
                         </div>
-                      ))}
-                      <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
+                      </div>
                     </div>
-                    <div style={{ flex: '1' }}>
-                      <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                        placeholder="Enter name"
-                        disabled={!isPermitIssuer || _fireWatchValue !== 'Yes'}
-                        value={_fireWatchAssigned}
-                        onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                {/* Attachments Required */}
-                <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
-                  <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
-                  <div className="" style={{ display: "flex", alignItems: "center" }}></div>
-                  <div style={{ display: "flex", gap: "30px" }}>
-                    {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
-                      <div key={i}>
-                        <Checkbox
-                          label={attachment}
-                          checked={_attachmentsValue.toLowerCase() == attachment.toLowerCase() ? true : false}
-                          onChange={() => {
-                            setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
-                            setAttachmentsResult('');
-                          }}
+                    {/* Attachments Required */}
+                    <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+                      <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
+                      <div className="" style={{ display: "flex", alignItems: "center" }}></div>
+                      <div style={{ display: "flex", gap: "30px" }}>
+                        {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
+                          <div key={i}>
+                            <Checkbox
+                              label={attachment}
+                              checked={_attachmentsValue.toLowerCase() == attachment.toLowerCase() ? true : false}
+                              onChange={() => {
+                                setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
+                                setAttachmentsResult('');
+                              }}
+                            />
+                          </div>
+                        ))}
+                        <Label style={{ paddingRight: '10px' }}>Details:</Label>
+                      </div>
+                      <div style={{ flex: '1' }}>
+                        <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                          placeholder="Enter detail"
+                          disabled={_attachmentsValue !== 'Yes'}
+                          value={_attachmentsResult}
+                          onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
                         />
                       </div>
-                    ))}
-                    <Label style={{ paddingRight: '10px' }}>Details:</Label>
+                    </div>
                   </div>
-                  <div style={{ flex: '1' }}>
-                    <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                      placeholder="Enter detail"
-                      disabled={_attachmentsValue !== 'Yes'}
-                      value={_attachmentsResult}
-                      onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
-                    />
-                  </div>
-                </div>
-              </div>
-              <Separator />
+                  <Separator />
+                </>
+              )}
 
               <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
                 <div>
@@ -2710,66 +2714,65 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Toolbox Talk (TBT) */}
-              {
-                isSubmitted && (
-                  <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
-                    <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
-                      <Checkbox
-                        label="Toolbox Talk (TBT); complete details if applicable"
-                        checked={!!_selectedToolboxTalk}
-                        onChange={(_, chk) => {
-                          const isChecked = !!chk;
-                          setToolboxTalk(isChecked);
-                          if (!isChecked) {
-                            setToolboxConductedBy(undefined);
-                            setToolboxHSEReference('');
-                            setToolboxTalkDate(undefined);
-                          }
-                        }}
-                        disabled={!isPermitOriginator && !isPerformingAuthority}
-                      />
-                    </div>
-
-                    <div className="col-md-4">
-                      <Label>Conducted By (Title)</Label>
-                      <NormalPeoplePicker
-                        onResolveSuggestions={_onFilterChanged}
-                        itemLimit={1}
-                        className={'ms-PeoplePicker'}
-                        key={'toolboxConductedBy'}
-                        removeButtonAriaLabel={'Remove'}
-                        onInputChange={onInputChange}
-                        resolveDelay={150}
-                        styles={peoplePickerBlackStyles}
-                        selectedItems={_selectedToolboxConductedBy}
-                        onChange={(items) => setToolboxConductedBy(items || undefined)}
-                        inputProps={{ placeholder: 'Enter name or email' }}
-                        pickerSuggestionsProps={suggestionProps}
-                        disabled={_selectedToolboxTalk ? false : true}
-                      />
-                    </div>
-
-                    <div className="col-md-3">
-                      <Label>HSE TBT Reference</Label>
-                      <TextField
-                        placeholder="Enter reference"
-                        value={String(_toolboxHSEReference || '')}
-                        onChange={(_, v) => setToolboxHSEReference(v || '')}
-                        disabled={_selectedToolboxTalk ? false : true}
-                      />
-                    </div>
-
-                    <div className="col-md-2">
-                      <Label>Date</Label>
-                      <DatePicker
-                        placeholder="Select date"
-                        value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
-                        onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
-                        disabled={_selectedToolboxTalk ? false : true}
-                      />
-                    </div>
+              {isSubmitted && !isPermitIssuer && (
+                <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
+                  <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
+                    <Checkbox
+                      label="Toolbox Talk (TBT); complete details if applicable"
+                      checked={!!_selectedToolboxTalk}
+                      onChange={(_, chk) => {
+                        const isChecked = !!chk;
+                        setToolboxTalk(isChecked);
+                        if (!isChecked) {
+                          setToolboxConductedBy(undefined);
+                          setToolboxHSEReference('');
+                          setToolboxTalkDate(undefined);
+                        }
+                      }}
+                      disabled={!isPermitIssuer}
+                    />
                   </div>
-                )
+
+                  <div className="col-md-4">
+                    <Label>Conducted By (Title)</Label>
+                    <NormalPeoplePicker
+                      onResolveSuggestions={_onFilterChanged}
+                      itemLimit={1}
+                      className={'ms-PeoplePicker'}
+                      key={'toolboxConductedBy'}
+                      removeButtonAriaLabel={'Remove'}
+                      onInputChange={onInputChange}
+                      resolveDelay={150}
+                      styles={peoplePickerBlackStyles}
+                      selectedItems={_selectedToolboxConductedBy}
+                      onChange={(items) => setToolboxConductedBy(items || undefined)}
+                      inputProps={{ placeholder: 'Enter name or email' }}
+                      pickerSuggestionsProps={suggestionProps}
+                      disabled={_selectedToolboxTalk ? false : true}
+                    />
+                  </div>
+
+                  <div className="col-md-3">
+                    <Label>HSE TBT Reference</Label>
+                    <TextField
+                      placeholder="Enter reference"
+                      value={String(_toolboxHSEReference || '')}
+                      onChange={(_, v) => setToolboxHSEReference(v || '')}
+                      disabled={_selectedToolboxTalk ? false : true}
+                    />
+                  </div>
+
+                  <div className="col-md-2">
+                    <Label>Date</Label>
+                    <DatePicker
+                      placeholder="Select date"
+                      value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
+                      onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
+                      disabled={_selectedToolboxTalk ? false : true}
+                    />
+                  </div>
+                </div>
+              )
               }
 
               {/* PTW Sign Off and Approval - visible when submitted */}
@@ -2810,7 +2813,8 @@ export default function PTWForm(props: IPTWFormProps) {
                     disabled={!stageEnabled.paEnabled}
                     options={getOptionsForGroup('PerformingAuthorityGroup')}
                     selectedKey={_paPicker?.[0]?.id || undefined}
-                    onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => {
+                    onChange={onSingleApproverChange('PerformingAuthorityGroup', (items) => 
+                      {
                       const selectedPersona = { id: items[0].id, displayName: items[0].text, secondaryText: items[0].secondaryText } as IPersonaProps;
                       setPaPicker(selectedPersona ? [selectedPersona] : []);
                     }, setPaStatusEnabled)}
@@ -2824,7 +2828,8 @@ export default function PTWForm(props: IPTWFormProps) {
                     value={_paDate ? new Date(_paDate) : new Date()}
                   />
                   <ComboBox
-                    disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
+                    // disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
+                    disabled={!isPerformingAuthority}
                     placeholder="Status"
                     options={statusOptions}
                     selectedKey={_paStatus}
@@ -2839,7 +2844,8 @@ export default function PTWForm(props: IPTWFormProps) {
                     <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
                     <ComboBox
                       placeholder="Select Permit Issuer"
-                      disabled={!stageEnabled.piEnabled}
+                      // disabled={!stageEnabled.piEnabled}
+                      disabled={!isPermitIssuer}
                       options={getOptionsForGroup('PermitIssuerGroup')}
                       selectedKey={_piPicker?.[0]?.id || undefined}
                       onChange={onSingleApproverChange('PermitIssuerGroup', (items) => setPiPicker(items), setPiStatusEnabled)}
@@ -2853,7 +2859,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       value={_piDate ? new Date(_piDate) : new Date()}
                     />
                     <ComboBox
-                      disabled={!stageEnabled.piEnabled}
+                      disabled={!isPermitIssuer}
                       placeholder="Status"
                       options={statusOptions}
                       selectedKey={_piStatus}

@@ -77,7 +77,7 @@ export interface IPTWForm {
     issuanceInstrunctions: ILKPItemInstructionsForUse[];
 }
 
-export interface IPTWWorkflow  {
+export interface IPTWWorkflow {
     id: number | undefined;
     PTWFormId: number | undefined;
     CoralReferenceNumber: string | undefined;
