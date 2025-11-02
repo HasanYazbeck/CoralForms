@@ -118,7 +118,8 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         assetCategory: obj.AssetCategory ? obj.AssetCategory.Title : undefined,
         assetDetails: obj.AssetDetails ? obj.AssetDetails.Title : undefined,
         company: obj.CompanyRecord ? obj.CompanyRecord.Title : undefined,
-        FormStatusRecord: obj.FormStatusRecord ?? undefined
+        FormStatusRecord: obj.FormStatusRecord ?? undefined,
+        WorkflowStatus: obj.WorkflowStatus ?? undefined
       };
     });
   }, []);
