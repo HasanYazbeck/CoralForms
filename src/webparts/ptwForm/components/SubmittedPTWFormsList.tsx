@@ -22,6 +22,7 @@ export type Row = {
   assetCategory?: string;
   assetDetails?: string;
   FormStatusRecord: string;
+  WorkflowStatus?: string;
 };
 
 interface SubmittedPTWFormsListProps {
@@ -97,7 +98,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
   // Build the shared select/expand pieces (without $top so we can append it)
   const baseSelect = React.useMemo(() => (
-    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,` +
+    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,WorkflowStatus,` +
     `PermitOriginator/Title,PermitOriginator/EMail,` +
     `AssetCategory/Id,AssetCategory/Title,` +
     `AssetDetails/Id,AssetDetails/Title,` +
@@ -126,7 +127,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     () => [
       { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 160, maxWidth: 180, isResizable: true },
       { key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 110, isResizable: true },
-
+      { key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 100, isResizable: true },
       { key: 'colProjectTitle', name: 'Project Title', fieldName: 'projectTitle', minWidth: 160, isResizable: true },
       { key: 'colAssetCategory', name: 'Asset Category', fieldName: 'assetCategory', minWidth: 200, isResizable: true },
       { key: 'colAssetDetails', name: 'Asset Details', fieldName: 'assetDetails', minWidth: 200, isResizable: true },

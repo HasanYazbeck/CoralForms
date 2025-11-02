@@ -30,7 +30,7 @@ import { SPHttpClient } from '@microsoft/sp-http';
 import { IUser } from '../../../Interfaces/Common/IUser';
 import { SPCrudOperations } from "../../../Classes/SPCrudOperations";
 import { SPHelpers } from "../../../Classes/SPHelpers";
-import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IPTWWorkflow, ISagefaurdsItem, IWorkCategory } from '../../../Interfaces/PtwForm/IPTWForm';
+import { IAssetCategoryDetails, IAssetsDetails, ICoralForm, IEmployeePeronellePassport, ILookupItem, IPTWForm, IPTWWorkflow, ISagefaurdsItem, IWorkCategory, WorkflowStages } from '../../../Interfaces/PtwForm/IPTWForm';
 import { CheckBoxDistributerComponent } from './CheckBoxDistributerComponent';
 import RiskAssessmentList, { IRiskTaskRow } from './RiskAssessmentList';
 import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
@@ -129,7 +129,6 @@ export default function PTWForm(props: IPTWFormProps) {
 
   // Add status type and options
   type SignOffStatus = 'Pending' | 'Approved' | 'Rejected' | 'Closed';
-
   // SharePoint group members cache
   type SPGroupUser = { id: number; title: string; email: string };
   const [groupMembers, setGroupMembers] = React.useState<Record<string, SPGroupUser[]>>({});
@@ -172,6 +171,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_closureAssetManagerDate, setClosureAssetManagerDate] = React.useState<Date | undefined>(new Date());
   const [_closureAssetManagerStatus, setClosureAssetManagerStatus] = React.useState<SignOffStatus>('Pending');
   const [_closureAssetManagerStatusEnabled, setClosureAssetManagerStatusEnabled] = React.useState<boolean>(false);
+
+  const [_workflowStage, setWorkflowStage] = React.useState<WorkflowStages>(undefined);
 
   const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
   // Determine if current user is the Permit Originator
@@ -357,6 +358,12 @@ export default function PTWForm(props: IPTWFormProps) {
       const selectedEmail = (u?.email || '').toLowerCase();
       const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
       setStatusEnabled?.(isCurrentUser);
+
+      if (!isCurrentUser && groupName === 'PerformingAuthorityGroup') {
+        setPiPicker([]);
+        setPiStatus('Pending');
+      }
+
       // If PA equals the logged-in user, unlock the PI section (ComboBox + Status gating)
       if (groupName === 'PerformingAuthorityGroup') {
         setPiUnlockedByPA(isCurrentUser);
@@ -948,6 +955,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
       assetDirector ? setAssetDirFilteredByCategory(assetDirector) : setAssetDirFilteredByCategory([]);
       assetManager ? setAssetManagerFilteredByCategory(assetManager) : setAssetManagerFilteredByCategory([]);
+      setPiStatus('Pending'); // Reset PI status on asset detail change
+      setAssetDirStatus('Pending');
+      setClosureAssetManagerStatus('Pending');
 
       if (hsePartnerPersona) {
         setPiHsePartnerFilteredByCategory(hsePartnerPersona);
@@ -1591,46 +1601,158 @@ export default function PTWForm(props: IPTWFormProps) {
     return undefined;
   }, [buildPayload, ptwFormStructure?.workHazardosList]);
 
-  const approveForm = React.useCallback(async (mode: 'approve') => {
-    // if (mode !== 'approve' || !(mode === 'approve')) return;
+  const validateBeforeApprove = React.useCallback((mode: 'approve'): string | undefined => {
+    const missing: string[] = [];
+    const payload = buildPayload();
+    payloadRef.current = payload;
 
-    // // Allow PA to approve PA stage, PI to approve PI stage
-    // const isPA = isPerformingAuthority && _paStatus !== 'Approved';
-    // const isPI = isPermitIssuer && _piStatus !== 'Approved';
-    // const role = isPA ? 'PA' : (isPI ? 'PI' : undefined);
-    // if (!role) return;
+    if (!payload) missing.push('Form data is missing. Please reload the page.');
 
-    // setIsBusy(true);
-    // try {
-    //   const ops = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Approval_Workflow', '');
+    if (isPerformingAuthority) {
+      if (payload.paStatus === 'Pending') missing.push('Approval/Rejection Status.');
+      if (payload.paStatus === 'Rejected' && (!payload.paPickerId || String(payload.paPickerId).trim() === '')) missing.push('Performing Authority');
+      if (payload.paStatus === 'Approved' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
+    }
 
-    //   // Find workflow item for this form
-    //   const formId = Number(props.formId);
-    //   const wfQuery = `?$select=Id&$filter=PTWForm/Id eq ${formId}`;
-    //   const wfList = await new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Approval_Workflow', wfQuery)._getItemsWithQuery();
-    //   const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
-    //   if (!wfItemId) throw new Error('Workflow item not found.');
+    if (isPermitIssuer) {
+      if (payload.piStatus === 'Pending') missing.push('Approval/Rejection Status.');
+      if (payload.piStatus === 'Rejected' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
+      // if (payload.piStatus === 'Approved' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
 
-    //   const nowIso = new Date().toISOString();
-    //   const body = role === 'PA'
-    //     ? { PAStatus: 'Approved', PAApprovalDate: nowIso }
-    //     : { PIStatus: 'Approved', PIApprovalDate: nowIso };
+      // Tasks required when 3 + hazards: list rows missing a task
+      const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
+      if (hazardsCount >= 3) {
+        const rows = Array.isArray(payload.workTaskLists) ? payload.workTaskLists : [];
+        if (rows.length >= 1) {
+          // Initial Risk required per row
+          const missingInitialRiskRows = rows
+            .map((row: any, idx: number) => ({ idx, ok: !!String(row?.initialRisk || '').trim() }))
+            .filter((x: { ok: any; }) => !x.ok)
+            .map((x: { idx: number; }) => x.idx + 1);
 
-    //   // Optimistic UI update so the button hides immediately
-    //   if (role === 'PA') { setPaStatus('Approved'); setPaDate(new Date(nowIso)); }
-    //   if (role === 'PI') { setPiStatus('Approved'); setPiDate(new Date(nowIso)); }
+          if (missingInitialRiskRows.length) {
+            missing.push(`Initial Risk missing for row(s): ${missingInitialRiskRows.join(', ')}`);
+          }
 
-    //   const res = await ops._updateItem(String(wfItemId), body);
-    //   if (!res.ok) throw new Error('Failed to update workflow status.');
+          const missingResidualRiskRows = rows
+            .map((row: any, idx: number) => ({ idx, ok: !!String(row?.residualRisk || '').trim() }))
+            .filter((x: { ok: any; }) => !x.ok)
+            .map((x: { idx: number; }) => x.idx + 1);
 
-    //   showBanner(`${role} approved successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
-    // } catch (e) {
-    //   showBanner('Failed to approve. Please try again.', { autoHideMs: 5000, fade: true, kind: 'error' });
-    // } finally {
-    //   setIsBusy(false);
-    // }
-  }, [isPerformingAuthority, isPermitIssuer, _paStatus, _piStatus, props.formId, webUrl, props.context.spHttpClient]);
+          if (missingResidualRiskRows.length) {
+            missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
+          }
+        }
 
+        // Overall Risk Assessment required
+        if (!String(payload.overallRiskAssessment || '').trim()) {
+          missing.push('Overall Risk Assessment');
+        }
+
+        // If Detailed (L2) is checked, require reference number
+        const l2Required = !!payload.detailedRiskAssessment;
+        if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
+          missing.push('Risk Assessment Ref Number (Detailed L2)');
+        }
+
+        // If all above are satisfied and Overall Risk is High, require Asset Director selection
+        if (missing.length === 0) {
+          const isHigh = String(payload.overallRiskAssessment || '').toLowerCase().includes('high');
+          if (isHigh && (!payload.assetDirPickerId && payload.assetDirPickerId.trim() === "")) {
+            missing.push('Asset Director (required for High Overall Risk)');
+          }
+        }
+      }
+    }
+
+    if (missing.length) {
+      return `Please fill in the required fields: ${missing.join(', ')}.`;
+    }
+    return undefined;
+  }, [buildPayload, isPerformingAuthority, isPermitIssuer, _assetDirPicker]);
+
+  const approveForm = React.useCallback(async (mode: 'approve'): Promise<boolean> => {
+    payloadRef.current = buildPayload();
+    const payload = payloadRef.current;
+    const validationError = validateBeforeApprove(mode);
+    if (validationError) {
+      showBanner(validationError);
+      return false;
+    }
+    else {
+      setIsBusy(true);
+      try {
+        // Find workflow item for this form
+        const formId = Number(props.formId);
+        const wfQuery = `?$select=Id&$filter=PTWForm/Id eq ${formId}`;
+        const ops = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Approval_Workflow', wfQuery);
+        const wfList = await ops._getItemsWithQuery();
+        const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
+        if (!wfItemId) throw new Error('Workflow item not found.');
+
+        const nowIso = new Date().toISOString();
+        let body = {};
+        if (isPerformingAuthority) {
+          body = {
+            PAStatus: payload.paStatus,
+            PAApprovalDate: payload.paApprovalDate || nowIso,
+            PIApproverId: payload.piPickerId ? Number(payload.piPickerId) : null,
+          }
+
+          const res = await ops._updateItem(String(wfItemId), body);
+          if (!res.ok) throw new Error('Failed to update workflow status.');
+
+          if (res.ok) {
+            await _updatePTWFormWorkflowStatus(formId, 'In Review')
+          }
+          showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
+          goBackToHost();
+          return true;
+        }
+
+        const isHigh = String(payload.overallRiskAssessment || '').toLowerCase().includes('high');
+        if (isPermitIssuer) {
+          if (isHigh) {
+            body = {
+              PIStatus: payload.piStatus,
+              PIApprovalDate: payload.piApprovalDate || nowIso,
+              AssetDirectorApproverId: payload.assetDirPickerId ? Number(payload.assetDirPickerId) : null,
+              // TODO: Set HSEDirectorApproverId when that role is implemented`
+              HSEDirectorApproverId: payload.hseDirPickerId ? Number(payload.hseDirPickerId) : null,
+              POClosureApprover: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : null,
+              AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : null,
+            }
+          } else {
+            // NOT High risk
+            body = {
+              PIStatus: payload.piStatus,
+              PIApprovalDate: payload.piApprovalDate || nowIso,
+              POClosureApprover: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : null,
+              AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : null,
+            }
+          }
+
+          const res = await ops._updateItem(String(wfItemId), body);
+          if (!res.ok) throw new Error('Failed to update workflow status.');
+
+          if (res.ok) {
+            if (!isHigh) {
+              await _updatePTWFormWorkflowStatus(formId, 'Issued');
+            }
+          }
+          showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
+          goBackToHost();
+          return true;
+        }
+      }
+      catch (e) {
+        showBanner('Failed to approve. Please try again.', { autoHideMs: 5000, fade: true, kind: 'error' });
+      } finally {
+        setIsBusy(false);
+      }
+      return true;
+    }
+  }, [validateBeforeApprove, buildPayload, isPerformingAuthority, isPermitIssuer, _paStatus, _piStatus, props.formId, webUrl, props.context.spHttpClient]);
 
   const submitForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<boolean> => {
     if (!isPermitOriginator) {
@@ -1767,9 +1889,15 @@ export default function PTWForm(props: IPTWFormProps) {
 
       if (mode === 'submit') {
         const _createdWorkflow = await _createPTWFormApprovalWorkflow(Number(newId), spOriginatorId);
-
+        
         if (!_createdWorkflow) {
           throw new Error('Failed to create PTW Form Approval Workflow');
+        }
+
+        const _updatedFormWorkflowStatus = await _updatePTWFormWorkflowStatus(Number(newId), 'In Review');
+
+        if (!_updatedFormWorkflowStatus) {
+          throw new Error('Failed to update PTW Form Workflow Status');
         }
       }
 
@@ -2000,6 +2128,24 @@ export default function PTWForm(props: IPTWFormProps) {
     return true;
   }, [props.context.spHttpClient, payloadRef.current]);
 
+  const _updatePTWFormWorkflowStatus = React.useCallback(async (formId: number, status: string): Promise<boolean> => {
+    const payload = payloadRef.current;
+    if (!payload) throw new Error('Form payload is not available');
+
+    const body: any = {
+      WorkflowStatus: status,
+    };
+
+    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
+    const response = await spCrudRef.current._updateItem(String(formId), body);
+    if (!response.ok) {
+      showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
+      return false;
+    }
+
+    return true;
+  }, [props.context.spHttpClient, payloadRef.current]);
+
   // ---------------------------
   // Render
   // ---------------------------
@@ -2062,7 +2208,7 @@ export default function PTWForm(props: IPTWFormProps) {
           `&$filter=PTWForm/Id eq '${formId}'`;
 
         const workflow: string = `?$select=Id,PTWForm/Id,PTWForm/CoralReferenceNumber,POStatus,PAStatus,PIStatus,AssetDirectorStatus,HSEDirectorStatus,POClosureStatus,AssetManagerStatus,` +
-          `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerApprovalDate,` +
+          `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerApprovalDate,Stage,` +
           `POApprover/Id,POApprover/EMail,POApprover/Title,` +
           `PAApprover/Id,PAApprover/EMail,PAApprover/Title,` +
           `PIApprover/Id,PIApprover/EMail,PIApprover/Title,` +
@@ -2281,6 +2427,7 @@ export default function PTWForm(props: IPTWFormProps) {
               AssetManagerApprover: headerWorkflow.AssetManagerApprover !== undefined && headerWorkflow.AssetManagerApprover !== null ? toPersona(headerWorkflow.AssetManagerApprover) : undefined,
               AssetManagerApprovalDate: headerWorkflow.AssetManagerApprovalDate !== undefined && headerWorkflow.AssetManagerApprovalDate !== null ? headerWorkflow.AssetManagerApprovalDate : undefined,
               AssetManagerStatus: headerWorkflow.AssetManagerStatus !== undefined && headerWorkflow.AssetManagerStatus !== null ? headerWorkflow.AssetManagerStatus : undefined,
+              Stage: headerWorkflow.Stage !== undefined && headerWorkflow.Stage !== null ? headerWorkflow.Stage : undefined,
             };
 
             setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate) : undefined);
@@ -2308,6 +2455,8 @@ export default function PTWForm(props: IPTWFormProps) {
             setClosureAssetManagerPicker(result.AssetManagerApprover ? [{ text: result.AssetManagerApprover.text || '', secondaryText: result.AssetManagerApprover.secondaryText || '', id: result.AssetManagerApprover.id || '' }] : []);
             setClosureAssetManagerDate(result.AssetManagerApprovalDate ? new Date(result.AssetManagerApprovalDate) : undefined);
             setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
+
+            setWorkflowStage(result.Stage || undefined);
           }
         }
 
@@ -2322,6 +2471,41 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => { cancelled = true; };
   }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
 
+  const onAssetDirectorChange = React.useCallback((_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+    if (!opt) {
+      setAssetDirPicker([]);
+      setAssetDirStatusEnabled(false);
+      return;
+    }
+    const u = _assetDirFilteredByCategory.find(x => String(x.id) === String(opt.key));
+    const selectedEmail = (u?.secondaryText || '').toLowerCase();
+    const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
+    setAssetDirStatusEnabled(isCurrentUser);
+
+    setAssetDirPicker(u ? [{
+      text: u.text || u.title || '',
+      secondaryText: u.secondaryText || '',
+      id: String(u.id)
+    }] : []);
+  }, [_assetDirFilteredByCategory, currentUserEmail]);
+
+  const onAssetManagerChange = React.useCallback((_: React.FormEvent<IComboBox>, opt?: IDropdownOption) => {
+    if (!opt) {
+      setClosureAssetManagerPicker([]);
+      setClosureAssetManagerStatusEnabled(false);
+      return;
+    }
+    const u = _assetManagerFilteredByCategory.find(x => String(x.id) === String(opt.key));
+    const selectedEmail = (u?.secondaryText || '').toLowerCase();
+    const isCurrentUser = !!selectedEmail && selectedEmail === currentUserEmail;
+    setClosureAssetManagerStatusEnabled(isCurrentUser);
+
+    setClosureAssetManagerPicker(u ? [{
+      text: u.text || u.title || '',
+      secondaryText: u.secondaryText || '',
+      id: String(u.id)
+    }] : []);
+  }, [_assetManagerFilteredByCategory, currentUserEmail]);
 
   const stageEnabled = React.useMemo(() => {
     const poEnabled = isPermitOriginator; // Originator signs first
@@ -2338,6 +2522,62 @@ export default function PTWForm(props: IPTWFormProps) {
     isPermitOriginator, isPerformingAuthority, isPermitIssuer, isAssetDirector, isHSEDirector, isAssetManager,
     _poStatus, _paStatus, _piStatus, _assetDirStatus, _hseDirStatus, isHighRisk, _piUnlockedByPA, isSubmitted
   ]);
+
+  const isPIPickerEnabled = React.useCallback((): boolean => {
+    const stage = String(_workflowStage || '').toLowerCase();
+    const selectedEmail = String(_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const paApproved = String(_paStatus || '').toLowerCase() === 'approved'; // optional guard
+
+    return (
+      (isSubmitted && isPermitIssuer && selectedEmail === currentUserEmail
+        && (stage === 'ApprovedFromPAToPI'.toLowerCase() || stage === 'ApprovedFromPOToPI'.toLowerCase())
+      )
+      || (isSubmitted && paApproved && stage === 'ApprovedFromPOToPA'.toLowerCase() && selectedEmail == '')
+      || (!isSubmitted && _piUnlockedByPA)
+    );
+  }, [_workflowStage, _piPicker, currentUserEmail, isSubmitted, isPermitIssuer, _piUnlockedByPA, _paStatus]);
+
+  const isPaStatusEnabled = React.useMemo(() => {
+    const stage = String(_workflowStage || '').toLowerCase();
+    const selectedEmail = String(_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    return (
+      isSubmitted &&
+      isPerformingAuthority &&
+      stage === 'ApprovedFromPOToPA'.toLowerCase() &&
+      selectedEmail === currentUserEmail
+    );
+  }, [_workflowStage, _paPicker, currentUserEmail, isSubmitted, isPerformingAuthority]);
+
+  const isPIStatusEnabled = React.useMemo(() => {
+    const stage = String(_workflowStage || '').toLowerCase();
+    const selectedEmail = String(_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    return (
+      (isSubmitted &&
+        isPermitIssuer &&
+        selectedEmail === currentUserEmail &&
+        (stage === 'ApprovedFromPAToPI'.toLowerCase() || stage === 'ApprovedFromPOToPI'.toLowerCase()))
+      || (!isSubmitted && isPermitIssuer)
+    );
+  }, [_workflowStage, _piPicker, currentUserEmail, isSubmitted, isPermitIssuer]);
+
+  const isAssetDirectorStatusEnabled = React.useCallback((): boolean => {
+    const stage = String(_workflowStage || '').toLowerCase();
+    const selectedEmail = String(_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const PiApproved = String(_piStatus || '').toLowerCase() === 'approved'; // optional guard
+
+    return (
+      (isSubmitted &&
+        isAssetDirector &&
+        PiApproved &&
+        selectedEmail === currentUserEmail &&
+        stage === 'ApprovedFromPIToAsset'.toLowerCase()) ||
+      (
+        isSubmitted && isPermitIssuer && PiApproved && _overAllRiskAssessment.toLowerCase() === 'high'
+      )
+
+    );
+
+  }, [_workflowStage, _assetDirPicker, currentUserEmail, isSubmitted, isAssetDirector, _piStatus, _overAllRiskAssessment, isPermitIssuer]);
 
   if (loading) {
     return (
@@ -2944,25 +3184,30 @@ export default function PTWForm(props: IPTWFormProps) {
                     value={_paDate ? new Date(_paDate) : new Date()}
                   />
                   <ComboBox
-                    disabled={!stageEnabled.paEnabled || !_paStatusEnabled}
-                    // disabled={!isPerformingAuthority}
+                    disabled={!isPaStatusEnabled}
                     placeholder="Status"
-                    options={statusOptions}
+                    options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
                     selectedKey={_paStatus}
-                    onChange={(_, opt) => setPaStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                     useComboBoxAsMenuWidth
+                    onChange={(_, opt) => {
+                      setPaStatus((opt?.key as SignOffStatus) ?? 'Pending');
+                      if (isSubmitted && ((opt?.key as SignOffStatus) === 'Pending' || (opt?.key as SignOffStatus) === 'Rejected')) {
+                        setPiPicker([]);
+                        setPiStatus('Pending');
+                      }
+                    }}
                   />
                 </div>
 
                 {/* Permit Issuer (PI) */}
-                {_paStatus != 'Pending' && (
+                {!(_paStatus === 'Pending' || _paStatus === 'Rejected') && (
 
                   <div className="col-md-4" style={{ padding: 8 }}>
                     <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
                     <ComboBox
                       placeholder="Select Permit Issuer"
-                      disabled={!stageEnabled.piEnabled}
-                      // disabled={!isPermitIssuer && !isSubmitted}
+                      // disabled={!stageEnabled.piEnabled}
+                      disabled={!isPIPickerEnabled()}
                       options={_piHsePartnerFilteredByCategory?.map(m => ({
                         key: String(m.id),
                         text: m.title || m.text || ''
@@ -2979,10 +3224,9 @@ export default function PTWForm(props: IPTWFormProps) {
                       value={_piDate ? new Date(_piDate) : new Date()}
                     />
                     <ComboBox
-                      // disabled={!stageEnabled.piEnabled }
-                      disabled={!isPermitIssuer}
+                      disabled={!isPIStatusEnabled}
                       placeholder="Status"
-                      options={statusOptions}
+                      options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
                       selectedKey={_piStatus}
                       onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                       useComboBoxAsMenuWidth
@@ -3006,13 +3250,15 @@ export default function PTWForm(props: IPTWFormProps) {
                     <Label style={{ fontWeight: 600 }}>Asset Director</Label>
                     <ComboBox
                       placeholder="Select Asset Director"
-                      disabled={!stageEnabled.assetDirEnabled}
+                      disabled={!isAssetDirectorStatusEnabled()}
                       options={_assetDirFilteredByCategory?.map(m => ({
                         key: String(m.id),
                         text: m.title || m.text || ''
                       }))}
                       selectedKey={_assetDirPicker?.[0]?.id || undefined}
-                      onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items), setAssetDirStatusEnabled)}
+                      onChange={onAssetDirectorChange}
+
+                      // onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items), setAssetDirStatusEnabled)}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -3103,7 +3349,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         text: m.title || m.text || ''
                       }))}
                       selectedKey={_closureAssetManagerPicker?.[0]?.id || undefined}
-                      onChange={onSingleApproverChange('AssetManagersGroup', (items) => setClosureAssetManagerPicker(items), setClosureAssetManagerStatusEnabled)}
+                      onChange={onAssetManagerChange}
                       useComboBoxAsMenuWidth
                       styles={comboBoxBlackStyles}
                       className={'pb-1'}
@@ -3160,8 +3406,11 @@ export default function PTWForm(props: IPTWFormProps) {
         }
 
         {(mode === "submitted") && (
-          ((isPerformingAuthority && _paStatus !== "Approved") ||
-            (isPermitIssuer && _piStatus !== "Approved")) && (
+          (
+            (isPerformingAuthority && _workflowStage?.toLowerCase() == "ApprovedFromPOToPA".toLowerCase()) ||
+            (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPAToPI".toLowerCase()) ||
+            (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPOToPI".toLowerCase())
+          ) && (
             <PrimaryButton
               text="Approve"
               onClick={() => approveForm('approve')}

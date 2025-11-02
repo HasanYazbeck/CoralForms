@@ -77,6 +77,9 @@ export interface IPTWForm {
     issuanceInstrunctions: ILKPItemInstructionsForUse[];
 }
 
+export type WorkflowStages = "ApprovedFromPOToPA" | "ApprovedFromPAToPI" | "ApprovedFromPOToPI" | "ApprovedFromPIToAsset" | "ApprovedFromAssetToHSE" | "Rejected" | undefined;
+
+
 export interface IPTWWorkflow {
     id: number | undefined;
     PTWFormId: number | undefined;
@@ -102,4 +105,5 @@ export interface IPTWWorkflow {
     AssetManagerApprover: IPersonaProps | undefined;
     AssetManagerApprovalDate: Date | undefined;
     AssetManagerStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    Stage: WorkflowStages;
 }

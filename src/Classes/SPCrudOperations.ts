@@ -356,8 +356,8 @@ export class SPCrudOperations {
         console.log("Item updated successfully");
         return response;
       } else {
-        // const errorResponse: any = await response.json();
-        // console.error(`Error updating item. Status: ${response.status}`,errorResponse);
+        const errorResponse: any = await response.json();
+        console.error(`Error updating item. Status: ${response.status}`,errorResponse);
         throw new Error(`Error updating item. Status: ${response.status}`);
       }
     } catch (error) {
