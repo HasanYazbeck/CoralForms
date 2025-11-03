@@ -21,7 +21,8 @@ import {
   DefaultButton,
   PrimaryButton,
   Separator,
-  DatePicker
+  DatePicker,
+  Toggle
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
@@ -2485,11 +2486,11 @@ export default function PTWForm(props: IPTWFormProps) {
               AssetManagerStatus: headerWorkflow.AssetManagerStatus !== undefined && headerWorkflow.AssetManagerStatus !== null ? headerWorkflow.AssetManagerStatus : undefined,
               Stage: headerWorkflow.Stage !== undefined && headerWorkflow.Stage !== null ? headerWorkflow.Stage : undefined,
 
-              IsAssetDirectorReplacer: headerWorkflow.IsAssetDirectorReplacer === true,
-              IsHSEDirectorReplacer: headerWorkflow.IsHSEDirectorReplacer === true,
+              IsAssetDirectorReplacer: headerWorkflow.IsAssetDirectorReplacer,
+              IsHSEDirectorReplacer: headerWorkflow.IsHSEDirectorReplacer,
 
-              AssetDirectorReplacer: headerWorkflow.IsAssetDirectorReplacer === true && headerWorkflow.AssetDirectorReplacer ? spHelpers.toPersona(headerWorkflow.AssetDirectorReplacer) : undefined,
-              HSEDirectorReplacer: headerWorkflow.IsHSEDirectorReplacer === true && headerWorkflow.HSEDirectorReplacer ? spHelpers.toPersona(headerWorkflow.HSEDirectorReplacer) : undefined,
+              AssetDirectorReplacer: headerWorkflow.AssetDirectorReplacer ? spHelpers.toPersona(headerWorkflow.AssetDirectorReplacer) : undefined,
+              HSEDirectorReplacer: headerWorkflow.HSEDirectorReplacer ? spHelpers.toPersona(headerWorkflow.HSEDirectorReplacer) : undefined,
             };
 
             setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate) : undefined);
@@ -2505,13 +2506,13 @@ export default function PTWForm(props: IPTWFormProps) {
 
             setAssetDirPicker(result.AssetDirectorApprover ? [{ text: result.AssetDirectorApprover.text || '', secondaryText: result.AssetDirectorApprover.secondaryText || '', id: result.AssetDirectorApprover.id || '' }] : []);
             setAssetDirReplacerPicker(result.IsAssetDirectorReplacer && result.AssetDirectorReplacer ? [{ text: result.AssetDirectorReplacer.text || '', secondaryText: result.AssetDirectorReplacer.secondaryText || '', id: result.AssetDirectorReplacer.id || '' }] : []);
-            setIsAssetDirectorReplacer(result.IsAssetDirectorReplacer || false);
+            setIsAssetDirectorReplacer(result.IsAssetDirectorReplacer);
             setAssetDirDate(result.AssetDirectorApprovalDate ? new Date(result.AssetDirectorApprovalDate) : undefined);
             setAssetDirStatus((result.AssetDirectorStatus as SignOffStatus) ?? undefined);
 
             setHseDirPicker(result.HSEDirectorApprover ? [{ text: result.HSEDirectorApprover.text || '', secondaryText: result.HSEDirectorApprover.secondaryText || '', id: result.HSEDirectorApprover.id || '' }] : []);
             setHseDirReplacerPicker(result.IsHSEDirectorReplacer && result.HSEDirectorReplacer ? [{ text: result.HSEDirectorReplacer.text || '', secondaryText: result.HSEDirectorReplacer.secondaryText || '', id: result.HSEDirectorReplacer.id || '' }] : []);
-            setIsHseDirectorReplacer(result.IsHSEDirectorReplacer || false);
+            setIsHseDirectorReplacer(result.IsHSEDirectorReplacer);
             setHseDirDate(result.HSEDirectorApprovalDate ? new Date(result.HSEDirectorApprovalDate) : undefined);
             setHseDirStatus((result.HSEDirectorStatus as SignOffStatus) ?? undefined);
 
@@ -3330,14 +3331,10 @@ export default function PTWForm(props: IPTWFormProps) {
                     </Label>
                   </div>
 
-                  {/* NEW: Replacer toggles (visible when Submitted and High Risk; PI controls them) */}
-                  {/* <div className="col-md-12" style={{ padding: 8, display: 'flex', gap: 24, alignItems: 'center' }}>
-
-                  </div> */}
-
                   <div className="col-md-6" style={{ padding: 8 }}>
-                    <Checkbox
-                      label="Use Asset Director Replacer"
+                    <Toggle
+                      inlineLabel
+                      label={_isAssetDirReplacer ? 'Use HSE Director Replacer' : 'Use HSE Director'}
                       checked={!!_isAssetDirReplacer}
                       onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
@@ -3356,25 +3353,10 @@ export default function PTWForm(props: IPTWFormProps) {
                           ? (_assetDirReplacerPicker?.[0]?.id ? _assetDirReplacerPicker : [])
                           : (_assetDirPicker?.[0]?.id ? _assetDirPicker : [])
                       }
-                      inputProps={{ placeholder: 'Enter name or email' }}
+                      // inputProps={{ placeholder: !_assetDirPicker || !_isAssetDirReplacer ? 'Enter name or email' : '' }}
                       pickerSuggestionsProps={suggestionProps}
                       disabled={!isAssetDirectorStatusEnabled()}
                     />
-
-                    {/* <ComboBox
-                      placeholder="Select Asset Director"
-                      disabled={!isAssetDirectorStatusEnabled()}
-                      options={_assetDirFilteredByCategory?.map(m => ({
-                        key: String(m.id),
-                        text: m.title || m.text || ''
-                      }))}
-                      selectedKey={_assetDirPicker?.id || undefined}
-                      onChange={onAssetDirectorChange}
-                      // onChange={onSingleApproverChange('AssetDirectorsGroup', (items) => setAssetDirPicker(items), setAssetDirStatusEnabled)}
-                      useComboBoxAsMenuWidth
-                      styles={comboBoxBlackStyles}
-                      className={'pb-1'}
-                    /> */}
                     <DatePicker
                       disabled={true}
                       placeholder="Select date"
@@ -3390,13 +3372,11 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                   </div>
 
-                  {/* <div className="col-md-12" style={{ padding: 8, display: 'flex', gap: 24, alignItems: 'center' }}>
-                   
-                  </div> */}
-
                   <div className="col-md-6" style={{ padding: 8 }}>
-                    <Checkbox
-                      label="Use HSE Director Replacer"
+
+                    <Toggle
+                      inlineLabel
+                      label={_isHseDirReplacer ? 'Use HSE Director Replacer' : 'Use HSE Director'}
                       checked={!!_isHseDirReplacer}
                       onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
@@ -3416,21 +3396,10 @@ export default function PTWForm(props: IPTWFormProps) {
                           ? (_hseDirReplacerPicker?.[0]?.id ? _hseDirReplacerPicker : [])
                           : (_hseDirPicker?.[0]?.id ? _hseDirPicker : [])
                       }
-                      inputProps={{ placeholder: 'Enter name or email' }}
+                      // inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
                       disabled={!stageEnabled.hseDirEnabled}
                     />
-
-                    {/* <ComboBox
-                      placeholder="Select HSE Director"
-                      disabled={!stageEnabled.hseDirEnabled}
-                      options={getOptionsForGroup('HSEDirectorsGroup')}
-                      selectedKey={_hseDirPicker?.[0]?.id || undefined}
-                      onChange={onSingleApproverChange('HSEDirectorsGroup', (items) => setHseDirPicker(items), setHseDirStatusEnabled)}
-                      useComboBoxAsMenuWidth
-                      styles={comboBoxBlackStyles}
-                      className={'pb-1'}
-                    /> */}
                     <DatePicker
                       disabled={true}
                       placeholder="Select date"
