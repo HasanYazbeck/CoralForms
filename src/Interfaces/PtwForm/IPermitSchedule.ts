@@ -1,4 +1,7 @@
+import { IPersonaProps } from "@fluentui/react";
 import { IWorkCategory } from "./IPTWForm";
+
+export type WorkPermitStatus = 'New' | 'Open' | 'Closed' | 'Cancelled';
 
 export interface IPermitScheduleRow {
   id: string;
@@ -8,6 +11,9 @@ export interface IPermitScheduleRow {
   endTime: string;
   isChecked: boolean;
   orderRecord: number;
+  statusRecord: WorkPermitStatus | undefined;
+  piApprover: IPersonaProps | undefined;
+  piApprovalDate: Date | undefined;
 }
 
 export interface IPermitScheduleProps {
@@ -15,7 +21,7 @@ export interface IPermitScheduleProps {
   selectedPermitTypeList: IWorkCategory[];
   permitRows: IPermitScheduleRow[];
   onPermitTypeChange: (checked: boolean | undefined, workCategory: IWorkCategory | undefined) => void;
-  onPermitRowUpdate: (rowId: string, field: string, value: string , checked :boolean | undefined) => void;
+  onPermitRowUpdate: (rowId: string, field: string, value: string, checked: boolean | undefined) => void;
   styles?: any;
   isEndTimeOptionDisabled?: (row: IPermitScheduleRow, optionTime: string) => boolean;
 }

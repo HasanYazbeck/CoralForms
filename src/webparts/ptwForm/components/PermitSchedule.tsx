@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Label, Checkbox, TextField, IDatePickerStyles, defaultDatePickerStrings, DatePicker, IColumn, DetailsList, SelectionMode, DetailsListLayoutMode } from '@fluentui/react';
+import { Label, Checkbox, TextField, IDatePickerStyles, defaultDatePickerStrings, DatePicker, IColumn, DetailsList, SelectionMode, DetailsListLayoutMode, ComboBox, IComboBoxOption } from '@fluentui/react';
 import { IPermitScheduleProps } from '../../../Interfaces/PtwForm/IPermitSchedule';
 
 const datePickerBlackStyles: Partial<IDatePickerStyles> = {
@@ -33,6 +33,11 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   onPermitRowUpdate,
   styles
 }) => {
+
+  const permitStatusOptions: IComboBoxOption[] = React.useMemo(
+    () => ['New', 'Renew', 'Open', 'Closed'].map(s => ({ key: s, text: s })),
+    []
+  );
 
   // Define DetailsList columns
   const columns: IColumn[] = React.useMemo(() => [
@@ -79,7 +84,21 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           disabled={!row.isChecked}
         />
       )
-    }
+    },
+    {
+      key: 'col-status', name: 'Status', minWidth: 140, maxWidth: 160,
+      onRender: (row) => (
+        <ComboBox
+          placeholder="Select status"
+          options={permitStatusOptions}
+          selectedKey={row.statusRecord || undefined}
+          onChange={(_, opt) => onPermitRowUpdate(row.id, 'statusRecord', (opt?.key as string) || '', row.isChecked)}
+          useComboBoxAsMenuWidth
+          disabled={!row.isChecked}
+        />
+      )
+    },
+
   ], [onPermitRowUpdate]);
 
   return (
@@ -120,7 +139,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           <div className="form-group col-md-12">
             <div className={styles?.permitTable} style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', padding: '8px' }}>
               <DetailsList
-                items={permitRows.sort((a, b) => { return a.orderRecord! - b.orderRecord!})}
+                items={permitRows.sort((a, b) => { return a.orderRecord! - b.orderRecord! })}
                 columns={columns}
                 selectionMode={SelectionMode.none}
                 layoutMode={DetailsListLayoutMode.fixedColumns}

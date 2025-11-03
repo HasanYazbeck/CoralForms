@@ -357,7 +357,7 @@ export class SPCrudOperations {
         return response;
       } else {
         const errorResponse: any = await response.json();
-        console.error(`Error updating item. Status: ${response.status}`,errorResponse);
+        console.error(`Error updating item. Status: ${response.status}`, errorResponse);
         throw new Error(`Error updating item. Status: ${response.status}`);
       }
     } catch (error) {
@@ -377,6 +377,9 @@ export class SPCrudOperations {
     };
 
     try {
+      await this.spHttpClient.post(`${url}/undoCheckout`, SPHttpClient.configurations.v1, {});
+
+
       const response: SPHttpClientResponse = await this.spHttpClient.post(
         url,
         SPHttpClient.configurations.v1,
@@ -436,7 +439,7 @@ export class SPCrudOperations {
         }
         console.log(`✅ Successfully deleted ${totalItems} items linked to ${lookupFieldInternal} = ${lookupValueId}`);
       }
-      
+
     } catch (error) {
       console.error("Error during bulk delete:", error);
       throw error;

@@ -22,7 +22,10 @@ export interface IAssetsDetails extends ILookupItem {
     assetCategoryId: number;
     assetManager?: IPersonaProps[] | undefined;
     assetDirector?: IPersonaProps[] | undefined;
+    assetDirectorReplacer: IPersonaProps[] | undefined;
     hsePartner?: IPersonaProps[] | undefined;
+    hseDirector: IPersonaProps[] | undefined;
+    hseDirectorReplacer: IPersonaProps[] | undefined;
 }
 
 export interface IAssetCategoryDetails extends ILookupItem {
@@ -94,9 +97,11 @@ export interface IPTWWorkflow {
     PIApprovalDate: Date | undefined;
     PIStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
     AssetDirectorApprover: IPersonaProps | undefined;
+    AssetDirectorReplacer: IPersonaProps | undefined;
     AssetDirectorApprovalDate: Date | undefined;
     AssetDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
     HSEDirectorApprover: IPersonaProps | undefined;
+    HSEDirectorReplacer: IPersonaProps | undefined;
     HSEDirectorApprovalDate: Date | undefined;
     HSEDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
     POClosureApprover: IPersonaProps | undefined;
@@ -106,4 +111,6 @@ export interface IPTWWorkflow {
     AssetManagerApprovalDate: Date | undefined;
     AssetManagerStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
     Stage: WorkflowStages;
+    IsAssetDirectorReplacer: boolean;
+    IsHSEDirectorReplacer: boolean;
 }
