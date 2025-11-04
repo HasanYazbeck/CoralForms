@@ -242,7 +242,7 @@ export default function PTWForm(props: IPTWFormProps) {
       const selId = _selectedAssetDetails != null ? Number(_selectedAssetDetails) : NaN;
       // Prefer the selected asset details; fall back to the filtered list if needed
       const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
-      const directors: IPersonaProps[] = detail?.assetDirector || _assetDirFilteredByCategory || [];
+      const directors: IPersonaProps[] = detail?.assetDirector || [];
 
       const isMember = (directors ? directors.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false);
       if (!disposed) setIsAssetDirector(isMember);
@@ -250,7 +250,7 @@ export default function PTWForm(props: IPTWFormProps) {
       if (!disposed) setIsAssetDirector(false);
     }
     return () => { disposed = true; };
-  }, [assetCategoriesDetailsList, _selectedAssetDetails, _assetDirFilteredByCategory, currentUserEmail]);
+  }, [assetCategoriesDetailsList, _selectedAssetDetails, currentUserEmail]);
 
   // Resolve eligibility from SP group membership for HSE Director Group Logged In Users
   React.useEffect(() => {
@@ -1720,19 +1720,14 @@ export default function PTWForm(props: IPTWFormProps) {
             body = {
               PIStatus: payload.piStatus,
               PIApprovalDate: payload.piApprovalDate || nowIso,
-              AssetDirectorApproverId: payload.assetDirPickerId ? Number(payload.assetDirPickerId) : null,
-              // TODO: Set HSEDirectorApproverId when that role is implemented`
-              HSEDirectorApproverId: payload.hseDirPickerId ? Number(payload.hseDirPickerId) : null,
-              POClosureApprover: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : null,
-              AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : null,
+              IsAssetDirectorReplacer: payload.isAssetDirectorReplacer,
+              IsHSEDirectorReplacer: payload.isHSEDirectorReplacer
             }
           } else {
             // NOT High risk
             body = {
               PIStatus: payload.piStatus,
               PIApprovalDate: payload.piApprovalDate || nowIso,
-              POClosureApprover: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : null,
-              AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : null,
             }
           }
 
@@ -1752,6 +1747,10 @@ export default function PTWForm(props: IPTWFormProps) {
           showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
           goBackToHost();
           return true;
+        }
+
+        if(isAssetDirector){
+
         }
       }
       catch (e) {
@@ -2021,17 +2020,18 @@ export default function PTWForm(props: IPTWFormProps) {
         PIApproverId: payload.piPickerId ? Number(payload.piPickerId) : undefined,
         PIStatus: payload.piStatus || 'Pending',
         PIApprovalDate: payload.piStatus !== 'Pending' ? payload.piApprovalDate : null,
+        AssetDirectorApproverId: payload.assetDirPickerId ? Number(payload.assetDirPickerId) : undefined,
+        AssetDirectorStatus: payload.assetDirStatus || 'Pending',
+        HSEDirectorApproverId: payload.hseDirPickerId ? Number(payload.hseDirPickerId) : undefined,
+        HSEDirectorStatus: payload.hseDirStatus || 'Pending',
+        AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : undefined,
+        AssetManagerStatus: payload.closureAssetManagerStatus || 'Pending',
+        POClosureApproverId: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : undefined,
+        POClosureStatus: payload.closurePoStatus || 'Pending',
+
+        AssetDirectorReplacerId: payload.assetDirReplacerPickerId ? Number(payload.assetDirReplacerPickerId) : undefined,
+        HSEDirectorReplacerId: payload.hseDirReplacerPickerId ? Number(payload.hseDirReplacerPickerId) : undefined,
       };
-
-      body.AssetDirectorApproverId = payload.assetDirPickerId ? Number(payload.assetDirPickerId) : undefined;
-      body.AssetDirectorStatus = payload.assetDirStatus || 'Pending';
-      body.HSEDirectorApproverId = payload.hseDirPickerId ? Number(payload.hseDirPickerId) : undefined;
-      body.HSEDirectorStatus = payload.hseDirStatus || 'Pending';
-      body.AssetManagerApproverId = payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : undefined;
-      body.AssetManagerStatus = payload.closureAssetManagerStatus || 'Pending';
-
-      body.AssetDirectorReplacerId = payload.assetDirReplacerPickerId ? Number(payload.assetDirReplacerPickerId) : undefined;
-      body.HSEDirectorReplacerId = payload.hseDirReplacerPickerId ? Number(payload.hseDirReplacerPickerId) : undefined;
 
       // body.AssetDirectorApprovalDate = payload.assetDirApprovalDate ? payload.assetDirApprovalDate : null;
       // body.HSEDirectorApprovalDate = payload.hseDirStatus !== 'Pending' ? payload.hseDirApprovalDate : null;
@@ -2162,9 +2162,14 @@ export default function PTWForm(props: IPTWFormProps) {
     const payload = payloadRef.current;
     if (!payload) throw new Error('Form payload is not available');
 
-    const body: any = {
+    let body: any = {
       WorkflowStatus: status,
     };
+
+    if(payload.isPermitIssuer){
+      body.IsAssetDirectorReplacer = _isAssetDirReplacer;
+      body.IsHSEDirectorReplacer = _isHseDirReplacer;
+    }
 
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
     const response = await spCrudRef.current._updateItem(String(formId), body);
@@ -2505,13 +2510,13 @@ export default function PTWForm(props: IPTWFormProps) {
             setPiStatus((result.PIStatus as SignOffStatus) ?? undefined);
 
             setAssetDirPicker(result.AssetDirectorApprover ? [{ text: result.AssetDirectorApprover.text || '', secondaryText: result.AssetDirectorApprover.secondaryText || '', id: result.AssetDirectorApprover.id || '' }] : []);
-            setAssetDirReplacerPicker(result.IsAssetDirectorReplacer && result.AssetDirectorReplacer ? [{ text: result.AssetDirectorReplacer.text || '', secondaryText: result.AssetDirectorReplacer.secondaryText || '', id: result.AssetDirectorReplacer.id || '' }] : []);
+            setAssetDirReplacerPicker(result.AssetDirectorReplacer ? [{ text: result.AssetDirectorReplacer.text || '', secondaryText: result.AssetDirectorReplacer.secondaryText || '', id: result.AssetDirectorReplacer.id || '' }] : []);
             setIsAssetDirectorReplacer(result.IsAssetDirectorReplacer);
             setAssetDirDate(result.AssetDirectorApprovalDate ? new Date(result.AssetDirectorApprovalDate) : undefined);
             setAssetDirStatus((result.AssetDirectorStatus as SignOffStatus) ?? undefined);
 
             setHseDirPicker(result.HSEDirectorApprover ? [{ text: result.HSEDirectorApprover.text || '', secondaryText: result.HSEDirectorApprover.secondaryText || '', id: result.HSEDirectorApprover.id || '' }] : []);
-            setHseDirReplacerPicker(result.IsHSEDirectorReplacer && result.HSEDirectorReplacer ? [{ text: result.HSEDirectorReplacer.text || '', secondaryText: result.HSEDirectorReplacer.secondaryText || '', id: result.HSEDirectorReplacer.id || '' }] : []);
+            setHseDirReplacerPicker(result.HSEDirectorReplacer ? [{ text: result.HSEDirectorReplacer.text || '', secondaryText: result.HSEDirectorReplacer.secondaryText || '', id: result.HSEDirectorReplacer.id || '' }] : []);
             setIsHseDirectorReplacer(result.IsHSEDirectorReplacer);
             setHseDirDate(result.HSEDirectorApprovalDate ? new Date(result.HSEDirectorApprovalDate) : undefined);
             setHseDirStatus((result.HSEDirectorStatus as SignOffStatus) ?? undefined);
@@ -3334,7 +3339,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Toggle
                       inlineLabel
-                      label={_isAssetDirReplacer ? 'Use HSE Director Replacer' : 'Use HSE Director'}
+                      label={_isAssetDirReplacer ? 'Use HSE Director' : 'Use HSE Director Replacer'}
                       checked={!!_isAssetDirReplacer}
                       onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
@@ -3373,10 +3378,9 @@ export default function PTWForm(props: IPTWFormProps) {
                   </div>
 
                   <div className="col-md-6" style={{ padding: 8 }}>
-
                     <Toggle
                       inlineLabel
-                      label={_isHseDirReplacer ? 'Use HSE Director Replacer' : 'Use HSE Director'}
+                      label={_isHseDirReplacer ? 'Use HSE Director' : 'Use HSE Director Replacer'}
                       checked={!!_isHseDirReplacer}
                       onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
