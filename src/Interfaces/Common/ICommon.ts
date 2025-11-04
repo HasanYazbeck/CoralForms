@@ -1,3 +1,4 @@
+import { ILookupItem } from '../PtwForm/IPTWForm';
 import {IUser} from './../Common/IUser'; 
   
   
@@ -54,3 +55,7 @@ import {IUser} from './../Common/IUser';
     FormName: string;
     Description: string;
   }
+
+export interface ICompany extends ILookupItem {
+  logoUrl: string;
+}

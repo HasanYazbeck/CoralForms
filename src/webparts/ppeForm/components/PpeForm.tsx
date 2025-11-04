@@ -1181,10 +1181,10 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
       // Normalize dates and compare in days
       const lastDate = new Date(spHelpers.adjustDateForGMTOffset(createdRaw));
-      const intervalDays = _coralFormsList?.SubmissionRangeInterval ? _coralFormsList?.SubmissionRangeInterval : 90;
-      const msPerDay = 1000 * 60 * 60 * 24;
-      const diffDays = Math.floor((submissionDate.getTime() - lastDate.getTime()) / msPerDay);
-      const eligible = diffDays >= intervalDays;
+      const msPerDay = 1000 * 60 * 60;
+      const diffHours = Math.floor((submissionDate.getTime() - lastDate.getTime()) / msPerDay);
+      const intervalHours = Number(_coralFormsList?.SubmissionRangeInterval) || (90 * 24); // default: 90 days
+      const eligible = diffHours >= intervalHours;
       setIsEligibleToSubmitForm(eligible);
       return eligible;
 
@@ -2244,7 +2244,7 @@ export default function PpeForm(props: IPpeFormWebPartProps) {
 
     try {
       const coralReferenceNumber = await spHelpers.assignCoralReferenceNumber(props.context.spHttpClient,
-        props.context.pageContext.web.absoluteUrl, 'PPE_Form', { Id: Number(newId) }, _company?.title , 'PPE');
+        props.context.pageContext.web.absoluteUrl, 'PPE_Form', { Id: Number(newId) }, _company?.title, 'PPE');
 
       setCoralReferenceNumber(coralReferenceNumber);
     } catch (e) {

@@ -1,5 +1,5 @@
 import { IEmployeeProps } from "../PpeForm/IEmployeeProps";
-import { ILKPItemInstructionsForUse } from "../Common/ICommon";
+import { ICompany, ILKPItemInstructionsForUse } from "../Common/ICommon";
 import { IPersonaProps } from "@fluentui/react";
 
 export interface ICoralForm {
@@ -61,7 +61,7 @@ export interface IEmployeePeronellePassport extends IEmployeeProps {
 export interface IPTWForm {
     id?: string | number;
     coralForm?: ICoralForm;
-    companies?: ILookupItem[];
+    companies?: ICompany[];
     assetsCategories?: ILookupItem[];
     assetsDetails?: IAssetsDetails[];
     workCategories?: IWorkCategory[];

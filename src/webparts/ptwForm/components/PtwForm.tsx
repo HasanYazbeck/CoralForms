@@ -25,7 +25,7 @@ import {
   Toggle
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
-import { ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
+import { ICompany, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
 import { MSGraphClientV3 } from '@microsoft/sp-http-msgraph';
 import { SPHttpClient } from '@microsoft/sp-http';
 import { IUser } from '../../../Interfaces/Common/IUser';
@@ -66,14 +66,20 @@ export default function PTWForm(props: IPTWFormProps) {
   const bannerTopRef = React.useRef<HTMLDivElement>(null);
 
   const [_users, setUsers] = React.useState<IUser[]>([]);
-  const [, setCoralFormsList] = React.useState<ICoralFormsList>({ Id: "" });
+  const [_coralFormList, setCoralFormsList] = React.useState<ICoralFormsList>({ Id: "" });
   const [ptwFormStructure, setPTWFormStructure] = React.useState<IPTWForm>({ issuanceInstrunctions: [], personnalInvolved: [] });
   const [itemInstructionsForUse, setItemInstructionsForUse] = React.useState<ILKPItemInstructionsForUse[]>([]);
   const [personnelInvolved, setPersonnelInvolved] = React.useState<IEmployeePeronellePassport[]>([]);
   const [, setAssetDetails] = React.useState<IAssetCategoryDetails[]>([]);
   const [safeguards, setSafeguards] = React.useState<ISagefaurdsItem[]>([]);
   const [filteredSafeguards, setFilteredSafeguards] = React.useState<ISagefaurdsItem[]>([]);
+
   const webUrl = props.context.pageContext.web.absoluteUrl;
+  // Header logo and doc code derived from selected company
+  const initialLogoUrl = `${webUrl}/SiteAssets/coral-logo.png`;
+  const [companyLogoUrl, setCompanyLogoUrl] = React.useState<string>(initialLogoUrl);
+  const [docCode, setDocCode] = React.useState<string>('COR-HSE-21-FOR-005');
+
   const [assetCategoriesList, setAssetCategoriesList] = React.useState<ILookupItem[] | undefined>([]);
   const [assetCategoriesDetailsList, setAssetCategoriesDetailsList] = React.useState<IAssetsDetails[] | undefined>([]);
 
@@ -176,8 +182,44 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_closureAssetManagerDate, setClosureAssetManagerDate] = React.useState<Date | undefined>(new Date());
   const [_closureAssetManagerStatus, setClosureAssetManagerStatus] = React.useState<SignOffStatus>('Pending');
   const [_closureAssetManagerStatusEnabled, setClosureAssetManagerStatusEnabled] = React.useState<boolean>(false);
-
   const [_workflowStage, setWorkflowStage] = React.useState<WorkflowStages>(undefined);
+
+  // State for controlling conditional rendering of sections
+  const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
+
+  // Urgent submission: bypass Submission Range Interval validation on submit
+  const [isUrgentSubmission, setIsUrgentSubmission] = React.useState<boolean>(false);
+
+  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
+    { key: 'Pending', text: 'Pending' },
+    { key: 'Approved', text: 'Approved' },
+    { key: 'Rejected', text: 'Rejected' },
+    { key: 'Closed', text: 'Closed' }
+  ]), []);
+
+  // Styling Components
+  const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+    root: {
+      selectors: {
+        '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+        '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+        '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+      }
+    },
+    input: { color: '#000' } // supported in v8; safe no-op if ignored
+  };
+
+  const peoplePickerBlackStyles: Partial<IBasePickerStyles> = {
+    text: {
+      selectors: {
+        '.primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+        '.ms-Persona-primaryText': { color: '#000 !important', fontWeight: '500 !important', },
+        '.ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', },
+        '&.is-disabled .ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', }
+      }
+    },
+    input: { color: '#000 !important', fontWeight: '500 !important', }
+  };
 
   const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
   // Determine if current user is the Permit Originator
@@ -391,38 +433,7 @@ export default function PTWForm(props: IPTWFormProps) {
     [_piHsePartnerFilteredByCategory, currentUserEmail, _paPicker]
   );
 
-  // State for controlling conditional rendering of sections
-  const [workPermitRequired, setWorkPermitRequired] = React.useState<boolean>(false);
 
-  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
-    { key: 'Pending', text: 'Pending' },
-    { key: 'Approved', text: 'Approved' },
-    { key: 'Rejected', text: 'Rejected' },
-    { key: 'Closed', text: 'Closed' }
-  ]), []);
-
-  // Styling Components
-  const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
-    root: {
-      selectors: {
-        '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-        '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-        '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
-      }
-    },
-    input: { color: '#000' } // supported in v8; safe no-op if ignored
-  };
-  const peoplePickerBlackStyles: Partial<IBasePickerStyles> = {
-    text: {
-      selectors: {
-        '.primaryText': { color: '#000 !important', fontWeight: '500 !important', },
-        '.ms-Persona-primaryText': { color: '#000 !important', fontWeight: '500 !important', },
-        '.ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', },
-        '&.is-disabled .ms-BasePicker-input': { color: '#000 !important', fontWeight: '500 !important', }
-      }
-    },
-    input: { color: '#000 !important', fontWeight: '500 !important', }
-  };
 
   // ---------------------------
   // Data-loading functions (ported)
@@ -466,14 +477,14 @@ export default function PTWForm(props: IPTWFormProps) {
   const ptwStructureSelect = React.useMemo(() => (
     `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,` +
     `CoralFormId/Title,CoralFormId/ArabicTitle,` +
-    `CompanyRecord/Id,CompanyRecord/Title,CompanyRecord/RecordOrder,` +
+    // `CompanyRecord/Id,CompanyRecord/Title,CompanyRecord/RecordOrder,CompanyRecord/logo,` +
     `WorkCategory/Id,WorkCategory/Title,WorkCategory/OrderRecord,WorkCategory/RenewalValidity,` +
     `HACWorkArea/Id,HACWorkArea/Title,HACWorkArea/OrderRecord,` +
     `WorkHazards/Id,WorkHazards/Title,WorkHazards/OrderRecord,` +
     `Machinery/Id,Machinery/Title,Machinery/OrderRecord,` +
     `PrecuationItems/Id,PrecuationItems/Title,PrecuationItems/OrderRecord,` +
     `ProtectiveSafetyEquiment/Id,ProtectiveSafetyEquiment/Title,ProtectiveSafetyEquiment/OrderRecord` +
-    `&$expand=CoralFormId,CompanyRecord,WorkCategory,HACWorkArea,WorkHazards,Machinery,PrecuationItems,` +
+    `&$expand=CoralFormId,WorkCategory,HACWorkArea,WorkHazards,Machinery,PrecuationItems,` +
     `ProtectiveSafetyEquiment`
   ), []);
 
@@ -540,17 +551,16 @@ export default function PTWForm(props: IPTWFormProps) {
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'Coral_Forms_List', query);
       const data = await spCrudRef.current._getItemsWithQuery();
 
-      const ppeform = data.find((obj: any) => obj !== null);
+      const ptwform = data.find((obj: any) => obj !== null);
       let result: ICoralFormsList = { Id: "" };
 
-      if (ppeform) {
-
+      if (ptwform) {
         result = {
-          Id: ppeform.Id ?? undefined,
-          Title: ppeform.Title ?? undefined,
-          hasInstructionForUse: ppeform.hasInstructionForUse ?? undefined,
-          hasWorkflow: ppeform.hasWorkflow ?? undefined,
-          SubmissionRangeInterval: ppeform.SubmissionRangeInterval ?? undefined,
+          Id: ptwform.Id ?? undefined,
+          Title: ptwform.Title ?? undefined,
+          hasInstructionForUse: ptwform.hasInstructionForUse ?? undefined,
+          hasWorkflow: ptwform.hasWorkflow ?? undefined,
+          SubmissionRangeInterval: ptwform.SubmissionRangeInterval ?? undefined,
         };
       }
       setCoralFormsList(result);
@@ -578,18 +588,18 @@ export default function PTWForm(props: IPTWFormProps) {
           hasInstructionsForUse: obj.CoralFormId.hasInstructionsForUse !== undefined && obj.CoralFormId.hasInstructionsForUse !== null ? obj.CoralFormId.hasInstructionsForUse : undefined,
         } : '{}' as ICoralForm;
 
-        const _companies: ILookupItem[] = [];
-        if (obj.CompanyRecord !== undefined && obj.CompanyRecord !== null && Array.isArray(obj.CompanyRecord)) {
-          obj.CompanyRecord.forEach((item: any) => {
-            if (item) {
-              _companies.push({
-                id: item.Id,
-                title: item.Title,
-                orderRecord: item.OrderRecord || 0,
-              });
-            }
-          });
-        }
+        // const _companies: ILookupItem[] = [];
+        // if (obj.CompanyRecord !== undefined && obj.CompanyRecord !== null && Array.isArray(obj.CompanyRecord)) {
+        //   obj.CompanyRecord.forEach((item: any) => {
+        //     if (item) {
+        //       _companies.push({
+        //         id: item.Id,
+        //         title: item.Title,
+        //         orderRecord: item.OrderRecord || 0,
+        //       });
+        //     }
+        //   });
+        // }
 
         const _workCategories: IWorkCategory[] = [];
         if (obj.WorkCategory !== undefined && obj.WorkCategory !== null && Array.isArray(obj.WorkCategory)) {
@@ -673,7 +683,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
         result = {
           id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
-          coralForm: coralForm, companies: _companies,
+          coralForm: coralForm,
+          companies: [],
           workCategories: _workCategories, hacWorkAreas: _hacWorkAreas,
           workHazardosList: _workHazardosList, machinaries: _machineryList,
           precuationsItems: _precuationsItemsList,
@@ -696,6 +707,36 @@ export default function PTWForm(props: IPTWFormProps) {
       setPTWFormStructure({ issuanceInstrunctions: [], personnalInvolved: [] });
     }
   }, [props.context, spHelpers, spCrudRef, ptwStructureSelect]);
+
+  const _getCompany = React.useCallback(async () => {
+    try {
+      const query: string = `?$select=Id,Title,RecordOrder,LogoPath&$orderby=RecordOrder asc`;
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_company', query);
+      const data = await spCrudRef.current._getItemsWithQuery();
+      const result: ICompany[] = [];
+      data.forEach((obj: any) => {
+        if (obj) {
+          const temp: ICompany = {
+            id: obj.Id !== undefined && obj.Id !== null ? obj.Id : undefined,
+            title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
+            orderRecord: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
+            logoUrl: obj.LogoPath !== undefined && obj.LogoPath !== null ? `${webUrl}` + `${obj.LogoPath}`.toString() : '',
+          };
+          result.push(temp);
+        }
+      });
+      // sort by Order (ascending). If Order is missing, place those items at the end.
+      result.sort((a, b) => {
+        const aOrder = (a && a.orderRecord !== undefined && a.orderRecord !== null) ? Number(a.orderRecord) : Number.POSITIVE_INFINITY;
+        const bOrder = (b && b.orderRecord !== undefined && b.orderRecord !== null) ? Number(b.orderRecord) : Number.POSITIVE_INFINITY;
+        return aOrder - bOrder;
+      });
+      setPTWFormStructure(prev => ({ ...prev, companies: result }));
+    } catch (error) {
+      setPTWFormStructure(prev => ({ ...prev, companies: [] }));
+      // console.error('An error has occurred while retrieving items!', error);
+    }
+  }, [props.context, spHelpers]);
 
   const _getLKPItemInstructionsForUse = React.useCallback(async (formName?: string) => {
     try {
@@ -776,7 +817,6 @@ export default function PTWForm(props: IPTWFormProps) {
       return [];
     }
   }, [props.context]);
-
 
   // Modified _getAssetDetails function
   const _getAssetDetails = React.useCallback(async () => {
@@ -883,6 +923,7 @@ export default function PTWForm(props: IPTWFormProps) {
       const fetchedUsers = meEmail ? await _getUsers(meEmail) : [];
       const coralListResult = await _getCoralFormsList();
       await _getPTWFormStructure();
+      await _getCompany();
       await _getAssetCategories();
       await _getAssetDetails();
       await _getWorkSafeguards();
@@ -1407,7 +1448,8 @@ export default function PTWForm(props: IPTWFormProps) {
       closurePOApprovalDate: _closurePoDate || '',
       closurePOStatus: _closurePoStatus || '',
       isAssetDirectorReplacer: _isAssetDirReplacer,
-      isHSEDirectorReplacer: _isHseDirReplacer
+      isHSEDirectorReplacer: _isHseDirReplacer,
+      isUrgentSubmission: isUrgentSubmission,
     };
   }, [_coralReferenceNumber, _assetId, _selectedAssetCategory, _selectedAssetDetails, _projectTitle,
     _selectedPermitTypeList, _permitPayload, _selectedHacWorkAreaId,
@@ -1419,7 +1461,7 @@ export default function PTWForm(props: IPTWFormProps) {
     _assetDirPicker, _assetDirDate, _assetDirStatus,
     _hseDirPicker, _hseDirDate, _hseDirStatus,
     _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
-    _closurePoDate, _closurePoStatus
+    _closurePoDate, _closurePoStatus, isUrgentSubmission
   ]);
 
   const validateBeforeSubmit = React.useCallback((originatorId: number | undefined, mode: 'save' | 'submit' | 'approve'): string | undefined => {
@@ -1453,13 +1495,14 @@ export default function PTWForm(props: IPTWFormProps) {
             const permitDate = new Date(newRowDateIso);
             if (isNaN(permitDate.getTime())) {
               missing.push('New Permit Row Date (invalid)');
-            } else {
+            } else if (!isUrgentSubmission) {
               const now = new Date();
-              const ms24h = 24 * 60 * 60 * 1000;
-              const isAtLeast24hAfterNow = (permitDate.getTime() - now.getTime()) >= ms24h;
+              const hoursOffset = _coralFormList.SubmissionRangeInterval ?? 24;
+              const msHour = hoursOffset * 60 * 60 * 1000;
+              const isAtLeastAfterNowDuration = (permitDate.getTime() - now.getTime()) >= msHour;
 
-              if (!isAtLeast24hAfterNow) {
-                missing.push('New Permit Row Date must be at least 24 hours after the current submission date/time.');
+              if (!isAtLeastAfterNowDuration) {
+                missing.push(`New Permit Row Date must be at least \`${hoursOffset}\` hours after the current submission date/time.`);
               }
             }
           }
@@ -1603,7 +1646,7 @@ export default function PTWForm(props: IPTWFormProps) {
     }
 
     return undefined;
-  }, [buildPayload, ptwFormStructure?.workHazardosList]);
+  }, [buildPayload, ptwFormStructure?.workHazardosList, isUrgentSubmission, _coralFormList]);
 
   const validateBeforeApprove = React.useCallback((mode: 'approve'): string | undefined => {
     const missing: string[] = [];
@@ -1749,7 +1792,7 @@ export default function PTWForm(props: IPTWFormProps) {
           return true;
         }
 
-        if(isAssetDirector){
+        if (isAssetDirector) {
 
         }
       }
@@ -1849,6 +1892,7 @@ export default function PTWForm(props: IPTWFormProps) {
       WorkflowStatus: mode === 'submit' ? 'New' : '',
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
+      IsUrgentSubmission: !!payload.isUrgentSubmission,
     };
 
     // OData v4 style for multi-lookup fields: array + @odata.type
@@ -2066,6 +2110,7 @@ export default function PTWForm(props: IPTWFormProps) {
       PrecautionsOthers: payload.precautionsOtherText ?? null,
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
+      IsUrgentSubmission: !!payload.isUrgentSubmission,
     };
 
     if (mode !== 'approve') {
@@ -2166,7 +2211,7 @@ export default function PTWForm(props: IPTWFormProps) {
       WorkflowStatus: status,
     };
 
-    if(payload.isPermitIssuer){
+    if (payload.isPermitIssuer) {
       body.IsAssetDirectorReplacer = _isAssetDirReplacer;
       body.IsHSEDirectorReplacer = _isHseDirReplacer;
     }
@@ -2228,7 +2273,7 @@ export default function PTWForm(props: IPTWFormProps) {
       try {
 
         const ptwFirstSelect = `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,IsDetailedRiskAssessmentRequired,RiskAssessmentRefNumber,WorkHazardsOthers,` +
-          `OverallRiskAssessment,GasTestRequired,GasTestResult,WorkflowStatus,` +
+          `OverallRiskAssessment,GasTestRequired,GasTestResult,WorkflowStatus,IsUrgentSubmission,` +
           `PermitOriginator/Id,PermitOriginator/Title,PermitOriginator/EMail,` +
           `AssetCategory/Id,AssetCategory/Title,` +
           `AssetDetails/Id,AssetDetails/Title,` +
@@ -2327,7 +2372,8 @@ export default function PTWForm(props: IPTWFormProps) {
           setFireWatchAssigned(headerSecondSelect?.FireWatchAssigned ? String(headerSecondSelect.FireWatchAssigned.FullName) : '');
           setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
           setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
-
+          setIsUrgentSubmission(!!headerFirstSelect?.IsUrgentSubmission);
+          
           if (headerFirstSelect?.AssetDetails) {
             const assetDetailId = Number(headerFirstSelect.AssetDetails.Id);
             const cached = (assetCategoriesDetailsList || []).find(d => Number(d.id) === assetDetailId);
@@ -2670,6 +2716,25 @@ export default function PTWForm(props: IPTWFormProps) {
     setHseDirStatusEnabled(!!selectedEmail && selectedEmail === currentUserEmail);
   }, [_hseDirPicker, _hseDirReplacerPicker, _isHseDirReplacer, currentUserEmail]);
 
+  React.useEffect(() => {
+    const selected =
+      _selectedCompany?.id != null
+        ? (ptwFormStructure?.companies || []).find(c => Number(c.id) === Number(_selectedCompany.id))
+        : undefined;
+
+    setCompanyLogoUrl(selected?.logoUrl ? String(selected.logoUrl) : initialLogoUrl);
+
+    // Replace the first segment of docCode (e.g., COR-...) with first 3 letters of company title
+    const prefix = (_selectedCompany?.title || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+    setDocCode(prev => {
+      const base = prev && prev.includes('-') ? prev : 'COR-HSE-21-FOR-005';
+      if (!prefix) return base;
+      const parts = base.split('-');
+      parts[0] = prefix;
+      return parts.join('-');
+    });
+  }, [_selectedCompany, ptwFormStructure?.companies, initialLogoUrl]);
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -2678,10 +2743,7 @@ export default function PTWForm(props: IPTWFormProps) {
     );
   }
 
-  // const delayResults = false;
-  const logoUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/cor-leaste.png`;
-  // const logoPTWUrl = `${props.context.pageContext.web.absoluteUrl}/SiteAssets/ptw-logo.png`;
-  // const peopleList: IPersonaProps[] = users.map(user => ({ text: user.displayName || '', secondaryText: user.email || '', id: user.id }));
+
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
@@ -2740,7 +2802,7 @@ export default function PTWForm(props: IPTWFormProps) {
         <div id="formTitleSection">
           <div className={styles.ptwformHeader} >
             <div>
-              <img src={logoUrl} alt="Logo" className={styles.formLogo} />
+              <img src={companyLogoUrl} alt="Logo" className={styles.formLogo} />
             </div>
             <div className={styles.ptwFormTitleLogo}>
               {/* <div>
@@ -2846,6 +2908,21 @@ export default function PTWForm(props: IPTWFormProps) {
               />
             </div>
           </div>
+
+          <div className="row" id="urgentToggleDiv">
+            <div className="form-group col-md-12">
+              <Toggle
+                inlineLabel
+                label={`Urgent submission (bypass Submission Range Interval${_coralFormList?.SubmissionRangeInterval ? `: ${_coralFormList.SubmissionRangeInterval}h` : ''})`}
+                checked={isUrgentSubmission}
+                onChange={(_, chk) => setIsUrgentSubmission(!!chk)}
+              />
+              <small className="text-muted">
+                Use only for urgent PTW forms that must be submitted earlier than the norm interval.
+              </small>
+            </div>
+          </div>
+
         </div>
 
         <div id="formContentSection">
@@ -3339,12 +3416,12 @@ export default function PTWForm(props: IPTWFormProps) {
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Toggle
                       inlineLabel
-                      label={_isAssetDirReplacer ? 'Use HSE Director' : 'Use HSE Director Replacer'}
+                      label={_isAssetDirReplacer ? 'Asset Director' : 'Delegate Asset Director'}
                       checked={!!_isAssetDirReplacer}
                       onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
                     />
-                    <Label style={{ fontWeight: 600 }}>{_isAssetDirReplacer ? 'Asset Director Replacer' : 'Asset Director'}</Label>
+                    <Label style={{ fontWeight: 600 }}>{_isAssetDirReplacer ? 'Delegate Asset Director' : 'Asset Director'}</Label>
                     <NormalPeoplePicker
                       onResolveSuggestions={_onFilterChanged} itemLimit={1}
                       className={'ms-PeoplePicker pb-1'}
@@ -3380,12 +3457,12 @@ export default function PTWForm(props: IPTWFormProps) {
                   <div className="col-md-6" style={{ padding: 8 }}>
                     <Toggle
                       inlineLabel
-                      label={_isHseDirReplacer ? 'Use HSE Director' : 'Use HSE Director Replacer'}
+                      label={_isHseDirReplacer ? 'HSE Director' : 'Delegate HSE Director'}
                       checked={!!_isHseDirReplacer}
                       onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
                       disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment.toLowerCase().includes('high')}
                     />
-                    <Label style={{ fontWeight: 600 }}>{_isHseDirReplacer ? 'HSE Director Replacer' : 'HSE Director'}</Label>
+                    <Label style={{ fontWeight: 600 }}>{_isHseDirReplacer ? 'Delegate HSE Director' : 'HSE Director'}</Label>
                     <NormalPeoplePicker
                       onResolveSuggestions={_onFilterChanged}
                       itemLimit={1}
@@ -3536,7 +3613,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       <div id="formFooterSection" className='row'>
         <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-          <DocumentMetaBanner docCode='COR-HSE-21-FOR-005' version='V04' effectiveDate='06-AUG-2024' />
+          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' />
         </div>
       </div>
 

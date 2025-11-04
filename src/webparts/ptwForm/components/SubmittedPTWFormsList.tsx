@@ -3,11 +3,16 @@ import { SPHttpClient } from '@microsoft/sp-http';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import LocalStorageComponent from '../../../Classes/LocalStorageComponent';
 import {
-  DetailsList, DetailsListLayoutMode, IColumn, Selection, SelectionMode, MarqueeSelection, CommandBar, ICommandBarItemProps, Stack, Text, Spinner, DefaultButton,
+  DetailsList, DetailsListLayoutMode,
+  IColumn, Selection, SelectionMode,
+  MarqueeSelection, CommandBar, ICommandBarItemProps, Stack, Text, Spinner, DefaultButton,
   IPersonaProps,
   PersonaSize,
   Persona,
-  Overlay
+  Overlay,
+  DetailsRow,
+  IDetailsRowProps,
+  IDetailsRowStyles
 } from '@fluentui/react';
 
 
@@ -23,6 +28,10 @@ export type Row = {
   assetDetails?: string;
   FormStatusRecord: string;
   WorkflowStatus?: string;
+  isUrgentSubmission?: boolean;
+  permitOriginatorEmail?: string;
+  editorName?: string;
+  editorEmail?: string;
 };
 
 interface SubmittedPTWFormsListProps {
@@ -98,12 +107,14 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
   // Build the shared select/expand pieces (without $top so we can append it)
   const baseSelect = React.useMemo(() => (
-    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,WorkflowStatus,` +
+    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,WorkflowStatus,IsUrgentSubmission,` +
     `PermitOriginator/Title,PermitOriginator/EMail,` +
     `AssetCategory/Id,AssetCategory/Title,` +
     `AssetDetails/Id,AssetDetails/Title,` +
-    `CompanyRecord/Id,CompanyRecord/Title` +
-    `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord`
+    `CompanyRecord/Id,CompanyRecord/Title,` +
+    `Author/Id,Author/EMail,` +
+    `Editor/Id,Editor/EMail,Editor/Title` +
+    `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord,Author,Editor`
   ), []);
 
   const mapRows = React.useCallback((data: any[]): Row[] => {
@@ -119,7 +130,11 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         assetDetails: obj.AssetDetails ? obj.AssetDetails.Title : undefined,
         company: obj.CompanyRecord ? obj.CompanyRecord.Title : undefined,
         FormStatusRecord: obj.FormStatusRecord ?? undefined,
-        WorkflowStatus: obj.WorkflowStatus ?? undefined
+        WorkflowStatus: obj.WorkflowStatus ?? undefined,
+        isUrgentSubmission: !!obj.IsUrgentSubmission,
+        permitOriginatorEmail: obj.PermitOriginator?.EMail,
+        editorName: obj.Editor?.Title || obj.Editor?.EMail,
+        editorEmail: obj.Editor?.EMail
       };
     });
   }, []);
@@ -127,8 +142,17 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const columns = React.useMemo<IColumn[]>(
     () => [
       { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 160, maxWidth: 180, isResizable: true },
-      { key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 110, isResizable: true },
-      { key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 100, isResizable: true },
+      {key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 100, isResizable: true},
+      {
+        key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 160, isResizable: true,
+        onRender: (row: Row) => {
+          const status = row.WorkflowStatus || '';
+          const poEmail = (row.permitOriginatorEmail || '').toLowerCase();
+          const edEmail = (row.editorEmail || '').toLowerCase();
+          const showModifiedBy = poEmail !== edEmail;
+          return showModifiedBy ? `${status} - ${row.editorName || row.editorEmail}` : status;
+        }
+      },
       { key: 'colProjectTitle', name: 'Project Title', fieldName: 'projectTitle', minWidth: 160, isResizable: true },
       { key: 'colAssetCategory', name: 'Asset Category', fieldName: 'assetCategory', minWidth: 200, isResizable: true },
       { key: 'colAssetDetails', name: 'Asset Details', fieldName: 'assetDetails', minWidth: 200, isResizable: true },
@@ -301,7 +325,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
   const cmdItems = React.useMemo<ICommandBarItemProps[]>(() => {
     const editDisabled = selectedRows.length !== 1;
-    const delDisabled = selectedRows.length === 0 || !listGuid;
+    // const delDisabled = selectedRows.length === 0 || !listGuid;
     return [
       {
         key: 'add',
@@ -330,13 +354,13 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           }
         }
       },
-      {
-        key: 'delete',
-        text: 'Delete',
-        iconProps: { iconName: 'Delete' },
-        disabled: delDisabled || isDeleting,
-        onClick: deleteSelected
-      },
+      // {
+      //   key: 'delete',
+      //   text: 'Delete',
+      //   iconProps: { iconName: 'Delete' },
+      //   disabled: delDisabled || isDeleting,
+      //   onClick: deleteSelected
+      // },
       {
         key: 'refresh',
         text: 'Refresh',
@@ -385,6 +409,24 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     ];
   }, [selectedRows, listGuid, onAddNew, onEdit, deleteSelected, loadItems, view, isDeleting]);
 
+  // Highlight urgent rows
+  const renderRow = React.useCallback((props?: IDetailsRowProps) => {
+    if (!props) return null;
+    const isUrgent = (props.item as Row)?.isUrgentSubmission;
+    const urgentStyles: Partial<IDetailsRowStyles> | undefined = isUrgent
+      ? {
+        root: {
+          backgroundColor: '#fb9f9f85', // warning background
+          selectors: {
+            '&:hover': { backgroundColor: '#e1a7a785' },
+            '&.is-selected': { backgroundColor: '#e1a7a785' }
+          }
+        }
+      }
+      : undefined;
+    return <DetailsRow {...props} styles={urgentStyles} />;
+  }, []);
+
   return (
     <Stack tokens={{ childrenGap: 8 }}>
       <Text variant="xLarge">{title}</Text>
@@ -395,11 +437,12 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         <DetailsList items={items}
           columns={columns}
           selection={selectionRef.current}
-          selectionMode={SelectionMode.multiple}
+          selectionMode={SelectionMode.single}
           layoutMode={DetailsListLayoutMode.justified}
           setKey={`ptwForms-${view}`}
           compact
           isHeaderVisible
+          onRenderRow={renderRow}
           styles={{ root: { minHeight: '350px', height: 'auto' } }}
         />
       </MarqueeSelection>

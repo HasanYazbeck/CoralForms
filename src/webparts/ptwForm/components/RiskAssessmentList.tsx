@@ -13,7 +13,8 @@ import {
     ChoiceGroup,
     IChoiceGroupOption,
     Checkbox,
-    DefaultButton
+    DefaultButton,
+    IComboBoxStyles
 } from '@fluentui/react';
 import { ILookupItem } from '../../../Interfaces/PtwForm/IPTWForm';
 
@@ -148,6 +149,52 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         return { bg: '#rgb(241 241 241)', fg: '#323130' }; // fallback
     }, []);
 
+    // Render colored options (Low/Medium/High)
+    const renderRiskOption = React.useCallback((option?: IComboBoxOption) => {
+        const label = String(option?.text ?? option?.key ?? '');
+        const { bg, fg } = getRiskColors(label);
+        // The option root has horizontal padding (8px). Use negative margins to fill the row.
+        return (
+            <div style={{
+                backgroundColor: bg,
+                color: fg,
+                padding: '6px 8px',
+                margin: '0 -8px',
+                display: 'block',
+                fontWeight: 600
+            }}>
+                {label}
+            </div>
+        );
+    }, [getRiskColors]);
+
+    // Fill the whole ComboBox (input + chevron)
+    const getRiskComboStyles = React.useCallback((selectedLabel?: string): Partial<IComboBoxStyles> => {
+        if (!selectedLabel) return {};
+        const { bg, fg } = getRiskColors(selectedLabel);
+        return {
+            root: {
+                backgroundColor: bg,
+                borderColor: bg,
+                borderRadius: 2,
+                selectors: {
+                    // input area
+                    '.ms-ComboBox': { backgroundColor: bg },
+                    '.ms-ComboBox input': { backgroundColor: bg, color: fg, fontWeight: 600 },
+                    // caret (chevron) button
+                    '.ms-ComboBox-CaretDown-button': {
+                        backgroundColor: bg,
+                        borderLeft: '1px solid rgba(0,0,0,0.1)'
+                    },
+                    '.ms-ComboBox-CaretDown-button .ms-Button-menuIcon': { color: fg },
+                    '&:hover': { backgroundColor: bg, borderColor: bg },
+                    '&:focus-within': { backgroundColor: bg, borderColor: bg }
+                }
+            },
+            input: { backgroundColor: bg, color: fg, fontWeight: 600 }
+        };
+    }, [getRiskColors]);
+
     const addRow = () => setRows(prev => [...prev, newRow()]);
     const deleteRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
 
@@ -177,6 +224,8 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     onChange={(_, option) => handleInitialRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
                     disabled={disableRiskControls || row.disabledFields}
+                    onRenderOption={renderRiskOption}
+                    styles={getRiskComboStyles(row.initialRisk)}
                 />
             )
         },
@@ -246,6 +295,8 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     onChange={(_, option) => handleResidualRiskChange(row.id, option)}
                     useComboBoxAsMenuWidth
                     disabled={disableRiskControls || row.disabledFields}
+                    onRenderOption={renderRiskOption}
+                    styles={getRiskComboStyles(row.residualRisk)}
                 />
             )
         },
@@ -263,7 +314,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                 />
             )
         }
-    ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow, disableRiskControls]);
+    ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow, disableRiskControls, renderRiskOption, getRiskComboStyles]);
 
     const overallOptions: IChoiceGroupOption[] = (overallRiskOptions || []).map(o => {
         const { bg, fg } = getRiskColors(o);
