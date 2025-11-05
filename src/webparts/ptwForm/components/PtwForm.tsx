@@ -1488,21 +1488,29 @@ export default function PTWForm(props: IPTWFormProps) {
 
         if (selectedNewPermitRows.length >= 1) {
           const newRowDateIso = selectedNewPermitRows[0].date;
+          const permitStartTime = selectedNewPermitRows[0].startTime;
 
           if (!newRowDateIso) {
             missing.push('New Permit Row Date');
+          } else if (!permitStartTime) {
+            missing.push('New Permit Row Start Time');
           } else {
-            const permitDate = new Date(newRowDateIso);
+
+            const startDateTimeIso = spHelpers.combineDateAndTime(newRowDateIso, permitStartTime)?.toISOString();
+            if (!startDateTimeIso) return `Please fill in the required fields: Invalid New Permit Row Date/Time.`;
+            const permitDate = new Date(startDateTimeIso);
+
             if (isNaN(permitDate.getTime())) {
               missing.push('New Permit Row Date (invalid)');
             } else if (!isUrgentSubmission) {
               const now = new Date();
-              const hoursOffset = _coralFormList.SubmissionRangeInterval ?? 24;
-              const msHour = hoursOffset * 60 * 60 * 1000;
-              const isAtLeastAfterNowDuration = (permitDate.getTime() - now.getTime()) >= msHour;
-
-              if (!isAtLeastAfterNowDuration) {
-                missing.push(`New Permit Row Date must be at least \`${hoursOffset}\` hours after the current submission date/time.`);
+              // Interpret SubmissionRangeInterval as hours (default 24)
+              const intervalHours = Number(_coralFormList?.SubmissionRangeInterval) || 24;
+              const diffMs = permitDate.getTime() - now.getTime();
+              const diffHours = diffMs / (1000 * 60 * 60);
+              const meetsInterval = diffHours >= intervalHours;
+              if (!meetsInterval) {
+                missing.push(`New Permit Row start must be at least ${intervalHours} hours after the current submission date/time.`);
               }
             }
           }
@@ -2373,7 +2381,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
           setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
           setIsUrgentSubmission(!!headerFirstSelect?.IsUrgentSubmission);
-          
+
           if (headerFirstSelect?.AssetDetails) {
             const assetDetailId = Number(headerFirstSelect.AssetDetails.Id);
             const cached = (assetCategoriesDetailsList || []).find(d => Number(d.id) === assetDetailId);
@@ -2805,9 +2813,7 @@ export default function PTWForm(props: IPTWFormProps) {
               <img src={companyLogoUrl} alt="Logo" className={styles.formLogo} />
             </div>
             <div className={styles.ptwFormTitleLogo}>
-              {/* <div>
-                <img src={logoPTWUrl} alt="PTWLogo" className={styles.ptwformLogo} />
-              </div> */}
+
               <div className={styles.ptwTitles}>
                 <span className={styles.formArTitle}>{ptwFormStructure?.coralForm?.arTitle}</span>
                 <span className={styles.formTitle}>{ptwFormStructure?.coralForm?.title}</span>

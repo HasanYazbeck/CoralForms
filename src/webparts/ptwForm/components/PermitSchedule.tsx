@@ -26,6 +26,7 @@ const datePickerBlackStyles: Partial<IDatePickerStyles> = {
   },
   icon: { color: '#000  !important' }
 };
+
 const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitRows,
   selectedPermitTypeList,

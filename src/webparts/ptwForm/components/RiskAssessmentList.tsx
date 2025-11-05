@@ -26,7 +26,8 @@ export interface IRiskTaskRow {
     residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
     safeguardsNote?: string;
     disabledFields: boolean;    // custom text entered in the safeguards combobox
-    orderRecord: number;    // for sorting
+    orderRecord: number;
+    customSafeguards?: string[]; // for sorting
 }
 
 export interface IRiskAssessmentListProps {
@@ -56,7 +57,8 @@ const newRow = (): IRiskTaskRow => ({
     safeguardIds: [],
     residualRisk: undefined,
     disabledFields: true,
-    orderRecord: 0
+    orderRecord: 0,
+    customSafeguards: []
 });
 
 const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
@@ -118,14 +120,47 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         setRows(prev => prev.map(r => {
             if (r.id !== row.id) return r;
             const current = new Set(r.safeguardIds || []);
-            if (option.selected) {
-                current.add(idNum);
-            } else {
-                current.delete(idNum);
-            }
+            if (option.selected) current.add(idNum);
+            else current.delete(idNum);
             return { ...r, safeguardIds: Array.from(current) };
         }));
     }, [setRows]);
+
+    // NEW: add free-text safeguard on Enter/Tab/Comma
+    const handleSafeguardFreeformKeyDown = React.useCallback((row: IRiskTaskRow, ev: React.KeyboardEvent<HTMLInputElement>) => {
+        if (ev.key !== 'Enter' && ev.key !== 'Tab' && ev.key !== ',') return;
+        const raw = (safeFilterByRow[row.id] || '').trim();
+        if (!raw) return;
+
+        // If exact match exists in list -> select it, otherwise add as custom
+        const match = (safeguards || []).find(s => (s.title || '').toLowerCase() === raw.toLowerCase());
+        if (match?.id != null) {
+            const idNum = Number(match.id);
+            setRows(prev => prev.map(r =>
+                r.id === row.id
+                    ? { ...r, safeguardIds: Array.from(new Set([...(r.safeguardIds || []), idNum])) }
+                    : r
+            ));
+        } else {
+            setRows(prev => prev.map(r =>
+                r.id === row.id
+                    ? { ...r, customSafeguards: Array.from(new Set([...(r.customSafeguards || []), raw])) }
+                    : r
+            ));
+        }
+        setSafeFilterByRow(prev => ({ ...prev, [row.id]: '' }));
+        ev.preventDefault();
+        ev.stopPropagation();
+    }, [safeguards, safeFilterByRow]);
+
+    // NEW: remove a custom safeguard chip
+    const removeCustomSafeguard = React.useCallback((rowId: string, label: string) => {
+        setRows(prev => prev.map(r =>
+            r.id === rowId
+                ? { ...r, customSafeguards: (r.customSafeguards || []).filter(x => x !== label) }
+                : r
+        ));
+    }, []);
 
     // Remove safeguard from chips
     const removeSafeguard = React.useCallback((rowId: string, id: number) => {
@@ -208,7 +243,6 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     value={row.task}
                     onChange={(_, v) => handleTaskChange(row.id, v)}
                     placeholder="Enter task"
-
                 />
             )
         },
@@ -252,28 +286,32 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             allowFreeform
                             useComboBoxAsMenuWidth
                             disabled={row.disabledFields}
+                            onKeyDown={(e) => handleSafeguardFreeformKeyDown(row, e as any)}
                         />
 
                         <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
                             {selectedItems.length === 0 ? (
-                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No safeguards selected</span>
+                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No safeguards selected (type to search or add your own and press Enter)</span>
                             ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {selectedItems.map(s => (
-                                        <span key={s.id}
+                                        <span key={`lkp-${s.id}`}
                                             style={{
                                                 background: '#f3f2f1', border: '1px solid #c8c6c4', lineHeight: 1.4,
                                                 whiteSpace: 'break-spaces', borderRadius: 2, padding: '2px 6px',
                                                 display: 'inline-flex', alignItems: 'center', gap: 6
                                             }}>
-                                            <IconButton
-                                                iconProps={{ iconName: 'Cancel' }}
-                                                ariaLabel={`Remove ${s.title}`}
-                                                title={`Remove ${s.title}`}
-                                                onClick={() => removeSafeguard(row.id, Number(s.id))}
-                                                styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }}
-                                            />
+                                            <IconButton iconProps={{ iconName: 'Cancel' }} ariaLabel={`Remove ${s.title}`} title={`Remove ${s.title}`}
+                                                onClick={() => removeSafeguard(row.id, Number(s.id))} styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }} />
                                             <span style={{ color: '#323130' }}>{s.title}</span>
+                                        </span>
+                                    ))}
+
+                                    {(row.customSafeguards || []).map(txt => (
+                                        <span key={`custom-${txt}`} style={{ background: '#e5f1ff', border: '1px solid #99c7ff', borderRadius: 2, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            <IconButton iconProps={{ iconName: 'Cancel' }} ariaLabel={`Remove ${txt}`} title={`Remove ${txt}`}
+                                                onClick={() => removeCustomSafeguard(row.id, txt)} styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }} />
+                                            <span style={{ color: '#1a3b5d', fontStyle: 'italic' }}>{txt}</span>
                                         </span>
                                     ))}
                                 </div>
