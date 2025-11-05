@@ -37,7 +37,7 @@ import RiskAssessmentList, { IRiskTaskRow } from './RiskAssessmentList';
 import { CheckBoxDistributerOnlyComponent } from './CheckBoxDistributerOnlyComponent';
 import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
 import { ICoralFormsList } from '../../../Interfaces/Common/ICoralFormsList';
-import ExportPdfControls from '../../ppeForm/components/ExportPdfControls';
+import ExportPdfControls from '../../ptwForm/components/ExportPdfControls';
 import BannerComponent, { BannerKind } from '../../ppeForm/components/BannerComponent';
 
 interface IRiskAssessmentResult {
@@ -85,6 +85,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
   // Form State to used on update or submit
   const [_coralReferenceNumber, setCoralReferenceNumber] = React.useState<string>('');
+  const [_previousPtwRef, setPreviousPtwRef] = React.useState<string>('');
   const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
   const [_assetId, setAssetId] = React.useState<string>('');
   const [_selectedCompany, setSelectedCompany] = React.useState<ILookupItem | undefined>(undefined);
@@ -224,6 +225,18 @@ export default function PTWForm(props: IPTWFormProps) {
   const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
   // Determine if current user is the Permit Originator
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
+
+  const showBanner = React.useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
+    setBannerText(text);
+    setBannerTick(t => t + 1);
+    setBannerOpts(opts);
+  }, []);
+
+  const hideBanner = React.useCallback(() => {
+    showBanner(``);
+    setBannerText(undefined);
+    setBannerOpts(undefined);
+  }, []);
 
   // Resolve eligibility from SP group membership for Permit Originator Group Logged In Users
   React.useEffect(() => {
@@ -1259,18 +1272,6 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, []);
 
-  const showBanner = React.useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
-    setBannerText(text);
-    setBannerTick(t => t + 1);
-    setBannerOpts(opts);
-  }, []);
-
-  const hideBanner = React.useCallback(() => {
-    showBanner(``);
-    setBannerText(undefined);
-    setBannerOpts(undefined);
-  }, []);
-
   // Navigate back to host list view (via callback or URL params)
   const goBackToHost = React.useCallback(() => {
     if (typeof props.onClose === 'function') {
@@ -1367,13 +1368,6 @@ export default function PTWForm(props: IPTWFormProps) {
     });
   }, [isBusy]);
 
-  // const mergeRiskRows = (prev?: IRiskTaskRow[], next?: IRiskTaskRow[]): IRiskTaskRow[] => {
-  //   if (!next || next.length === 0) return prev ? prev.slice() : [];
-  //   if (!prev || prev.length === 0) return next.slice();
-  //   const byId = new Map(prev.map(r => [r.id, r]));
-  //   return next.map(n => ({ ...byId.get(n.id), ...n }));
-  // };
-
   const mergeRiskRows = (prev?: IRiskTaskRow[], next?: IRiskTaskRow[]): IRiskTaskRow[] => {
     if (!next || next.length === 0) return prev ? prev.slice() : [];
     if (!prev || prev.length === 0) return next.slice();
@@ -1395,7 +1389,6 @@ export default function PTWForm(props: IPTWFormProps) {
     });
   };
 
-
   const handleRiskTasksChange = React.useCallback((tasks?: IRiskAssessmentResult) => {
     if (!tasks) {
       setRiskAssessmentsTasks(undefined);
@@ -1415,6 +1408,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const buildPayload = React.useCallback(() => {
     return {
       reference: _coralReferenceNumber,
+      previousReferenceNumber: _previousPtwRef || '',
       assetId: _assetId,
       assetCategoryId: _selectedAssetCategory,
       assetDetailsId: _selectedAssetDetails,
@@ -1483,7 +1477,7 @@ export default function PTWForm(props: IPTWFormProps) {
     _assetDirPicker, _assetDirDate, _assetDirStatus,
     _hseDirPicker, _hseDirDate, _hseDirStatus,
     _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
-    _closurePoDate, _closurePoStatus, isUrgentSubmission
+    _closurePoDate, _closurePoStatus, isUrgentSubmission, _previousPtwRef
   ]);
 
   const validateBeforeSubmit = React.useCallback((originatorId: number | undefined, mode: 'save' | 'submit' | 'approve'): string | undefined => {
@@ -1604,7 +1598,6 @@ export default function PTWForm(props: IPTWFormProps) {
     }
 
     if (isPerformingAuthority && (mode === 'submit' || mode === 'approve')) {
-
 
     }
 
@@ -1901,7 +1894,7 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [isPermitOriginator, validateBeforeSubmit, props.formId]);
 
   // Create parent PTWForm item and return its Id
-  const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit', spOriginatorId?: number): Promise<number> => {
+  const _createPTWForm = React.useCallback(async (mode: 'save' | 'submit' | 'renew', spOriginatorId?: number): Promise<number> => {
     const payload = payloadRef.current;
 
     if (!payload) throw new Error('Form payload is not available');
@@ -1923,6 +1916,7 @@ export default function PTWForm(props: IPTWFormProps) {
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
       IsUrgentSubmission: !!payload.isUrgentSubmission,
+      PreviousReferenceNumber: payload.previousPtwRef ?? null
     };
 
     // OData v4 style for multi-lookup fields: array + @odata.type
@@ -2150,6 +2144,7 @@ export default function PTWForm(props: IPTWFormProps) {
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
       IsUrgentSubmission: !!payload.isUrgentSubmission,
+      PreviousReferenceNumber: payload.previousPtwRef ?? null
     };
 
     if (mode !== 'approve') {
@@ -2312,7 +2307,7 @@ export default function PTWForm(props: IPTWFormProps) {
       try {
 
         const ptwFirstSelect = `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,IsDetailedRiskAssessmentRequired,RiskAssessmentRefNumber,WorkHazardsOthers,` +
-          `OverallRiskAssessment,GasTestRequired,GasTestResult,WorkflowStatus,IsUrgentSubmission,` +
+          `OverallRiskAssessment,GasTestRequired,GasTestResult,WorkflowStatus,IsUrgentSubmission,PreviousReferenceNumber,` +
           `PermitOriginator/Id,PermitOriginator/Title,PermitOriginator/EMail,` +
           `AssetCategory/Id,AssetCategory/Title,` +
           `AssetDetails/Id,AssetDetails/Title,` +
@@ -2412,6 +2407,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
           setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
           setIsUrgentSubmission(!!headerFirstSelect?.IsUrgentSubmission);
+          setPreviousPtwRef(headerFirstSelect?.PreviousPTWRef || '');
 
           if (headerFirstSelect?.AssetDetails) {
             const assetDetailId = Number(headerFirstSelect.AssetDetails.Id);
@@ -2787,7 +2783,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
   return (
 
-    <div style={{ position: 'relative' }} ref={containerRef}>
+    <div style={{ position: 'relative' }} ref={containerRef} data-export-mode={exportMode ? 'true' : 'false'}>
       <div ref={bannerTopRef} />
       {isBusy && (
         <div
@@ -2837,8 +2833,7 @@ export default function PTWForm(props: IPTWFormProps) {
       )}
 
       <form id="ptwFormMain">
-        {/* Top action bar removed; Save/Submit moved to bottom */}
-        <div id="formTitleSection">
+        <div id="formTitleSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           <div className={styles.ptwformHeader} >
             <div>
               <img src={companyLogoUrl} alt="Logo" className={styles.formLogo} />
@@ -2858,13 +2853,16 @@ export default function PTWForm(props: IPTWFormProps) {
           onDismiss={() => { setBannerText(undefined); setBannerOpts(undefined); }}
         />
 
-        <div id="formHeaderInfo" className={styles.formBody}>
+        <div id="formHeaderInfo" className={styles.formBody} style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           {/* Administrative Note */}
           <div className={`row mb-1`} id="administrativeNoteDiv">
-            <div className={`form-group col-md-6`}>
+            <div className={`form-group col-md-12`}>
               <NormalPeoplePicker label={"Permit Originator"} onResolveSuggestions={_onFilterChanged} itemLimit={1}
-                className={'ms-PeoplePicker'} key={'permitOriginator'} removeButtonAriaLabel={'Remove'}
-                onInputChange={onInputChange} resolveDelay={150}
+                className={'ms-PeoplePicker'}
+                key={'permitOriginator'}
+                removeButtonAriaLabel={'Remove'}
+                onInputChange={onInputChange}
+                resolveDelay={150}
                 styles={peoplePickerBlackStyles}
                 selectedItems={_PermitOriginator}
                 inputProps={{ placeholder: 'Enter name or email' }}
@@ -2873,16 +2871,23 @@ export default function PTWForm(props: IPTWFormProps) {
               />
             </div>
 
+          </div>
+
+          <div className={`row mb-1`} >
             <div className={`form-group col-md-6`}>
-              <TextField label="PTW Ref #"
-                readOnly
-                value={_coralReferenceNumber}
-              // styles={{ root: { color: '#000', fontWeight: 500, backgroundColor: '#f4f4f4' } }}
-              // onChange={(_, newValue) => setCoralReferenceNumber(newValue || '')}
+              <TextField label="PTW Ref #" readOnly value={_coralReferenceNumber} />
+            </div>
+
+            {/* NEW: Previous PTW reference */}
+            <div className={`form-group col-md-6`} id="previousPtwRefDiv">
+              <TextField
+                label="Previous PTW Ref #"
+                placeholder="Enter previous PTW reference (optional)"
+                value={_previousPtwRef}
+                onChange={(_, v) => setPreviousPtwRef(v || '')}
               />
             </div>
           </div>
-
 
           <div className='row' id="permitOriginatorDiv">
             <div className={`form-group col-md-6`}>
@@ -2962,7 +2967,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
         </div>
 
-        <div id="formContentSection">
+        <div id="permitScheduleSectionContainer" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           <div className='row pb-3' id="permitScheduleSection">
             <PermitSchedule
               workCategories={ptwFormStructure?.workCategories?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
@@ -2973,11 +2978,12 @@ export default function PTWForm(props: IPTWFormProps) {
               styles={styles}
             />
           </div>
+        </div>
 
+        <div id="formContentSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           {workPermitRequired && (
-            <div id="ptwFormsSections">
-
-              <div className="row pb-3" id="hacClassificationWorkAreaSection">
+            <>
+              <div className="row pb-3" id="hacClassificationWorkAreaSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>HAC Classification of Work Area</Label>
                 </div>
@@ -2989,7 +2995,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 />
               </div>
 
-              <div className="row pb-3" id="workHazardSection" >
+              <div className="row pb-3" id="workHazardSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Work Hazards</Label>
                   <div className="text-center pb-3">
@@ -3009,7 +3015,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {_selectedWorkHazardIds.size >= 3 && (
-                <div className="row pb-2" id="riskAssessmentListSection">
+                <div className="row pb-2" id="riskAssessmentListSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="form-group col-md-12">
                     <RiskAssessmentList
                       initialRiskOptions={ptwFormStructure?.initialRisk || []}
@@ -3024,7 +3030,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
               )}
 
-              <div className="row pb-3" id="precautionsSection" >
+              <div className="row pb-3" id="precautionsSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Precautions Required</Label>
                 </div>
@@ -3146,7 +3152,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </>
               )}
 
-              <div className="row pb-3" id="protectiveSafetyEquipmentSection" >
+              <div className="row pb-3" id="protectiveSafetyEquipmentSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Protective & Safety Equipment</Label>
                 </div>
@@ -3164,7 +3170,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
               </div>
 
-              <div className='row pb-3' id="machineryToolsSection">
+              <div className='row pb-3' id="machineryToolsSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
                 </div>
@@ -3216,7 +3222,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Personnel Involved - placed under Attachments section */}
-              <div className='row pb-3' id="personnelInvolvedSection">
+              <div className='row pb-3' id="personnelInvolvedSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Personnel Involved</Label>
                 </div>
@@ -3263,7 +3269,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
               </div>
 
-              <div className="row pb-3" id="InstructionsSection">
+              <div className="row pb-3" id="InstructionsSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 {/* Instructions For Use */}
                 <Stack horizontal id="InstructionsStack">
                   {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
@@ -3285,7 +3291,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
               {/* Toolbox Talk (TBT) */}
               {isSubmitted && isPermitIssuer && (
-                <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }}>
+                <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }} >
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
                     <Checkbox
                       label="Toolbox Talk (TBT); complete details if applicable"
@@ -3443,7 +3449,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
               {/* HIGH RISK PTW Approval (if applicable) - visible when submitted and overall risk is High */}
               {isSubmitted && isHighRisk && (
-                <div className="row pb-3" id="highRiskApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
+                <div className="row pb-3" id="highRiskApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
                     <Label style={{ fontWeight: 600 }}>
                       HIGH RISK PTW Approval <span style={{ fontStyle: 'italic', fontWeight: 400 }}>(if applicable)</span>
@@ -3538,7 +3544,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
               {/* PTW Closure */}
               {isSubmitted && _paStatus == 'Approved' && _piStatus == 'Approved' && (
-                <div className="row pb-3" id="ptwClosureSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7' }}>
+                <div className="row pb-3" id="ptwClosureSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
                     <Label style={{ fontWeight: 600 }}>PTW Closure</Label>
                     <div style={{ fontStyle: 'italic', color: '#323130', marginTop: 2, fontSize: 'smaller' }}>
@@ -3599,7 +3605,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   </div>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
@@ -3611,8 +3617,10 @@ export default function PTWForm(props: IPTWFormProps) {
       <div id="formButtonsSection" className="no-pdf" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8, marginBottom: 8 }}>
         <DefaultButton text="Close" onClick={handleCancel} />
 
-        <ExportPdfControls targetRef={containerRef} coralReferenceNumber={_coralReferenceNumber}
-          employeeName={_PermitOriginator?.[0]?.text}
+        <ExportPdfControls
+          targetRef={containerRef}
+          coralReferenceNumber={_coralReferenceNumber}
+          originator={_PermitOriginator?.[0]?.text}
           exportMode={exportMode}
           onExportModeChange={setExportMode}
           onBusyChange={setIsExportingPdf}
@@ -3639,18 +3647,14 @@ export default function PTWForm(props: IPTWFormProps) {
             (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPAToPI".toLowerCase()) ||
             (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPOToPI".toLowerCase())
           ) && (
-            <PrimaryButton
-              text="Approve"
-              onClick={() => approveForm('approve')}
-              disabled={isBusy}
-            />
+            <PrimaryButton text="Approve" onClick={() => approveForm('approve')} disabled={isBusy} />
           )
         )}
       </div>
 
       <div id="formFooterSection" className='row'>
         <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' />
+          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1} />
         </div>
       </div>
 
