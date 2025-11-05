@@ -1367,12 +1367,34 @@ export default function PTWForm(props: IPTWFormProps) {
     });
   }, [isBusy]);
 
+  // const mergeRiskRows = (prev?: IRiskTaskRow[], next?: IRiskTaskRow[]): IRiskTaskRow[] => {
+  //   if (!next || next.length === 0) return prev ? prev.slice() : [];
+  //   if (!prev || prev.length === 0) return next.slice();
+  //   const byId = new Map(prev.map(r => [r.id, r]));
+  //   return next.map(n => ({ ...byId.get(n.id), ...n }));
+  // };
+
   const mergeRiskRows = (prev?: IRiskTaskRow[], next?: IRiskTaskRow[]): IRiskTaskRow[] => {
     if (!next || next.length === 0) return prev ? prev.slice() : [];
     if (!prev || prev.length === 0) return next.slice();
+
     const byId = new Map(prev.map(r => [r.id, r]));
-    return next.map(n => ({ ...byId.get(n.id), ...n }));
+    const uniq = (arr: (string | undefined | null)[]) =>
+      Array.from(new Set(arr.map(s => (s ?? '').trim()).filter(Boolean))) as string[];
+
+    return next.map(n => {
+      const p = byId.get(n.id);
+      const merged: IRiskTaskRow = { ...p, ...n };
+
+      const nextCustom = Array.isArray(n.customSafeguards)
+        ? n.customSafeguards
+        : (p?.customSafeguards ?? []);
+      merged.customSafeguards = uniq(nextCustom);
+
+      return merged;
+    });
   };
+
 
   const handleRiskTasksChange = React.useCallback((tasks?: IRiskAssessmentResult) => {
     if (!tasks) {
@@ -2021,12 +2043,21 @@ export default function PTWForm(props: IPTWFormProps) {
         InitialRisk: item.initialRisk ?? null,
         ResidualRisk: item.residualRisk ?? null,
         Title: item.task,
-        OrderRecord: index + 1
+        OrderRecord: index + 1,
       };
 
       if (item.safeguardIds?.length) {
         body['SafeguardsId@odata.type'] = 'Collection(Edm.Int32)';
         body['SafeguardsId'] = item.safeguardIds.map(Number);
+      }
+
+      // Add custom safeguards -> SP multi-choice field "OtherSafeguards"
+      const other = (item.customSafeguards || [])
+        .map(s => String(s).trim())
+        .filter(Boolean);
+      if (other.length) {
+        body['OtherSafeguards@odata.type'] = 'Collection(Edm.String)';
+        body['OtherSafeguards'] = Array.from(new Set(other));
       }
 
       const data = ops._insertItem(body);

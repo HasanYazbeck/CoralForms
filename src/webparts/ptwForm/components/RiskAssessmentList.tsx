@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { ILookupItem } from '../../../Interfaces/PtwForm/IPTWForm';
 import {
     DetailsList,
     DetailsListLayoutMode,
@@ -14,18 +15,17 @@ import {
     IChoiceGroupOption,
     Checkbox,
     DefaultButton,
-    IComboBoxStyles
+    IComboBoxStyles,
+    TooltipHost, DirectionalHint
 } from '@fluentui/react';
-import { ILookupItem } from '../../../Interfaces/PtwForm/IPTWForm';
 
 export interface IRiskTaskRow {
     id: string;
     task: string;
-    initialRisk?: string;       // from _ptwFormStructure.initialRisk[]
-    safeguardIds: number[];     // multi-select ILookupItem[]
-    residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
-    // safeguardsNote?: string;
-    disabledFields: boolean;    // custom text entered in the safeguards combobox
+    initialRisk?: string;
+    safeguardIds: number[];
+    residualRisk?: string;
+    disabledFields: boolean;
     orderRecord: number;
     customSafeguards: string[];
 }
@@ -47,8 +47,6 @@ export interface IRiskAssessmentListProps {
 
 const toComboOptions = (values: string[]): IComboBoxOption[] =>
     (values || []).map(v => ({ key: v, text: v }));
-
-// (Dropdown implementation removed)
 
 const newRow = (): IRiskTaskRow => ({
     id: `riskrow-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -107,15 +105,57 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         return base.map(opt => ({ ...opt, selected: row.safeguardIds?.includes(Number(opt.key)) }));
     }, [safeguards, safeFilterByRow]);
 
-    // Toggle selection for a single option in multi-select ComboBox
+    // Helper: commit one freeform token into row (match existing or add custom)
+    const commitFreeformToken = React.useCallback((rowId: string, rawText: string) => {
+        const raw = (rawText || '').trim();
+        if (!raw) return;
+
+        const match = (safeguards || []).find(s => (s.title || '').toLowerCase() === raw.toLowerCase());
+        if (match?.id != null) {
+            const idNum = Number(match.id);
+            setRows(prev => prev.map(r =>
+                r.id === rowId
+                    ? { ...r, safeguardIds: Array.from(new Set([...(r.safeguardIds || []), idNum])) }
+                    : r
+            ));
+        } else {
+            setRows(prev => prev.map(r =>
+                r.id === rowId
+                    ? { ...r, customSafeguards: Array.from(new Set([...(r.customSafeguards || []), raw])) }
+                    : r
+            ));
+        }
+    }, [safeguards, setRows]);
+
+    // Commit any pending text from the filter box
+    const commitPendingFreeform = React.useCallback((row: IRiskTaskRow) => {
+        const raw = (safeFilterByRow[row.id] || '').trim();
+        if (!raw) return;
+        commitFreeformToken(row.id, raw);
+        setSafeFilterByRow(prev => ({ ...prev, [row.id]: '' }));
+    }, [safeFilterByRow, commitFreeformToken]);
+
+    // Toggle selection for a single option in multi-select ComboBox + handle freeform typing
     const handleSafeguardComboChange = React.useCallback((row: IRiskTaskRow, option?: IComboBoxOption, _index?: number, _value?: string) => {
-        // When typing in the ComboBox, option is undefined and _value has the current input text
+        // Freeform typing path
         if (!option) {
             if (typeof _value === 'string') {
-                setSafeFilterByRow(prev => ({ ...prev, [row.id]: _value }));
+                // Support comma as a token delimiter: commit tokens before the last comma
+                if (_value.includes(',')) {
+                    const parts = _value.split(',');
+                    const tokens = parts.slice(0, -1).map(t => t.trim()).filter(Boolean);
+                    tokens.forEach(tok => commitFreeformToken(row.id, tok));
+                    const remainder = parts[parts.length - 1]; // keep last incomplete token in the input
+                    setSafeFilterByRow(prev => ({ ...prev, [row.id]: remainder }));
+                } else {
+                    // Just update the live filter text
+                    setSafeFilterByRow(prev => ({ ...prev, [row.id]: _value }));
+                }
             }
             return;
         }
+
+        // Option toggle path
         const idNum = Number(option.key);
         setRows(prev => prev.map(r => {
             if (r.id !== row.id) return r;
@@ -124,34 +164,34 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             else current.delete(idNum);
             return { ...r, safeguardIds: Array.from(current) };
         }));
-    }, [setRows]);
+    }, [setRows, commitFreeformToken, setSafeFilterByRow]);
 
     // NEW: add free-text safeguard on Enter/Tab/Comma
-    const handleSafeguardFreeformKeyDown = React.useCallback((row: IRiskTaskRow, ev: React.KeyboardEvent<HTMLInputElement>) => {
-        if (ev.key !== 'Enter' && ev.key !== 'Tab' && ev.key !== ',') return;
-        const raw = (safeFilterByRow[row.id] || '').trim();
-        if (!raw) return;
+    // const handleSafeguardFreeformKeyDown = React.useCallback((row: IRiskTaskRow, ev: React.KeyboardEvent<HTMLInputElement>) => {
+    //     if (ev.key !== 'Enter' && ev.key !== 'Tab' && ev.key !== ',') return;
+    //     const raw = (safeFilterByRow[row.id] || '').trim();
+    //     if (!raw) return;
 
-        // If exact match exists in list -> select it, otherwise add as custom
-        const match = (safeguards || []).find(s => (s.title || '').toLowerCase() === raw.toLowerCase());
-        if (match?.id != null) {
-            const idNum = Number(match.id);
-            setRows(prev => prev.map(r =>
-                r.id === row.id
-                    ? { ...r, safeguardIds: Array.from(new Set([...(r.safeguardIds || []), idNum])) }
-                    : r
-            ));
-        } else {
-            setRows(prev => prev.map(r =>
-                r.id === row.id
-                    ? { ...r, customSafeguards: Array.from(new Set([...(r.customSafeguards || []), raw])) }
-                    : r
-            ));
-        }
-        setSafeFilterByRow(prev => ({ ...prev, [row.id]: '' }));
-        ev.preventDefault();
-        ev.stopPropagation();
-    }, [safeguards, safeFilterByRow]);
+    //     // If exact match exists in list -> select it, otherwise add as custom
+    //     const match = (safeguards || []).find(s => (s.title || '').toLowerCase() === raw.toLowerCase());
+    //     if (match?.id != null) {
+    //         const idNum = Number(match.id);
+    //         setRows(prev => prev.map(r =>
+    //             r.id === row.id
+    //                 ? { ...r, safeguardIds: Array.from(new Set([...(r.safeguardIds || []), idNum])) }
+    //                 : r
+    //         ));
+    //     } else {
+    //         setRows(prev => prev.map(r =>
+    //             r.id === row.id
+    //                 ? { ...r, customSafeguards: Array.from(new Set([...(r.customSafeguards || []), raw])) }
+    //                 : r
+    //         ));
+    //     }
+    //     setSafeFilterByRow(prev => ({ ...prev, [row.id]: '' }));
+    //     ev.preventDefault();
+    //     ev.stopPropagation();
+    // }, [safeguards, safeFilterByRow]);
 
     // NEW: remove a custom safeguard chip
     const removeCustomSafeguard = React.useCallback((rowId: string, label: string) => {
@@ -272,7 +312,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     <div>
                         <ComboBox
                             key={`saf-${row.id}-${(row.safeguardIds || []).slice().sort((a, b) => Number(a) - Number(b)).join('_')}`}
-                            placeholder="Select safeguards"
+                            placeholder="Select Safeguards"
                             multiSelect
                             options={buildSafeguardComboOptions(row)}
                             onChange={(_, option, index, value) => handleSafeguardComboChange(row, option, index, value)}
@@ -281,14 +321,24 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             allowFreeform
                             useComboBoxAsMenuWidth
                             disabled={row.disabledFields}
-                            onKeyDown={(e) => handleSafeguardFreeformKeyDown(row, e as any)}
+                            // Commit pending freeform text when the control loses focus or menu closes
+                            onBlur={() => commitPendingFreeform(row)}
+                            onMenuDismissed={() => commitPendingFreeform(row)}
                         />
 
                         <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
                             {!hasAny ? (
-                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>
-                                    No safeguards selected (type to search or add your own.)
-                                </span>
+                                // <span style={{ color: '#605e5c', fontStyle: 'italic' }}>
+                                //     No safeguards selected (type to search or add your own )
+                                // </span>
+                                <TooltipHost
+                                    content="To add your own safeguard, type it in the box, then press comma then Enter to add it."
+                                    directionalHint={DirectionalHint.topLeftEdge}
+                                >
+                                    <span style={{ color: '#605e5c', fontStyle: 'italic', cursor: 'help' }}>
+                                        No safeguards selected
+                                    </span>
+                                </TooltipHost>
                             ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {selectedItems.map(s => (
