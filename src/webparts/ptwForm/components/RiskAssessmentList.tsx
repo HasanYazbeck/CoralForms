@@ -24,10 +24,10 @@ export interface IRiskTaskRow {
     initialRisk?: string;       // from _ptwFormStructure.initialRisk[]
     safeguardIds: number[];     // multi-select ILookupItem[]
     residualRisk?: string;      // from _ptwFormStructure.residualRisk[]
-    safeguardsNote?: string;
+    // safeguardsNote?: string;
     disabledFields: boolean;    // custom text entered in the safeguards combobox
     orderRecord: number;
-    customSafeguards?: string[]; // for sorting
+    customSafeguards: string[];
 }
 
 export interface IRiskAssessmentListProps {
@@ -155,11 +155,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
 
     // NEW: remove a custom safeguard chip
     const removeCustomSafeguard = React.useCallback((rowId: string, label: string) => {
-        setRows(prev => prev.map(r =>
-            r.id === rowId
-                ? { ...r, customSafeguards: (r.customSafeguards || []).filter(x => x !== label) }
-                : r
-        ));
+        setRows(prev => prev.map(r => r.id === rowId ? { ...r, customSafeguards: (r.customSafeguards || []).filter(x => x !== label) } : r));
     }, []);
 
     // Remove safeguard from chips
@@ -238,13 +234,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             key: 'col-task',
             name: 'Task',
             minWidth: 220,
-            onRender: (row: IRiskTaskRow) => (
-                <TextField
-                    value={row.task}
-                    onChange={(_, v) => handleTaskChange(row.id, v)}
-                    placeholder="Enter task"
-                />
-            )
+            onRender: (row: IRiskTaskRow) => (<TextField value={row.task} onChange={(_, v) => handleTaskChange(row.id, v)} placeholder="Enter task" />)
         },
         {
             key: 'col-ir',
@@ -273,6 +263,11 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     .sort((a, b) => Number(a) - Number(b))
                     .map(id => allSafeguardsById.current.get(Number(id)))
                     .filter(Boolean) as ILookupItem[];
+
+                // count non-empty custom safeguards
+                const customList = (row.customSafeguards || []).filter(t => (t || '').trim().length > 0);
+                const hasAny = selectedItems.length > 0 || customList.length > 0;
+
                 return (
                     <div>
                         <ComboBox
@@ -290,8 +285,10 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                         />
 
                         <div style={{ border: '1px solid #e1e1e1', borderRadius: 4, padding: 6, marginTop: 6, width: '100%' }}>
-                            {selectedItems.length === 0 ? (
-                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No safeguards selected (type to search or add your own and press Enter)</span>
+                            {!hasAny ? (
+                                <span style={{ color: '#605e5c', fontStyle: 'italic' }}>
+                                    No safeguards selected (type to search or add your own.)
+                                </span>
                             ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {selectedItems.map(s => (
@@ -307,7 +304,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                         </span>
                                     ))}
 
-                                    {(row.customSafeguards || []).map(txt => (
+                                    {(customList || []).map(txt => (
                                         <span key={`custom-${txt}`} style={{ background: '#e5f1ff', border: '1px solid #99c7ff', borderRadius: 2, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                             <IconButton iconProps={{ iconName: 'Cancel' }} ariaLabel={`Remove ${txt}`} title={`Remove ${txt}`}
                                                 onClick={() => removeCustomSafeguard(row.id, txt)} styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }} />

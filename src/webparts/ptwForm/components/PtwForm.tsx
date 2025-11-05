@@ -2456,9 +2456,9 @@ export default function PTWForm(props: IPTWFormProps) {
                   task: item.JobDescription || '',
                   initialRisk: item.InitialRisk || '',
                   residualRisk: item.ResidualRisk || '',
-                  safeguardsNote: item.OtherSafeguards || '',
                   disabledFields: false,
                   orderRecord: item.OrderRecord || 0,
+                  customSafeguards: Array.isArray(item.OtherSafeguards) ? item.OtherSafeguards : [],
                   safeguardIds: Array.isArray(item.Safeguards) ? item.Safeguards
                     .map((sg: any) => Number(sg.Id)) : [],
                 })
