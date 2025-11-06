@@ -128,6 +128,21 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
                     }
                 });
                 const pxPerMm = canvas.width / contentWidth;
+                const sectionHmm = canvas.height / pxPerMm;
+
+                // If section fits entirely on a page
+                if (sectionHmm <= pageContentHeightMm) {
+                    // If it doesn't fit on the remaining space, start a new page first
+                    const remainingMm = (topMargin + pageContentHeightMm) - cursorYmm;
+                    if (remainingMm < sectionHmm - 0.01) {
+                        await finishPage();
+                    }
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    pdf.addImage(imgData, 'JPEG', margin, cursorYmm, contentWidth, sectionHmm);
+                    cursorYmm += sectionHmm;
+                    return;
+                }
 
                 let sYpx = 0;
                 while (sYpx < canvas.height) {
