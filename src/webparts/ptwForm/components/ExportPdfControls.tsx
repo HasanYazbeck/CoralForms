@@ -1,13 +1,14 @@
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 import { DefaultButton } from '@fluentui/react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
 
 
 export type ExportPdfControlsProps = {
     // The root element to capture (your form containerRef)
     targetRef: React.RefObject<HTMLElement>;
-    // For filename
     originator?: string;
     fileName?: string;
     coralReferenceNumber?: string;
@@ -16,10 +17,13 @@ export type ExportPdfControlsProps = {
     onExportModeChange: (on: boolean) => void;
     disabled?: boolean;
     showButton?: boolean;
-    // Errors to host banner/UI
     onError?: (message: string) => void;
     onBusyChange?: (busy: boolean) => void; // NEW
     pdfMarginMm?: number;
+    docCode?: string;
+    companyName?: string;
+    docVersion?: string;
+    effectiveDate?: string;
 };
 
 const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
@@ -34,13 +38,17 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
     onError,
     onBusyChange,
     pdfMarginMm = 12,
+    docCode,
+    docVersion,
+    effectiveDate,
+    companyName
 }) => {
 
     const exportPdf = React.useCallback(async () => {
         try {
             onBusyChange?.(true);
             onExportModeChange?.(true);
-            await new Promise(r => setTimeout(r, 50));
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             if (!targetRef.current) { onError?.('Nothing to export.'); return; }
 
             const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -51,14 +59,66 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             const bottomMargin = margin;
             const contentWidth = pageWidth - 2 * margin;
 
+            // Helper: render footer banner (with page number) off-screen and return image + height in mm
+            const renderFooter = async (pageNo: number) => {
+                const host = document.createElement('div');
+                host.style.position = 'fixed';
+                host.style.left = '-10000px';
+                host.style.top = '-10000px';
+                host.style.background = '#ffffff';
+                document.body.appendChild(host);
 
-            let cursorY = topMargin;
+                ReactDOM.render(
+                    React.createElement(DocumentMetaBanner, {
+                        docCode: docCode,
+                        version: docVersion,
+                        effectiveDate: effectiveDate,
+                        page: pageNo,
+                        companyName: companyName || 'Coral'
+                    }),
+                    host
+                );
+                await new Promise(r => requestAnimationFrame(r));
+                const canvas = await html2canvas(host, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#ffffff'
+                });
+
+                ReactDOM.unmountComponentAtNode(host);
+                document.body.removeChild(host);
+
+                const imgData = canvas.toDataURL('image/png');
+                const hmm = (contentWidth * canvas.height) / canvas.width;
+                return { imgData, hmm };
+            };
+
+            // Measure footer height (page 1 as sample)
+            const sampleFooter = await renderFooter(1);
+            const footerHmmSample = sampleFooter.hmm;
+            const pageContentHeightMm = pageHeight - topMargin - bottomMargin - footerHmmSample;
+
+            let cursorYmm = topMargin;
+            let pageIndex = 1;
+
+            const finishPage = async () => {
+                // Draw footer for this page at the bottom
+                const { imgData, hmm } = await renderFooter(pageIndex);
+                const footerY = pageHeight - bottomMargin - hmm;
+                pdf.addImage(imgData, 'PNG', margin, footerY, contentWidth, hmm);
+                // Start new page
+                pdf.addPage();
+                pageIndex += 1;
+                cursorYmm = topMargin;
+            };
+
+            // let cursorY = topMargin;
             const addSegment = async (el: HTMLElement) => {
                 if (!el) return;
                 const canvas = await html2canvas(el, {
                     scale: 2,
                     useCORS: true,
-                    backgroundColor: null,
+                    backgroundColor: '#ffffff',
                     // Ignore anything marked no-pdf
                     ignoreElements: (node) => {
                         try {
@@ -67,20 +127,36 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
                         } catch { return false; }
                     }
                 });
+                const pxPerMm = canvas.width / contentWidth;
 
-                const imgData = canvas.toDataURL('image/png');
-                const imgProps = pdf.getImageProperties(imgData);
-                const imgWmm = contentWidth;
-                const imgHmm = (imgWmm * imgProps.height) / imgProps.width;
+                let sYpx = 0;
+                while (sYpx < canvas.height) {
+                    const remainingMm = (topMargin + pageContentHeightMm) - cursorYmm;
+                    if (remainingMm <= 0.01) {
+                        await finishPage();
+                    }
 
-                // If it doesn't fit on current page, start a new page
-                if (cursorY + imgHmm > pageHeight - bottomMargin) {
-                    pdf.addPage();
-                    cursorY = topMargin;
+                    const remainingPx = Math.max(1, Math.floor(remainingMm * pxPerMm));
+                    const sliceHpx = Math.min(remainingPx, canvas.height - sYpx);
+                    const sliceHmm = sliceHpx / pxPerMm;
+
+                    const pageCanvas = document.createElement('canvas');
+                    pageCanvas.width = canvas.width;
+                    pageCanvas.height = sliceHpx;
+
+                    const ctx = pageCanvas.getContext('2d')!;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                    ctx.drawImage(canvas, 0, sYpx, canvas.width, sliceHpx, 0, 0, canvas.width, sliceHpx);
+
+                    const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+                    pdf.addImage(imgData, 'JPEG', margin, cursorYmm, contentWidth, sliceHmm);
+
+                    cursorYmm += sliceHmm;
+                    sYpx += sliceHpx;
+
+                    // If exactly filled, the loop will trigger finishPage on next iteration
                 }
-
-                pdf.addImage(imgData, 'PNG', margin, cursorY, imgWmm, imgHmm);
-                cursorY += imgHmm;
             };
 
             // Grab the three segments
@@ -100,7 +176,6 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             const ptwSignOffSection = document.getElementById('ptwSignOffSection') as HTMLElement | null;
             const highRiskApprovalSection = document.getElementById('highRiskApprovalSection') as HTMLElement | null;
 
-
             // Add in order; DO NOT force extra pages unless segment doesn't fit
             if (formTitleSection) await addSegment(formTitleSection);
             if (formHeader) await addSegment(formHeader);
@@ -117,6 +192,12 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             if (toolboxTalkSection) await addSegment(toolboxTalkSection);
             if (ptwSignOffSection) await addSegment(ptwSignOffSection);
             if (highRiskApprovalSection) await addSegment(highRiskApprovalSection);
+
+            // Draw footer on the last page
+            const lastFooter = await renderFooter(pageIndex);
+            const lastFooterY = pageHeight - bottomMargin - lastFooter.hmm;
+            pdf.addImage(lastFooter.imgData, 'PNG', margin, lastFooterY, contentWidth, lastFooter.hmm);
+
             // DONE - save the PDF
             const safeEmp = (originator || 'originator').replace(/[^\w\s-]/g, '').trim() || 'originator';
             const ts = new Date().toISOString().slice(0, 10);
@@ -128,7 +209,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             onExportModeChange(false);
             onBusyChange?.(false);
         }
-    }, [onBusyChange, pdfMarginMm, onExportModeChange, onError]);
+    }, [onBusyChange, pdfMarginMm, onExportModeChange, onError, docCode, docVersion, effectiveDate, originator, fileName, coralReferenceNumber, targetRef]);
 
     return (
         <>

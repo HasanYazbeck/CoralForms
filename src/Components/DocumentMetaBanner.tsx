@@ -6,10 +6,12 @@ type DocMetaProps = {
     version?: string;
     effectiveDate?: string;
     page?: string | number;
+    companyPrefix?: string;
+    companyName?: string;
 };
 
 export const DocumentMetaBanner: React.FC<DocMetaProps> = ({ docCode = 'COR-HSE-01-FOR-001', version = 'V03',
-    effectiveDate = '16-SEP-2020', page = 1
+    effectiveDate = '16-SEP-2020', page = 1, companyName = 'Coral'
 }) => {
     const grid: React.CSSProperties = {
         display: 'flex',
@@ -39,8 +41,8 @@ export const DocumentMetaBanner: React.FC<DocMetaProps> = ({ docCode = 'COR-HSE-
                 <div>{docCode}</div>
                 <div>Version: {version}</div>
             </div>
-            <div style={{ ...cell, paddingTop: '17px !important', fontWeight: '500',justifyContent: 'center !important', alignItems: 'center !important' }}>
-                This document is confidential and property of The Coral Oil Co.
+            <div style={{ ...cell, paddingTop: '17px !important', fontWeight: '500', justifyContent: 'center !important', alignItems: 'center !important' }}>
+                <text>This document is confidential and property of The {companyName} Oil Co. </text>
             </div>
             <div style={{
                 ...cell, paddingTop: '17px !important',

@@ -88,7 +88,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_previousPtwRef, setPreviousPtwRef] = React.useState<string>('');
   const [_PermitOriginator, setPermitOriginator] = React.useState<IPersonaProps[]>([]);
   const [_assetId, setAssetId] = React.useState<string>('');
-  const [_selectedCompany, setSelectedCompany] = React.useState<ILookupItem | undefined>(undefined);
+  const [_selectedCompany, setSelectedCompany] = React.useState<ICompany | undefined>(undefined);
   const [_selectedAssetCategory, setSelectedAssetCategory] = React.useState<number | undefined>(undefined);
   const [_selectedAssetDetails, setSelectedAssetDetails] = React.useState<number | undefined>(0);
   const [_projectTitle, setProjectTitle] = React.useState<string>('');
@@ -446,8 +446,6 @@ export default function PTWForm(props: IPTWFormProps) {
     [_piHsePartnerFilteredByCategory, currentUserEmail, _paPicker]
   );
 
-
-
   // ---------------------------
   // Data-loading functions (ported)
   // ---------------------------
@@ -723,7 +721,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const _getCompany = React.useCallback(async () => {
     try {
-      const query: string = `?$select=Id,Title,RecordOrder,LogoPath&$orderby=RecordOrder asc`;
+      const query: string = `?$select=Id,Title,RecordOrder,LogoPath,FullName&$orderby=RecordOrder asc`;
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'LKP_company', query);
       const data = await spCrudRef.current._getItemsWithQuery();
       const result: ICompany[] = [];
@@ -734,6 +732,7 @@ export default function PTWForm(props: IPTWFormProps) {
             title: obj.Title !== undefined && obj.Title !== null ? obj.Title : undefined,
             orderRecord: obj.RecordOrder !== undefined && obj.RecordOrder !== null ? obj.RecordOrder : undefined,
             logoUrl: obj.LogoPath !== undefined && obj.LogoPath !== null ? `${webUrl}` + `${obj.LogoPath}`.toString() : '',
+            fullName: obj.FullName !== undefined && obj.FullName !== null ? obj.FullName : undefined,
           };
           result.push(temp);
         }
@@ -2387,7 +2386,8 @@ export default function PTWForm(props: IPTWFormProps) {
           setPermitOriginator(permitOriginator ? [permitOriginator] : []);
           setCoralReferenceNumber(headerFirstSelect?.CoralReferenceNumber || '');
           setAssetId(headerFirstSelect?.AssetID);
-          setSelectedCompany(headerFirstSelect?.CompanyRecord ? { id: headerFirstSelect.CompanyRecord.Id, title: headerFirstSelect.CompanyRecord.Title || '', orderRecord: headerFirstSelect.CompanyRecord.OrderRecord || 0 } : undefined);
+          const selectedCompany = ptwFormStructure?.companies?.find(c => c.id === headerFirstSelect.CompanyRecord.Id);
+          setSelectedCompany(headerFirstSelect?.CompanyRecord ? { id: headerFirstSelect.CompanyRecord.Id, title: headerFirstSelect.CompanyRecord.Title || '', orderRecord: selectedCompany?.orderRecord || 0 , fullName: selectedCompany?.fullName || '' } : undefined);
           setProjectTitle(headerFirstSelect?.ProjectTitle || '');
           setSelectedAssetCategory(headerFirstSelect?.AssetCategory ? Number(headerFirstSelect.AssetCategory.Id) : undefined);
           setSelectedAssetDetails(headerFirstSelect?.AssetDetails ? Number(headerFirstSelect.AssetDetails.Id) : undefined);
@@ -2882,7 +2882,7 @@ export default function PTWForm(props: IPTWFormProps) {
             <div className={`form-group col-md-6`} id="previousPtwRefDiv">
               <TextField
                 label="Previous PTW Ref #"
-                placeholder="Enter previous PTW reference (optional)"
+                placeholder="(optional)"
                 value={_previousPtwRef}
                 onChange={(_, v) => setPreviousPtwRef(v || '')}
               />
@@ -2895,9 +2895,11 @@ export default function PTWForm(props: IPTWFormProps) {
                 label="Company"
                 placeholder="Select a company"
                 options={ptwFormStructure?.companies?.sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0))
-                  .map(c => ({ key: c.id, text: c.title || '' })) || []}
+                  .map(c => ({ key: c.id, text: c.title || '', fullName: c.fullName || '' })) || []}
                 selectedKey={_selectedCompany?.id}
-                onChange={(_e, item) => setSelectedCompany(item ? { id: Number(item.key), title: item.text, orderRecord: 0 } : undefined)}
+                onChange={(_e, item) => setSelectedCompany(item ? { id: Number(item.key), title: item.text, orderRecord: 0 ,
+                  fullName: ptwFormStructure?.companies?.find(c => c.id === Number(item.key))?.fullName || ''
+                 } : undefined)}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
@@ -3222,7 +3224,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Personnel Involved - placed under Attachments section */}
-              <div className='row pb-3' id="personnelInvolvedSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+              <div className='row pb-3' id="personnelInvolvedSection" style={{ breakAfter: 'page' }}>
                 <div>
                   <Label className={styles.ptwLabel}>Personnel Involved</Label>
                 </div>
@@ -3269,7 +3271,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
               </div>
 
-              <div className="row pb-3" id="InstructionsSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+              <div className="row pb-3" id="InstructionsSection" style={{ breakAfter: 'page' }}>
                 {/* Instructions For Use */}
                 <Stack horizontal id="InstructionsStack">
                   {itemInstructionsForUse && itemInstructionsForUse.length > 0 && (
@@ -3291,7 +3293,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
               {/* Toolbox Talk (TBT) */}
               {isSubmitted && isPermitIssuer && (
-                <div className="row pb-3" id="toolboxTalkSection" style={{ alignItems: 'center' }} >
+                <div className="row pb-3" id="toolboxTalkSection" style={{ breakAfter: exportMode ? 'page'  : 'auto'  }} >
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
                     <Checkbox
                       label="Toolbox Talk (TBT); complete details if applicable"
@@ -3617,15 +3619,21 @@ export default function PTWForm(props: IPTWFormProps) {
       <div id="formButtonsSection" className="no-pdf" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8, marginBottom: 8 }}>
         <DefaultButton text="Close" onClick={handleCancel} />
 
-        <ExportPdfControls
-          targetRef={containerRef}
-          coralReferenceNumber={_coralReferenceNumber}
-          originator={_PermitOriginator?.[0]?.text}
-          exportMode={exportMode}
-          onExportModeChange={setExportMode}
-          onBusyChange={setIsExportingPdf}
-          onError={(m) => showBanner(m)}
-        />
+        {
+          (mode === "submitted") && (
+            <ExportPdfControls
+              targetRef={containerRef}
+              coralReferenceNumber={_coralReferenceNumber}
+              originator={_PermitOriginator?.[0]?.text}
+              exportMode={exportMode}
+              onExportModeChange={() => setExportMode(true)}
+              onBusyChange={setIsExportingPdf}
+              onError={(m) => showBanner(m)}
+              docCode={docCode}
+              companyName={_selectedCompany?.fullName}
+            />
+          )
+        }
 
         {(mode === "new" || mode === "saved") &&
           <>
@@ -3654,7 +3662,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       <div id="formFooterSection" className='row'>
         <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1} />
+          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1}  companyName={_selectedCompany?.fullName}/>
         </div>
       </div>
 

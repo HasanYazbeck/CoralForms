@@ -57,5 +57,6 @@ import {IUser} from './../Common/IUser';
   }
 
 export interface ICompany extends ILookupItem {
-  logoUrl: string;
+  logoUrl?: string;
+  fullName?: string;
 }
