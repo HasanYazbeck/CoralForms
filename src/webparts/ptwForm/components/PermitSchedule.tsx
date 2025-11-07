@@ -110,7 +110,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           <Label className={styles?.ptwLabel}>Select Type of Permit / Work Category</Label>
         </div>
         <div className="form-group col-md-12">
-          <div className="row">
+          <div className="row p-2">
             {workCategories
               ?.sort((a, b) => {
                 const aOrder = a.orderRecord !== undefined && a.orderRecord !== null ? Number(a.orderRecord) : Number.POSITIVE_INFINITY;

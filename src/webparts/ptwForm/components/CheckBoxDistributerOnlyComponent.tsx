@@ -25,7 +25,7 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
 
     return (
         <div className="form-group col-md-12" id={props.id}>
-            <div className="row">
+            <div className="row p-2">
                 {regularCategories.map(category => (
                     <div key={category.id} className={props.colSpacing ? props.colSpacing : 'col-3'}>
                         <div className="my-2">
@@ -40,7 +40,7 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
             </div>
 
             {othersCategory && (
-                <div className="row mt-1">
+                <div className="row p-2">
                     <div className={styles.checkboxItem}>
                         <Checkbox label={othersCategory.title}
                             checked={props.selectedIds ? props.selectedIds.includes(othersCategory.id) : othersChecked}

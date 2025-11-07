@@ -113,4 +113,8 @@ export interface IPTWWorkflow {
     Stage: WorkflowStages;
     IsAssetDirectorReplacer: boolean;
     IsHSEDirectorReplacer: boolean;
+    PARejectionReason: string;
+    PIRejectionReason: string;
+    AssetDirectorRejectionReason: string;
+    HSEDirectorRejectionReason: string;
 }

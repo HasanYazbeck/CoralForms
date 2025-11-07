@@ -32,6 +32,7 @@ export type Row = {
   permitOriginatorEmail?: string;
   editorName?: string;
   editorEmail?: string;
+  rejectionReason?: string;
 };
 
 interface SubmittedPTWFormsListProps {
@@ -107,7 +108,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
   // Build the shared select/expand pieces (without $top so we can append it)
   const baseSelect = React.useMemo(() => (
-    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,WorkflowStatus,IsUrgentSubmission,` +
+    `?$select=Id,CoralReferenceNumber,AssetID,ProjectTitle,Created,FormStatusRecord,WorkflowStatus,IsUrgentSubmission,RejectionReason,` +
     `PermitOriginator/Title,PermitOriginator/EMail,` +
     `AssetCategory/Id,AssetCategory/Title,` +
     `AssetDetails/Id,AssetDetails/Title,` +
@@ -134,7 +135,8 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         isUrgentSubmission: !!obj.IsUrgentSubmission,
         permitOriginatorEmail: obj.PermitOriginator?.EMail,
         editorName: obj.Editor?.Title || obj.Editor?.EMail,
-        editorEmail: obj.Editor?.EMail
+        editorEmail: obj.Editor?.EMail, 
+        rejectionReason: obj.RejectionReason ?? undefined
       };
     });
   }, []);
@@ -153,6 +155,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           return showModifiedBy ? `${status} - ${row.editorName || row.editorEmail}` : status;
         }
       },
+      { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 160, isResizable: true },
       { key: 'colProjectTitle', name: 'Project Title', fieldName: 'projectTitle', minWidth: 160, isResizable: true },
       { key: 'colAssetCategory', name: 'Asset Category', fieldName: 'assetCategory', minWidth: 200, isResizable: true },
       { key: 'colAssetDetails', name: 'Asset Details', fieldName: 'assetDetails', minWidth: 200, isResizable: true },
@@ -192,8 +195,8 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       return;
     }
 
-    const filterActive = `&$filter=FormStatusRecord eq 'Submitted'`;
-    const filterClosed = `&$filter=WorkflowStatus eq 'Closed By System'`;
+    const filterActive = `&$filter=FormStatusRecord eq 'Submitted' and WorkflowStatus ne 'Rejected' and WorkflowStatus ne 'Closed By System'`;
+    const filterClosed = `&$filter=WorkflowStatus eq 'Closed' or WorkflowStatus eq 'Permanently Closed'`;
     const filterRejected = `&$filter=WorkflowStatus eq 'Rejected'`;
     const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
     const orderBy = `&$orderby=Created desc`;
@@ -354,13 +357,6 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           }
         }
       },
-      // {
-      //   key: 'delete',
-      //   text: 'Delete',
-      //   iconProps: { iconName: 'Delete' },
-      //   disabled: delDisabled || isDeleting,
-      //   onClick: deleteSelected
-      // },
       {
         key: 'refresh',
         text: 'Refresh',

@@ -120,7 +120,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const [_selectedToolboxTalk, setToolboxTalk] = React.useState<Boolean | undefined>(undefined);
   const [_toolboxHSEReference, setToolboxHSEReference] = React.useState<String>('');
-  const [_selectedToolboxTalkDate, setToolboxTalkDate] = React.useState<String | undefined>(undefined);
+  const [_selectedToolboxTalkDate, setToolboxTalkDate] = React.useState<Date | undefined>(new Date());
   const [_selectedToolboxConductedBy, setToolboxConductedBy] = React.useState<IPersonaProps[] | undefined>(undefined);
 
   // Busy overlay and notifications
@@ -149,6 +149,8 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_paPicker, setPaPicker] = React.useState<IPersonaProps[]>([]);
   const [_paDate, setPaDate] = React.useState<Date | undefined>(new Date());
   const [_paStatus, setPaStatus] = React.useState<SignOffStatus>('Pending');
+  const [_paRejectionReason, setPaRejectionReason] = React.useState<string>('');
+
   const [_paStatusEnabled, setPaStatusEnabled] = React.useState<boolean>(false);
 
   const [_piHsePartnerFilteredByCategory, setPiHsePartnerFilteredByCategory] = React.useState<IPersonaProps[]>([]);
@@ -158,6 +160,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_piPicker, setPiPicker] = React.useState<IPersonaProps[]>([]);
   const [_piDate, setPiDate] = React.useState<Date | undefined>(new Date());
   const [_piStatus, setPiStatus] = React.useState<SignOffStatus>('Pending');
+  const [_piRejectionReason, setPiRejectionReason] = React.useState<string>('');
   const [_piStatusEnabled, setPiStatusEnabled] = React.useState<boolean>(false);
   const [_piUnlockedByPA, setPiUnlockedByPA] = React.useState<boolean>(false);
 
@@ -166,6 +169,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_isAssetDirReplacer, setIsAssetDirectorReplacer] = React.useState<boolean>(false);
   const [_assetDirDate, setAssetDirDate] = React.useState<Date | undefined>(new Date());
   const [_assetDirStatus, setAssetDirStatus] = React.useState<SignOffStatus>('Pending');
+  const [_assetDirRejectionReason, setAssetDirRejectionReason] = React.useState<string>('');
   const [_assetDirStatusEnabled, setAssetDirStatusEnabled] = React.useState<boolean>(false);
 
   const [_hseDirPicker, setHseDirPicker] = React.useState<IPersonaProps[]>([]);
@@ -173,6 +177,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_isHseDirReplacer, setIsHseDirectorReplacer] = React.useState<boolean>(false);
   const [_hseDirDate, setHseDirDate] = React.useState<Date | undefined>(new Date());
   const [_hseDirStatus, setHseDirStatus] = React.useState<SignOffStatus>('Pending');
+  const [_hseDirRejectionReason, setHseDirRejectionReason] = React.useState<string>('');
   const [_hseDirStatusEnabled, setHseDirStatusEnabled] = React.useState<boolean>(false);
 
   // PTW Closure state
@@ -274,7 +279,7 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => { disposed = true; };
   }, [props.context.spHttpClient, webUrl, currentUserEmail]);
 
-  // Determine eligibility for Permit Issuer based on selected asset details (hsePartner)
+  // Determine eligibility for Permit Issuer / HSE Partner based on selected asset details (people field)
   React.useEffect(() => {
     let disposed = false;
     try {
@@ -298,8 +303,11 @@ export default function PTWForm(props: IPTWFormProps) {
       // Prefer the selected asset details; fall back to the filtered list if needed
       const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
       const directors: IPersonaProps[] = detail?.assetDirector || [];
+      const directorReplacer: IPersonaProps[] = detail?.assetDirectorReplacer || [];
 
-      const isMember = (directors ? directors.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false);
+      const isMember = (directors ? directors.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false ||
+        directorReplacer ? directorReplacer.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false);
+
       if (!disposed) setIsAssetDirector(isMember);
     } catch {
       if (!disposed) setIsAssetDirector(false);
@@ -307,37 +315,40 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => { disposed = true; };
   }, [assetCategoriesDetailsList, _selectedAssetDetails, currentUserEmail]);
 
-  // Resolve eligibility from SP group membership for HSE Director Group Logged In Users
+  // Determine eligibility for HSE Director based on selected asset details (people field)
   React.useEffect(() => {
     let disposed = false;
-    async function HSEDirectorsGroup() {
-      try {
-        const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-        const isEligibleGroup = await spOps._IsUserInSPGroup('HSEDirectorsGroup', currentUserEmail);
-        if (!isEligibleGroup) { if (!disposed) setIsHSEDirector(false); return; }
-        if (!disposed) setIsHSEDirector(isEligibleGroup);
-      } catch {
-        if (!disposed) setIsHSEDirector(false);
-      }
+    try {
+      const selId = _selectedAssetDetails != null ? Number(_selectedAssetDetails) : NaN;
+      // Prefer the selected asset details; fall back to the filtered list if needed
+      const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
+      const directors: IPersonaProps[] = detail?.hseDirector || [];
+      const directorReplacer: IPersonaProps[] = detail?.hseDirectorReplacer || [];
+
+      const isMember = (directors ? directors.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false ||
+        directorReplacer ? directorReplacer.some(d => (d.secondaryText || '').toLowerCase() === currentUserEmail) : false);
+
+      if (!disposed) setIsHSEDirector(isMember);
+    } catch {
+      if (!disposed) setIsHSEDirector(false);
     }
-
-    if (currentUserEmail) HSEDirectorsGroup();
     return () => { disposed = true; };
-  }, [props.context.spHttpClient, webUrl, currentUserEmail]);
+  }, [assetCategoriesDetailsList, _selectedAssetDetails, currentUserEmail]);
 
+  // Determine eligibility for Asset Manager based on selected asset details (people field)
   React.useEffect(() => {
     let disposed = false;
     try {
       const selId = _selectedAssetDetails != null ? Number(_selectedAssetDetails) : NaN;
       const detail = (assetCategoriesDetailsList || []).find(d => Number(d.id) === selId);
-      const managers: IPersonaProps[] = detail?.assetManager || _assetManagerFilteredByCategory || [];
+      const managers: IPersonaProps[] = detail?.assetManager || [];
       const isMember = (managers || []).some(p => (p.secondaryText || '').toLowerCase() === currentUserEmail);
       if (!disposed) setIsAssetManager(isMember);
     } catch {
       if (!disposed) setIsAssetManager(false);
     }
     return () => { disposed = true; };
-  }, [assetCategoriesDetailsList, _selectedAssetDetails, _assetManagerFilteredByCategory, currentUserEmail]);
+  }, [assetCategoriesDetailsList, _selectedAssetDetails, currentUserEmail]);
 
   const getGroupMembers = React.useCallback(async (groupName: string): Promise<SPGroupUser[]> => {
     const url = `${webUrl}/_api/web/sitegroups/getbyname('${encodeURIComponent(groupName)}')/users?$select=Id,Title,Email`;
@@ -356,9 +367,7 @@ export default function PTWForm(props: IPTWFormProps) {
       try {
         const names = [
           'PermitOriginatorGroup',
-          'PerformingAuthorityGroup',
-          'PermitIssuerGroup',
-          'HSEDirectorsGroup',
+          'PerformingAuthorityGroup'
         ];
         const entries = await Promise.all(
           names.map(async n => [n, await getGroupMembers(n)] as const)
@@ -1016,12 +1025,12 @@ export default function PTWForm(props: IPTWFormProps) {
         setPiHsePartnerFilteredByCategory(detail?.hsePartner);
       } else {
         setPiHsePartnerFilteredByCategory([]);
-        setPiHsePartnerFilteredByCategory(getOptionsForGroup('PermitIssuerGroup').map(opt => ({
-          text: opt.text,
-          secondaryText: opt.title || '',
-          id: String(opt.key)
-        }))
-        );
+        // setPiHsePartnerFilteredByCategory(getOptionsForGroup('PermitIssuerGroup').map(opt => ({
+        //   text: opt.text,
+        //   secondaryText: opt.title || '',
+        //   id: String(opt.key)
+        // }))
+        // );
       }
     } else {
       // Cleared asset details; clear PI selection/status
@@ -1438,24 +1447,28 @@ export default function PTWForm(props: IPTWFormProps) {
       originatorEMail: _PermitOriginator?.[0]?.secondaryText || '',
       toolboxTalk: _selectedToolboxTalk !== undefined && _selectedToolboxTalk ? true : false,
       toolboxTalkDate: _selectedToolboxTalkDate || '',
-      toolboxTalkConductedById: _selectedToolboxConductedBy?.[0]?.id || '',
+      toolboxTalkConductedById: _selectedToolboxConductedBy?.[0]?.secondaryText || '',
       toolboxHSEReference: _toolboxHSEReference || '',
       poApprovalDate: _poDate || '',
       poStatus: _poStatus || '',
       paPickerId: _paPicker?.[0]?.id || '',
       paApprovalDate: _paDate || '',
       paStatus: _paStatus || '',
+      paRejectionReason: _paRejectionReason || '',
       piPickerId: _piPicker?.[0]?.id || '',
       piApprovalDate: _piDate || '',
       piStatus: _piStatus || '',
+      piRejectionReason: _piRejectionReason || '',
       assetDirPickerId: _assetDirPicker?.[0]?.id || '',
       assetDirReplacerPickerId: _assetDirReplacerPicker?.[0]?.id || '',
       assetDirApprovalDate: _assetDirDate || '',
       assetDirStatus: _assetDirStatus || '',
+      assetDirRejectionReason: _assetDirRejectionReason || '',
       hseDirPickerId: _hseDirPicker?.[0]?.id || '',
       hseDirReplacerPickerId: _hseDirReplacerPicker?.[0]?.id || '',
       hseDirApprovalDate: _hseDirDate || '',
       hseDirStatus: _hseDirStatus || '',
+      hseDirRejectionReason: _hseDirRejectionReason || '',
       closureAssetManagerPickerId: _closureAssetManagerPicker?.[0]?.id || '',
       closureAssetManagerApprovalDate: _closureAssetManagerDate || '',
       closureAssetManagerStatus: _closureAssetManagerStatus || '',
@@ -1476,7 +1489,8 @@ export default function PTWForm(props: IPTWFormProps) {
     _assetDirPicker, _assetDirDate, _assetDirStatus,
     _hseDirPicker, _hseDirDate, _hseDirStatus,
     _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
-    _closurePoDate, _closurePoStatus, isUrgentSubmission, _previousPtwRef
+    _closurePoDate, _closurePoStatus, isUrgentSubmission, _previousPtwRef, _paRejectionReason, _piRejectionReason,
+    _assetDirRejectionReason, _hseDirRejectionReason, _isAssetDirReplacer, _isHseDirReplacer
   ]);
 
   const validateBeforeSubmit = React.useCallback((originatorId: number | undefined, mode: 'save' | 'submit' | 'approve'): string | undefined => {
@@ -1681,13 +1695,14 @@ export default function PTWForm(props: IPTWFormProps) {
       if (payload.paStatus === 'Pending') missing.push('Approval/Rejection Status.');
       if (payload.paStatus === 'Rejected' && (!payload.paPickerId || String(payload.paPickerId).trim() === '')) missing.push('Performing Authority');
       if (payload.paStatus === 'Approved' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
+      if (payload.paStatus === 'Rejected' && !String(payload.paRejectionReason || '').trim()) missing.push('PA Rejection Reason');
     }
 
     if (isPermitIssuer) {
       if (payload.piStatus === 'Pending') missing.push('Approval/Rejection Status.');
       if (payload.piStatus === 'Rejected' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
       // if (payload.piStatus === 'Approved' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
-
+      if (payload.piStatus === 'Rejected' && !String(payload.piRejectionReason || '').trim()) missing.push('PI Rejection Reason');
       // Tasks required when 3 + hazards: list rows missing a task
       const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
       if (hazardsCount >= 3) {
@@ -1732,6 +1747,18 @@ export default function PTWForm(props: IPTWFormProps) {
           // }
         }
       }
+    }
+
+    if (isAssetDirector) {
+      if (payload.assetDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
+      if (payload.assetDirStatus === 'Rejected' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
+      if (payload.assetDirStatus === 'Rejected' && !String(payload.assetDirRejectionReason || '').trim()) missing.push('Asset Director Rejection Reason');
+    }
+
+    if (isHSEDirector) {
+      if (payload.hseDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
+      if (payload.hseDirStatus === 'Rejected' && (!payload.hseDirPickerId || String(payload.hseDirPickerId).trim() === '')) missing.push('HSE Director');
+      if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
     }
 
     if (missing.length) {
@@ -2092,14 +2119,21 @@ export default function PTWForm(props: IPTWFormProps) {
         PAApproverId: payload.paPickerId ? Number(payload.paPickerId) : undefined,
         PAStatus: _paStatusForPOPA,
         PAApprovalDate: _paStatusForPOPA !== 'Pending' ? _paDateForPOPA : null,
+        PARejectionReason: payload.paRejectionReason || '',
 
         PIApproverId: payload.piPickerId ? Number(payload.piPickerId) : undefined,
         PIStatus: payload.piStatus || 'Pending',
         PIApprovalDate: payload.piStatus !== 'Pending' ? payload.piApprovalDate : null,
+        PIRejectionReason: payload.piRejectionReason || '',
+
         AssetDirectorApproverId: payload.assetDirPickerId ? Number(payload.assetDirPickerId) : undefined,
         AssetDirectorStatus: payload.assetDirStatus || 'Pending',
+        AssetDirectorRejectionReason: payload.assetDirRejectionReason || '',
+
         HSEDirectorApproverId: payload.hseDirPickerId ? Number(payload.hseDirPickerId) : undefined,
         HSEDirectorStatus: payload.hseDirStatus || 'Pending',
+        HSEDirectorRejectionReason: payload.hseDirRejectionReason || '',
+
         AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : undefined,
         AssetManagerStatus: payload.closureAssetManagerStatus || 'Pending',
         POClosureApproverId: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : undefined,
@@ -2115,7 +2149,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       const data = ops._insertItem(body);
       if (!data) throw new Error('Failed to create PTW Form Approval Workflow.');
-      return typeof data === 'number' ? data : (data);;
+      return typeof data === 'number' ? data : (data);
     }
     catch (e) {
       console.warn('Failed to create PTW Form Approval Workflow', e);
@@ -2128,6 +2162,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
     const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
     const originatorId = await spOps.ensureUserId(payload.originatorEMail || '');
+
+    let toolboxTalkConductedById: number | undefined = undefined;
+    if (payload.toolboxTalkConductedById) {
+      toolboxTalkConductedById = await spOps.ensureUserId(payload.toolboxTalkConductedById || '');
+    }
 
     let body: any = {
       PermitOriginatorId: originatorId ?? null,
@@ -2158,49 +2197,30 @@ export default function PTWForm(props: IPTWFormProps) {
       body.GasTestRequired = payload.gasTestRequired?.toLowerCase() === 'yes' ? true : false;
       body.GasTestResult = payload.gasTestResult ?? null;
       body.FireWatchNeeded = payload.fireWatchNeeded?.toLowerCase() === 'yes' ? true : false;
-      body.FireWatchAssigned = payload.fireWatchAssigned ?? null;
+      body.FireWatchAssigned = payload.fireWatchAssigned ?? '';
       body.ToolboxTalk = payload.toolboxTalk ?? null;
-      body.ToolboxConductedById = payload.toolboxTalkConductedById ? Number(payload.toolboxTalkConductedById) : null;
+      body.ToolboxConductedById = toolboxTalkConductedById ?? null;
       body.ToolboxTalkHSEReference = payload.toolboxHSEReference ?? null;
       body.ToolBoxTalkDate = payload.toolboxTalkDate ?? null;
     }
 
-    if (payload.permitTypes?.length) {
-      body['WorkCategoryId@odata.type'] = 'Collection(Edm.Int32)';
-      body['WorkCategoryId'] = payload.permitTypes.map(Number);
-    } else {
-      body['WorkCategoryId'] = { results: [] };
-    }
-    if (payload.workHazardIds?.length) {
-      body['WorkHazardsId@odata.type'] = 'Collection(Edm.Int32)';
-      body['WorkHazardsId'] = payload.workHazardIds.map(Number);
-    } else {
-      body['WorkHazardsId'] = { results: [] };
-    }
-    if (payload.precautionsIds?.length) {
-      body['PrecuationsId@odata.type'] = 'Collection(Edm.Int32)';
-      body['PrecuationsId'] = payload.precautionsIds.map(Number);
-    } else {
-      body['PrecuationsId'] = { results: [] };
-    }
-    if (payload.protectiveEquipmentIds?.length) {
-      body['ProtectiveSafetyEquipmentsId@odata.type'] = 'Collection(Edm.Int32)';
-      body['ProtectiveSafetyEquipmentsId'] = payload.protectiveEquipmentIds.map(Number);
-    } else {
-      body['ProtectiveSafetyEquipmentsId'] = { results: [] };
-    }
-    if (payload.machineryIds?.length) {
-      body['MachineryInvolvedId@odata.type'] = 'Collection(Edm.Int32)';
-      body['MachineryInvolvedId'] = payload.machineryIds.map(Number);
-    } else {
-      body['MachineryInvolvedId'] = { results: [] };
-    }
-    if (payload.personnelIds?.length) {
-      body['PersonnelInvolvedId@odata.type'] = 'Collection(Edm.Int32)';
-      body['PersonnelInvolvedId'] = payload.personnelIds.map(Number);
-    } else {
-      body['PersonnelInvolvedId'] = { results: [] };
-    }
+    body['WorkCategoryId@odata.type'] = 'Collection(Edm.Int32)';
+    body['WorkCategoryId'] = (payload.permitTypes || []).map(Number);
+
+    body['WorkHazardsId@odata.type'] = 'Collection(Edm.Int32)';
+    body['WorkHazardsId'] = (payload.workHazardIds || []).map(Number);
+
+    body['PrecuationsId@odata.type'] = 'Collection(Edm.Int32)';
+    body['PrecuationsId'] = (payload.precautionsIds || []).map(Number);
+
+    body['ProtectiveSafetyEquipmentsId@odata.type'] = 'Collection(Edm.Int32)';
+    body['ProtectiveSafetyEquipmentsId'] = (payload.protectiveEquipmentIds || []).map(Number);
+
+    body['MachineryInvolvedId@odata.type'] = 'Collection(Edm.Int32)';
+    body['MachineryInvolvedId'] = (payload.machineryIds || []).map(Number);
+
+    body['PersonnelInvolvedId@odata.type'] = 'Collection(Edm.Int32)';
+    body['PersonnelInvolvedId'] = (payload.personnelIds || []).map(Number);
 
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
     const response = await spCrudRef.current._updateItem(String(id), body);
@@ -2244,9 +2264,34 @@ export default function PTWForm(props: IPTWFormProps) {
       WorkflowStatus: status,
     };
 
+    if (payload.isPerformingAuthority) {
+      body.PAApprovalDate = payload.paStatus !== 'Pending' ? payload.paApprovalDate : null;
+      body.PARejectionReason = payload.paStatus === 'Rejected' ? payload.paRejectionReason : '';
+    }
+
     if (payload.isPermitIssuer) {
       body.IsAssetDirectorReplacer = _isAssetDirReplacer;
       body.IsHSEDirectorReplacer = _isHseDirReplacer;
+      body.PIApprovalDate = payload.piStatus !== 'Pending' ? payload.piApprovalDate : null;
+      body.PIRejectionReason = payload.piStatus === 'Rejected' ? payload.piRejectionReason : '';
+    }
+
+    if (payload.isAssetDirector) {
+      body.AssetDirectorApprovalDate = payload.assetDirStatus !== 'Pending' ? payload.assetDirApprovalDate : null;
+      body.AssetDirectorRejectionReason = payload.assetDirStatus === 'Rejected' ? payload.assetDirRejectionReason : '';
+    }
+
+    if (payload.isHSEDirector) {
+      body.HSEDirectorApprovalDate = payload.hseDirStatus !== 'Pending' ? payload.hseDirApprovalDate : null;
+      body.HSEDirectorRejectionReason = payload.hseDirStatus === 'Rejected' ? payload.hseDirRejectionReason : '';
+    }
+
+    if (payload.isPermitCloser) {
+      body.POClosureApprovalDate = payload.closurePoStatus !== 'Pending' ? payload.closurePoDate : null;
+    }
+
+    if (payload.isAssetManager) {
+      body.AssetManagerApprovalDate = payload.closureAssetManagerStatus !== 'Pending' ? payload.closureAssetManagerDate : null;
     }
 
     spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
@@ -2319,14 +2364,13 @@ export default function PTWForm(props: IPTWFormProps) {
           `&$filter=Id eq ${formId}`;
 
         const ptwSecondSelect = `?$select=Id,FireWatchNeeded,AttachmentsProvided,AttachmentsProvidedDetails,ToolboxTalk,` +
-          `ToolboxTalkHSEReference,ToolBoxTalkDate,ProtectiveSafetyEquipmentsOthers,PrecautionsOthers,` +
+          `ToolboxTalkHSEReference,ToolBoxTalkDate,ProtectiveSafetyEquipmentsOthers,PrecautionsOthers,FireWatchAssigned,` +
           `Precuations/Id,Precuations/Title,` +
           `ProtectiveSafetyEquipments/Id,ProtectiveSafetyEquipments/Title,` +
           `MachineryInvolved/Id,MachineryInvolved/Title,` +
-          `FireWatchAssigned/Id,FireWatchAssigned/FullName,` +
           `PersonnelInvolved/Id,PersonnelInvolved/Title,` +
           `ToolboxConductedBy/Id,ToolboxConductedBy/Title,ToolboxConductedBy/EMail` +
-          `&$expand=Precuations,ProtectiveSafetyEquipments,MachineryInvolved,FireWatchAssigned,` +
+          `&$expand=Precuations,ProtectiveSafetyEquipments,MachineryInvolved,` +
           `PersonnelInvolved,ToolboxConductedBy` +
           `&$filter=Id eq ${formId}`;
 
@@ -2345,11 +2389,11 @@ export default function PTWForm(props: IPTWFormProps) {
         const workflow: string = `?$select=Id,PTWForm/Id,PTWForm/CoralReferenceNumber,POStatus,PAStatus,PIStatus,AssetDirectorStatus,HSEDirectorStatus,POClosureStatus,AssetManagerStatus,` +
           `POApprovalDate,PAApprovalDate,PIApprovalDate,AssetDirectorApprovalDate,HSEDirectorApprovalDate,POClosureDate,AssetManagerApprovalDate,Stage,IsAssetDirectorReplacer,IsHSEDirectorReplacer,` +
           `POApprover/Id,POApprover/EMail,POApprover/Title,` +
-          `PAApprover/Id,PAApprover/EMail,PAApprover/Title,` +
-          `PIApprover/Id,PIApprover/EMail,PIApprover/Title,` +
-          `AssetDirectorApprover/Id,AssetDirectorApprover/EMail,AssetDirectorApprover/Title,` +
+          `PAApprover/Id,PAApprover/EMail,PAApprover/Title,PARejectionReason,` +
+          `PIApprover/Id,PIApprover/EMail,PIApprover/Title,PIRejectionReason,` +
+          `AssetDirectorApprover/Id,AssetDirectorApprover/EMail,AssetDirectorApprover/Title,AssetDirectorRejectionReason,` +
           `AssetDirectorReplacer/Id,AssetDirectorReplacer/EMail,AssetDirectorReplacer/Title,` +
-          `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,HSEDirectorApprover/Title,` +
+          `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,HSEDirectorApprover/Title,HSEDirectorRejectionReason,` +
           `HSEDirectorReplacer/Id,HSEDirectorReplacer/EMail,HSEDirectorReplacer/Title,` +
           `POClosureApprover/Id,POClosureApprover/EMail,POClosureApprover/Title,` +
           `AssetManagerApprover/Id,AssetManagerApprover/EMail,AssetManagerApprover/Title` +
@@ -2387,7 +2431,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setCoralReferenceNumber(headerFirstSelect?.CoralReferenceNumber || '');
           setAssetId(headerFirstSelect?.AssetID);
           const selectedCompany = ptwFormStructure?.companies?.find(c => c.id === headerFirstSelect.CompanyRecord.Id);
-          setSelectedCompany(headerFirstSelect?.CompanyRecord ? { id: headerFirstSelect.CompanyRecord.Id, title: headerFirstSelect.CompanyRecord.Title || '', orderRecord: selectedCompany?.orderRecord || 0 , fullName: selectedCompany?.fullName || '' } : undefined);
+          setSelectedCompany(headerFirstSelect?.CompanyRecord ? { id: headerFirstSelect.CompanyRecord.Id, title: headerFirstSelect.CompanyRecord.Title || '', orderRecord: selectedCompany?.orderRecord || 0, fullName: selectedCompany?.fullName || '' } : undefined);
           setProjectTitle(headerFirstSelect?.ProjectTitle || '');
           setSelectedAssetCategory(headerFirstSelect?.AssetCategory ? Number(headerFirstSelect.AssetCategory.Id) : undefined);
           setSelectedAssetDetails(headerFirstSelect?.AssetDetails ? Number(headerFirstSelect.AssetDetails.Id) : undefined);
@@ -2403,7 +2447,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setGasTestValue(headerFirstSelect?.GasTestRequired || '');
           setGasTestResult(headerFirstSelect?.GasTestResult || '');
           setFireWatchValue(headerSecondSelect?.FireWatchNeeded || '');
-          setFireWatchAssigned(headerSecondSelect?.FireWatchAssigned ? String(headerSecondSelect.FireWatchAssigned.FullName) : '');
+          setFireWatchAssigned(headerSecondSelect?.FireWatchAssigned ? headerSecondSelect.FireWatchAssigned : '');
           setAttachmentsValue(headerSecondSelect?.AttachmentsProvided ? (headerSecondSelect.AttachmentsProvided ? 'Yes' : 'No') : '');
           setAttachmentsResult(headerSecondSelect?.AttachmentsProvidedDetails || '');
           setIsUrgentSubmission(!!headerFirstSelect?.IsUrgentSubmission);
@@ -2470,8 +2514,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
           setToolboxTalk(headerSecondSelect?.ToolboxTalk || '');
           setToolboxHSEReference(headerSecondSelect?.ToolboxTalkHSEReference || '');
-          setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? spHelpers.toISO(headerSecondSelect?.ToolBoxTalkDate) : undefined);
-          const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, displayName: headerSecondSelect?.ToolboxConductedBy?.displayName, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
+          setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? headerSecondSelect?.ToolBoxTalkDate : undefined);
+          const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, displayName: headerSecondSelect?.ToolboxConductedBy?.Title, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
           setToolboxConductedBy(toolboxConductedBy && toolboxConductedBy?.id ? [toolboxConductedBy] : undefined);
 
           if (headerTaskDescription && headerTaskDescription.length > 0) {
@@ -2577,6 +2621,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
               AssetDirectorReplacer: headerWorkflow.AssetDirectorReplacer ? spHelpers.toPersona(headerWorkflow.AssetDirectorReplacer) : undefined,
               HSEDirectorReplacer: headerWorkflow.HSEDirectorReplacer ? spHelpers.toPersona(headerWorkflow.HSEDirectorReplacer) : undefined,
+
+              PARejectionReason: headerWorkflow.PARejectionReason || '',
+              PIRejectionReason: headerWorkflow.PIRejectionReason || '',
+              AssetDirectorRejectionReason: headerWorkflow.AssetDirectorRejectionReason || '',
+              HSEDirectorRejectionReason: headerWorkflow.HSEDirectorRejectionReason || '',
             };
 
             setPoDate(result.POApprovalDate ? new Date(result.POApprovalDate) : undefined);
@@ -2610,6 +2659,11 @@ export default function PTWForm(props: IPTWFormProps) {
             setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
 
             setWorkflowStage(result.Stage || undefined);
+
+            setPaRejectionReason(result.PARejectionReason || '');
+            setPiRejectionReason(result.PIRejectionReason || '');
+            setAssetDirRejectionReason(result.AssetDirectorRejectionReason || '');
+            setHseDirRejectionReason(result.HSEDirectorRejectionReason || '');
           }
         }
 
@@ -2693,10 +2747,11 @@ export default function PTWForm(props: IPTWFormProps) {
   const isPaStatusEnabled = React.useMemo(() => {
     const stage = String(_workflowStage || '').toLowerCase();
     const selectedEmail = String(_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    // const piIsSet = _workflowStage
     return (
       isSubmitted &&
       isPerformingAuthority &&
-      stage === 'ApprovedFromPOToPA'.toLowerCase() &&
+      (stage === 'ApprovedFromPOToPA'.toLowerCase() || stage === 'ApprovedFromPIToPA'.toLowerCase()) &&
       selectedEmail === currentUserEmail
     );
   }, [_workflowStage, _paPicker, currentUserEmail, isSubmitted, isPerformingAuthority]);
@@ -2897,9 +2952,10 @@ export default function PTWForm(props: IPTWFormProps) {
                 options={ptwFormStructure?.companies?.sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0))
                   .map(c => ({ key: c.id, text: c.title || '', fullName: c.fullName || '' })) || []}
                 selectedKey={_selectedCompany?.id}
-                onChange={(_e, item) => setSelectedCompany(item ? { id: Number(item.key), title: item.text, orderRecord: 0 ,
+                onChange={(_e, item) => setSelectedCompany(item ? {
+                  id: Number(item.key), title: item.text, orderRecord: 0,
                   fullName: ptwFormStructure?.companies?.find(c => c.id === Number(item.key))?.fullName || ''
-                 } : undefined)}
+                } : undefined)}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
@@ -3051,7 +3107,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               <Separator />
-              {isSubmitted && !isPermitIssuer && (
+              {isSubmitted && isPermitIssuer && (
                 <>
                   <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
                     {/* Gas Test Required Section */}
@@ -3293,7 +3349,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
               {/* Toolbox Talk (TBT) */}
               {isSubmitted && isPermitIssuer && (
-                <div className="row pb-3" id="toolboxTalkSection" style={{ breakAfter: exportMode ? 'page'  : 'auto'  }} >
+                <div className="row pb-3" id="toolboxTalkSection" style={{ breakAfter: exportMode ? 'page' : 'auto' }} >
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
                     <Checkbox
                       label="Toolbox Talk (TBT); complete details if applicable"
@@ -3345,7 +3401,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     <DatePicker
                       placeholder="Select date"
                       value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
-                      onSelectDate={(d) => setToolboxTalkDate(d ? d.toISOString() : undefined)}
+                      onSelectDate={(date) => setToolboxTalkDate(date ? date : new Date())}
                       disabled={_selectedToolboxTalk ? false : true}
                     />
                   </div>
@@ -3410,6 +3466,20 @@ export default function PTWForm(props: IPTWFormProps) {
                       }
                     }}
                   />
+                  {/* Show reason only when Rejected */}
+                  {_paStatus === 'Rejected' && (
+                    <TextField
+                      label="Rejection Reason"
+                      placeholder="Enter reason for rejection"
+                      value={_paRejectionReason}
+                      onChange={(_, v) => setPaRejectionReason(v || '')}
+                      required
+                      autoAdjustHeight
+                      rows={2}
+                    // disabled={!isPaStatusEnabled}
+                    // errorMessage={isPaStatusEnabled && !_paRejectionReason.trim() ? 'Rejection reason is required.' : undefined}
+                    />
+                  )}
                 </div>
 
                 {/* Permit Issuer (PI) */}
@@ -3441,9 +3511,28 @@ export default function PTWForm(props: IPTWFormProps) {
                       placeholder="Status"
                       options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
                       selectedKey={_piStatus}
-                      onChange={(_, opt) => setPiStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                      onChange={(_, opt) => {
+                        setPiStatus((opt?.key as SignOffStatus) ?? 'Pending');
+                        if (opt && (opt?.key as SignOffStatus) !== 'Pending') {
+                          setPiDate(new Date());
+                        }
+                      }
+                      }
                       useComboBoxAsMenuWidth
                     />
+                    {/* Show reason only when Rejected */}
+                    {_piStatus === 'Rejected' && (
+                      <TextField
+                        label="Rejection Reason"
+                        placeholder="Enter reason for rejection"
+                        value={_piRejectionReason}
+                        onChange={(_, v) => setPaRejectionReason(v || '')}
+                        required
+                        autoAdjustHeight
+                        rows={2}
+                      />
+                    )}
+
                   </div>
                 )}
               </div>
@@ -3497,6 +3586,20 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(_, opt) => setAssetDirStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                       useComboBoxAsMenuWidth
                     />
+
+                    {/* Show reason only when Rejected */}
+                    {_assetDirStatus === 'Rejected' && (
+                      <TextField
+                        label="Rejection Reason"
+                        placeholder="Enter reason for rejection"
+                        value={_assetDirRejectionReason}
+                        onChange={(_, v) => setAssetDirRejectionReason(v || '')}
+                        required
+                        autoAdjustHeight
+                        rows={2}
+                      />
+                    )}
+
                   </div>
 
                   <div className="col-md-6" style={{ padding: 8 }}>
@@ -3540,13 +3643,27 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(_, opt) => setHseDirStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                       useComboBoxAsMenuWidth
                     />
+
+                    {/* Show reason only when Rejected */}
+                    {_hseDirStatus === 'Rejected' && (
+                      <TextField
+                        label="Rejection Reason"
+                        placeholder="Enter reason for rejection"
+                        value={_hseDirRejectionReason}
+                        onChange={(_, v) => setHseDirRejectionReason(v || '')}
+                        required
+                        autoAdjustHeight
+                        rows={2}
+                      />
+                    )}
                   </div>
                 </div>
               )}
 
               {/* PTW Closure */}
-              {isSubmitted && _paStatus == 'Approved' && _piStatus == 'Approved' && (
-                <div className="row pb-3" id="ptwClosureSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+              {isSubmitted && (
+                <div className="row pb-3" id="ptwClosureSection"
+                  style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
                     <Label style={{ fontWeight: 600 }}>PTW Closure</Label>
                     <div style={{ fontStyle: 'italic', color: '#323130', marginTop: 2, fontSize: 'smaller' }}>
@@ -3567,7 +3684,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <ComboBox
                       placeholder='Status'
-                      options={statusOptions}
+                      options={statusOptions.filter(opt => opt.text.toLowerCase() === 'approved' || opt.text.toLowerCase() === 'pending')}
                       selectedKey={_closurePoStatus}
                       disabled={!isPermitOriginator}
                       onChange={(_, opt) => setClosurePoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
@@ -3599,7 +3716,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       // disabled={!isAssetManager}
                       disabled={!stageEnabled.closureEnabled || !_closureAssetManagerStatusEnabled}
                       placeholder='Status'
-                      options={statusOptions}
+                      options={statusOptions.filter(opt => opt.text.toLowerCase() === 'approved' || opt.text.toLowerCase() === 'pending')}
                       selectedKey={_closureAssetManagerStatus}
                       onChange={(_, opt) => setClosureAssetManagerStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                       useComboBoxAsMenuWidth
@@ -3626,10 +3743,11 @@ export default function PTWForm(props: IPTWFormProps) {
               coralReferenceNumber={_coralReferenceNumber}
               originator={_PermitOriginator?.[0]?.text}
               exportMode={exportMode}
-              onExportModeChange={() => setExportMode(true)}
+              onExportModeChange={setExportMode}
               onBusyChange={setIsExportingPdf}
               onError={(m) => showBanner(m)}
               docCode={docCode}
+              docVersion='V04'
               companyName={_selectedCompany?.fullName}
             />
           )
@@ -3651,7 +3769,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
         {(mode === "submitted") && (
           (
-            (isPerformingAuthority && _workflowStage?.toLowerCase() == "ApprovedFromPOToPA".toLowerCase()) ||
+            (isPerformingAuthority && (_workflowStage?.toLowerCase() == "ApprovedFromPOToPA".toLowerCase() || _workflowStage?.toLowerCase() == "ApprovedFromPIToPA".toLowerCase())) ||
             (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPAToPI".toLowerCase()) ||
             (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPOToPI".toLowerCase())
           ) && (
@@ -3662,7 +3780,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       <div id="formFooterSection" className='row'>
         <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1}  companyName={_selectedCompany?.fullName}/>
+          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1} companyName={_selectedCompany?.fullName} />
         </div>
       </div>
 
