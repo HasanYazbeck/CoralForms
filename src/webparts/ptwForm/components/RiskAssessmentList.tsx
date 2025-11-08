@@ -37,11 +37,14 @@ export interface IRiskAssessmentListProps {
     defaultRows?: IRiskTaskRow[];
     overallRiskOptions?: string[];
     disableRiskControls?: boolean;
+    selectedOverallRisk?: string;
+    l2Required: boolean;
+    l2Ref: string;
+    onOverallRiskChange: (overallRisk: string | undefined) => void;
+    onDetailedRiskChange: (required: boolean) => void;
+    onDetailedRiskRefChange: (ref: string) => void;
     onChange?: (state: {
         rows: IRiskTaskRow[];
-        overallRisk?: string;
-        l2Required: boolean;
-        l2Ref?: string;
     }) => void;
 }
 
@@ -65,13 +68,16 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     safeguards,
     defaultRows,
     overallRiskOptions,
+    selectedOverallRisk,
+    l2Required,
+    l2Ref,
+    onOverallRiskChange,
+    onDetailedRiskChange,
+    onDetailedRiskRefChange,
     onChange,
     disableRiskControls = false
 }) => {
     const [rows, setRows] = React.useState<IRiskTaskRow[]>(defaultRows?.length ? defaultRows : [newRow()]);
-    const [overallRisk, setOverallRisk] = React.useState<string | undefined>(undefined);
-    const [l2Required, setL2Required] = React.useState<boolean>(false);
-    const [l2Ref, setL2Ref] = React.useState<string>('');
     const [safeFilterByRow, setSafeFilterByRow] = React.useState<Record<string, string>>({});
     const allSafeguardsById = React.useRef<Map<number, ILookupItem>>(new Map());
 
@@ -84,9 +90,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     }, [safeguards]);
 
     // Notify parent
-    React.useEffect(() => {
-        onChange?.({ rows, overallRisk, l2Required, l2Ref: l2Required ? l2Ref : undefined });
-    }, [rows, overallRisk, l2Required, l2Ref, onChange]);
+    React.useEffect(() => { onChange?.({ rows }); }, [rows, onChange]);
 
     const handleTaskChange = (id: string, value: string | undefined) => {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, task: value || '', disabledFields: value === "" } : r)));
@@ -165,33 +169,6 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
             return { ...r, safeguardIds: Array.from(current) };
         }));
     }, [setRows, commitFreeformToken, setSafeFilterByRow]);
-
-    // NEW: add free-text safeguard on Enter/Tab/Comma
-    // const handleSafeguardFreeformKeyDown = React.useCallback((row: IRiskTaskRow, ev: React.KeyboardEvent<HTMLInputElement>) => {
-    //     if (ev.key !== 'Enter' && ev.key !== 'Tab' && ev.key !== ',') return;
-    //     const raw = (safeFilterByRow[row.id] || '').trim();
-    //     if (!raw) return;
-
-    //     // If exact match exists in list -> select it, otherwise add as custom
-    //     const match = (safeguards || []).find(s => (s.title || '').toLowerCase() === raw.toLowerCase());
-    //     if (match?.id != null) {
-    //         const idNum = Number(match.id);
-    //         setRows(prev => prev.map(r =>
-    //             r.id === row.id
-    //                 ? { ...r, safeguardIds: Array.from(new Set([...(r.safeguardIds || []), idNum])) }
-    //                 : r
-    //         ));
-    //     } else {
-    //         setRows(prev => prev.map(r =>
-    //             r.id === row.id
-    //                 ? { ...r, customSafeguards: Array.from(new Set([...(r.customSafeguards || []), raw])) }
-    //                 : r
-    //         ));
-    //     }
-    //     setSafeFilterByRow(prev => ({ ...prev, [row.id]: '' }));
-    //     ev.preventDefault();
-    //     ev.stopPropagation();
-    // }, [safeguards, safeFilterByRow]);
 
     // NEW: remove a custom safeguard chip
     const removeCustomSafeguard = React.useCallback((rowId: string, label: string) => {
@@ -355,7 +332,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                     ))}
 
                                     {(customList || []).map(txt => (
-                                        <span key={`custom-${txt}`} style={{ background: '#e5f1ff', border: '1px solid #99c7ff', borderRadius: 2, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                        <span key={`custom-${txt}`} style={{ whiteSpace: 'break-spaces', background: '#e5f1ff', border: '1px solid #99c7ff', borderRadius: 2, padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                             <IconButton iconProps={{ iconName: 'Cancel' }} ariaLabel={`Remove ${txt}`} title={`Remove ${txt}`}
                                                 onClick={() => removeCustomSafeguard(row.id, txt)} styles={{ root: { height: 20, width: 20, minWidth: 20 }, icon: { fontSize: 12 } }} />
                                             <span style={{ color: '#1a3b5d', fontStyle: 'italic' }}>{txt}</span>
@@ -402,10 +379,11 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     ], [initialRiskOptions, residualRiskOptions, safeguards, safeFilterByRow, disableRiskControls, renderRiskOption, getRiskComboStyles]);
 
     const overallOptions: IChoiceGroupOption[] = (overallRiskOptions || []).map(o => {
+        const normalized = o.trim();
         const { bg, fg } = getRiskColors(o);
         return {
-            key: o,
-            text: o,
+            key: normalized,
+            text: normalized,
             onRenderField: (props, defaultRender) => {
                 // Wrap the default radio+label inside a colored tile
                 return (
@@ -463,9 +441,9 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                         <Label style={{ marginRight: "10px", paddingTop: "10px" }}>Overall Risk Assessment</Label>
                         <ChoiceGroup
                             disabled={disableRiskControls || rows.some(r => r.disabledFields)}
-                            selectedKey={overallRisk}
+                            selectedKey={selectedOverallRisk}
                             options={overallOptions}
-                            onChange={(_, option) => setOverallRisk(option?.key)}
+                            onChange={(_, option) => onOverallRiskChange(option?.key)}
                             style={{ color: '#232020', fontWeight: "700" }}
                             styles={{
                                 flexContainer: {
@@ -506,7 +484,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             <Checkbox
                                 label="Detailed (L2) Risk Assessment required"
                                 checked={l2Required}
-                                onChange={(_, chk) => setL2Required(!!chk)}
+                                onChange={(_, chk) => onDetailedRiskChange(!!chk)}
                                 disabled={disableRiskControls}
                             />
                         </div>
@@ -516,7 +494,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                             <TextField
                                 value={l2Ref}
                                 disabled={disableRiskControls || !l2Required}
-                                onChange={(_, v) => setL2Ref(v || '')}
+                                onChange={(_, v) => onDetailedRiskRefChange(v || '')}
                                 styles={{ root: { width: '68%' } }}
                             />
                         </div>

@@ -24,4 +24,5 @@ export interface IPermitScheduleProps {
   onPermitRowUpdate: (rowId: string, field: string, value: string, checked: boolean | undefined) => void;
   styles?: any;
   isEndTimeOptionDisabled?: (row: IPermitScheduleRow, optionTime: string) => boolean;
+  permitsValidityDays: number;
 }
