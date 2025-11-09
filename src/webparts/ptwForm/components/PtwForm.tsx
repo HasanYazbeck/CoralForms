@@ -136,9 +136,30 @@ export default function PTWForm(props: IPTWFormProps) {
   const [isAssetDirector, setIsAssetDirector] = React.useState<boolean>(false);
   const [isAssetManager, setIsAssetManager] = React.useState<boolean>(false);
   const [isHSEDirector, setIsHSEDirector] = React.useState<boolean>(false);
+  const [isIssued, setIsIssued] = React.useState<boolean>(false);
 
   // Add status type and options
   type SignOffStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Closed';
+
+  // type PTWWorkflowStatus = 'New' | 'In Review' | 'Issued' | 'Open' | 'Renewed' | 'Closed' | 'Permanently Closed' | 'Rejected' | 'Cancelled' | undefined;
+  enum PTWWorkflowStatus {
+    New = 'New',
+    InReview = 'In Review',
+    Issued = 'Issued',
+    Open = 'Open',
+    Renewed = 'Renewed',
+    Closed = 'Closed',
+    PermanentlyClosed = 'Permanently Closed',
+    Rejected = 'Rejected',
+    Cancelled = 'Cancelled'
+  }
+  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
+    { key: 'Pending', text: 'Pending' },
+    { key: 'Approved', text: 'Approved' },
+    { key: 'Rejected', text: 'Rejected' },
+    { key: 'Cancelled', text: 'Cancelled' },
+    { key: 'Closed', text: 'Closed' }
+  ]), []);
 
   // SharePoint group members cache
   type SPGroupUser = { id: number; title: string; email: string };
@@ -152,7 +173,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_paDate, setPaDate] = React.useState<Date | undefined>(new Date());
   const [_paStatus, setPaStatus] = React.useState<SignOffStatus>('Pending');
   const [_paRejectionReason, setPaRejectionReason] = React.useState<string>('');
-
   const [_paStatusEnabled, setPaStatusEnabled] = React.useState<boolean>(false);
 
   const [_piHsePartnerFilteredByCategory, setPiHsePartnerFilteredByCategory] = React.useState<IPersonaProps[]>([]);
@@ -192,7 +212,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_closureAssetManagerStatus, setClosureAssetManagerStatus] = React.useState<SignOffStatus>('Pending');
   const [_closureAssetManagerStatusEnabled, setClosureAssetManagerStatusEnabled] = React.useState<boolean>(false);
   const [_asssetManagerRejectionReason, setAssetManagerRejectionReason] = React.useState<string>('');
-
   const [_workflowStage, setWorkflowStage] = React.useState<WorkflowStages>(undefined);
 
   // State for controlling conditional rendering of sections
@@ -201,14 +220,6 @@ export default function PTWForm(props: IPTWFormProps) {
   // Urgent submission: bypass Submission Range Interval validation on submit
   const [_isUrgentSubmission, setIsUrgentSubmission] = React.useState<boolean>(false);
   const [prefilledFormId, setPrefilledFormId] = React.useState<number | undefined>(undefined);
-
-  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
-    { key: 'Pending', text: 'Pending' },
-    { key: 'Approved', text: 'Approved' },
-    { key: 'Rejected', text: 'Rejected' },
-    { key: 'Cancelled', text: 'Cancelled' },
-    { key: 'Closed', text: 'Closed' }
-  ]), []);
 
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
@@ -234,7 +245,10 @@ export default function PTWForm(props: IPTWFormProps) {
     input: { color: '#000 !important', fontWeight: '500 !important', }
   };
 
-  const isHighRisk = String(_overAllRiskAssessment || '').toLowerCase().includes('high');
+  const isHighRisk = React.useMemo(() => {
+    return String(_overAllRiskAssessment || '').toLowerCase().includes('high');
+  }, [_overAllRiskAssessment]);
+
   // Determine if current user is the Permit Originator
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
 
@@ -466,11 +480,6 @@ export default function PTWForm(props: IPTWFormProps) {
   // Data-loading functions (ported)
   // ---------------------------
 
-  // const isEditMode = React.useMemo(() => {
-  //   const editFormId = props.formId ? Number(props.formId) : undefined;
-  //   return !!(editFormId && editFormId > 0);
-  // }, [props.formId]);
-
   const [formStatus, setFormStatus] = React.useState<string>(() => {
     try {
       const raw = localStorage.getItem('FormStatusRecord');
@@ -493,18 +502,14 @@ export default function PTWForm(props: IPTWFormProps) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const isSubmitted = (formStatus || mode) === 'submitted';
-  // const isSaved = (formStatus || mode) === 'saved';
-
-  // const isPermitsAllClosed = React.useMemo(() => {
-  //   const formStatus = JSON.parse(localStorage.getItem("FormStatusRecord") || '{value: ""}').value
-  //   return formStatus === "Closed";
-  // },[localStorage]);
+  // const isSubmitted = (formStatus || mode) === 'submitted';
+  const isSubmitted = React.useMemo(() => {
+    return (formStatus || mode) === 'submitted';
+  }, [formStatus, mode]);
 
   const ptwStructureSelect = React.useMemo(() => (
     `?$select=Id,AttachmentsProvided,InitialRisk,ResidualRisk,OverallRiskAssessment,FireWatchNeeded,GasTestRequired,` +
     `CoralFormId/Title,CoralFormId/ArabicTitle,` +
-    // `CompanyRecord/Id,CompanyRecord/Title,CompanyRecord/RecordOrder,CompanyRecord/logo,` +
     `WorkCategory/Id,WorkCategory/Title,WorkCategory/OrderRecord,WorkCategory/RenewalValidity,` +
     `HACWorkArea/Id,HACWorkArea/Title,HACWorkArea/OrderRecord,` +
     `WorkHazards/Id,WorkHazards/Title,WorkHazards/OrderRecord,` +
@@ -1181,7 +1186,7 @@ export default function PTWForm(props: IPTWFormProps) {
         // Always include the New Permit row
         rows.push(
           existingById.get('permit-row-0') ?? {
-            id: 'permit-row-0', type: 'new', date: '', startTime: '', endTime: '', isChecked: false, orderRecord: 1, statusRecord: undefined, piApprover: undefined, piApprovalDate: undefined
+            id: 'permit-row-0', type: 'new', date: '', startTime: '', endTime: '', isChecked: false, orderRecord: 1, statusRecord: undefined, piApprover: undefined, piApprovalDate: undefined, piStatus: undefined
           }
         );
 
@@ -1729,7 +1734,7 @@ export default function PTWForm(props: IPTWFormProps) {
       if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
     }
 
-    if (isPermitOriginator) {
+    if (isPermitOriginator && isIssued) {
       if (payload.closurePOStatus === 'Pending') missing.push('Approval/Rejection Status.');
       // if (payload.closurePOStatus === 'Rejected' && (!payload.closurePOPickerId || String(payload.closurePOPickerId).trim() === '')) missing.push('HSE Director');
       if (payload.closurePOStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
@@ -1779,7 +1784,7 @@ export default function PTWForm(props: IPTWFormProps) {
           if (!res.ok) throw new Error('Failed to update workflow status.');
 
           if (res.ok) {
-            await _updatePTWFormWorkflowStatus(formId, 'In Review')
+            await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview)
           }
           showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
           goBackToHost();
@@ -1811,9 +1816,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
           if (res.ok) {
             if (!isHigh) {
-              await _updatePTWFormWorkflowStatus(formId, 'Issued');
+              await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
             } else {
-              await _updatePTWFormWorkflowStatus(formId, 'In Review');
+              await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
             }
           }
           showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
@@ -1833,7 +1838,6 @@ export default function PTWForm(props: IPTWFormProps) {
       return true;
     }
   }, [validateBeforeApprove, buildPayload, isPerformingAuthority, isPermitIssuer, _paStatus, _piStatus, props.formId, webUrl, props.context.spHttpClient]);
-
 
   const approveForm = React.useCallback(async (mode: 'approve'): Promise<boolean> => {
     payloadRef.current = buildPayload();
@@ -1968,7 +1972,7 @@ export default function PTWForm(props: IPTWFormProps) {
       ProtectiveSafetyEquipmentsOthers: payload.protectiveEquipmentsOtherText ?? null,
       PrecautionsOthers: payload.precautionsOtherText ?? null,
       FormStatusRecord: mode === 'submit' ? 'Submitted' : 'Saved',
-      WorkflowStatus: mode === 'submit' ? 'New' : '',
+      WorkflowStatus: mode === 'submit' ? PTWWorkflowStatus.New : '',
       AttachmentsProvided: payload.attachmentsProvided.toLowerCase() === "yes" ? true : false,
       AttachmentsProvidedDetails: payload.attachmentsDetails ?? '',
       IsUrgentSubmission: !!payload.isUrgentSubmission,
@@ -2029,7 +2033,7 @@ export default function PTWForm(props: IPTWFormProps) {
           throw new Error('Failed to create PTW Form Approval Workflow');
         }
 
-        const _updatedFormWorkflowStatus = await _updatePTWFormWorkflowStatus(Number(newId), 'In Review');
+        const _updatedFormWorkflowStatus = await _updatePTWFormWorkflowStatus(Number(newId), PTWWorkflowStatus.InReview);
 
         if (!_updatedFormWorkflowStatus) {
           throw new Error('Failed to update PTW Form Workflow Status');
@@ -2086,7 +2090,7 @@ export default function PTWForm(props: IPTWFormProps) {
       await opsDelete._deleteLookUPItems(Number(parentId), "PTWForm");
     }));
 
-    const requiredItems = [permitRows].filter((row) => row.isChecked);
+    const requiredItems = [permitRows].filter((row) => row.isChecked && row.type === 'new');
     if (requiredItems.length === 0) return [];
     const ops = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
     const posts = requiredItems.map((item, index) => {
@@ -2182,7 +2186,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
     if (mode !== 'approve') {
       body.FormStatusRecord = mode === 'submit' ? 'Submitted' : 'Saved';
-      body.WorkflowStatus = mode === 'submit' ? 'New' : '';
+      body.WorkflowStatus = mode === 'submit' ? PTWWorkflowStatus.New : '';
     }
 
     if (isPermitIssuer && mode === 'approve') {
@@ -2262,35 +2266,73 @@ export default function PTWForm(props: IPTWFormProps) {
     return true;
   }, [props.context.spHttpClient, payloadRef.current, isPermitIssuer]);
 
+  const _renewPermit = React.useCallback(async (mode: 'renew'): Promise<boolean> => {
+    const payload = payloadRef.current;
+    const formId = Number(props.formId);
+    if (!payload) throw new Error('Form payload is not available');
 
-  // const _renewPermit = React.useCallback(async (id: number, mode: 'renew'): Promise<boolean> => {
-  //   const payload = payloadRef.current;
-  //   if (!payload) throw new Error('Form payload is not available');
+    // const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
+    // const originatorId = await spOps.ensureUserId(payload.originatorEMail || '');
+    let renewedPermit: IPermitScheduleRow | undefined;
 
-  //   const spOps = spCrudRef.current ?? new SPCrudOperations((props.context as any).spHttpClient, webUrl, '', '');
-  //   const originatorId = await spOps.ensureUserId(payload.originatorEMail || '');
+    if (payload.permitRows && payload.permitRows.length) {
+      renewedPermit = payload.permitRows.filter((row: IPermitScheduleRow) => row.statusRecord === 'New')
+        .sort((a: IPermitScheduleRow, b: IPermitScheduleRow) => a.orderRecord - b.orderRecord)[0];
 
-  //   let body: any = {
-  //     ToRenewPermit: originatorId ?? null,
-  //   };
+      if (!renewedPermit) {
+        showBanner('No permit row in "New" status was found to renew.', { autoHideMs: 4000, fade: true, kind: 'warning' });
+        return false;
+      }
 
-  //   spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
-  //   const response = await spCrudRef.current._updateItem(String(id), body);
-  //   if (!response.ok) {
-  //     showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
-  //     return false;
-  //   }
+      // VALIDATE: date/start/end must be filled
+      const hasDate = !!String(renewedPermit.date || '').trim();
+      const hasStart = !!String(renewedPermit.startTime || '').trim();
+      const hasEnd = !!String(renewedPermit.endTime || '').trim();
 
-  //   if (payload.permitRows?.length && payload.permitRows.some((r: IPermitScheduleRow) => r.isChecked)) {
-  //     const _createdPermits = await _createPTWWorkPermit(Number(id), payload.permitRows[0]);
+      if (!hasDate || !hasStart || !hasEnd) {
+        showBanner('Please fill Date, Start Time, and End Time for the selected permit before renewing.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
 
-  //     if (!_createdPermits?.length) {
-  //       throw new Error('Failed to create PTW Work Permits');
-  //     }
-  //   }
+      // VALIDATE: start < end
+      const startMins = spHelpers.parseTimeToMinutes(renewedPermit.startTime);
+      const endMins = spHelpers.parseTimeToMinutes(renewedPermit.endTime);
+      if (!isNaN(startMins) && !isNaN(endMins) && startMins >= endMins) {
+        showBanner('End time must be after start time.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
 
-  //   return true;
-  // }, [props.context.spHttpClient, payloadRef.current, isPermitIssuer]);
+      const formBody: any = { ToRenewPermit: true };
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
+      const response = await spCrudRef.current._updateItem(String(formId), formBody);
+
+      const permitBody: any = {
+        PermitDate: renewedPermit.date,
+        PermitStartTime: spHelpers.combineDateAndTime(renewedPermit.date.toString(), renewedPermit.startTime),
+        PermitEndTime: spHelpers.combineDateAndTime(renewedPermit.date.toString(), renewedPermit.endTime),
+      }
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
+      const responsePermit = await spCrudRef.current._updateItem(String(renewedPermit.id), permitBody);
+
+      if (!response.ok) {
+        showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
+
+      if (!responsePermit.ok) {
+        showBanner('Failed to update PTW Work Permits.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
+
+    }
+    else {
+      showBanner('No permit rows found to renew.', { autoHideMs: 4000, fade: true, kind: 'warning' });
+      return false;
+    }
+
+    return true;
+  }, [props.context.spHttpClient, payloadRef.current, isPermitIssuer]);
 
   const _createPTWFormApprovalWorkflow = React.useCallback(async (parentId: number, originatorId: number | undefined) => {
     const payload = payloadRef.current;
@@ -2435,27 +2477,6 @@ export default function PTWForm(props: IPTWFormProps) {
     return true;
   }, [props.context.spHttpClient, payloadRef.current]);
 
-  // const _updatePTWWorkPermits = React.useCallback(async (formId: number, status: WorkPermitStatus): Promise<boolean> => {
-  //   const payload = payloadRef.current;
-  //   if (!payload) throw new Error('Form payload is not available');
-
-  //   const body: any = {
-  //     StatusRecord: status,
-  //     PIApproverId: payload.piPickerId ? Number(payload.piPickerId) : undefined,
-  //     PIApprovalDate: payload.piApprovalDate !== 'Pending' ? payload.piApprovalDate : null,
-  //   };
-
-  //   spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
-  //   const response = await spCrudRef.current._updateItem(String(formId), body);
-  //   if (!response.ok) {
-  //     showBanner('Failed to update PTW Work Permits.', { autoHideMs: 5000, fade: true, kind: 'error' });
-  //     return false;
-  //   }
-
-  //   return true;
-  // }, [props.context.spHttpClient, payloadRef.current]);
-
-
   // ---------------------------
   // Render
   // ---------------------------
@@ -2505,7 +2526,7 @@ export default function PTWForm(props: IPTWFormProps) {
           `PersonnelInvolved,ToolboxConductedBy` +
           `&$filter=Id eq ${formId}`;
 
-        const ptwWorkPermits = `?$select=Id,PermitType,PermitDate,PermitStartTime,PermitEndTime,RecordOrder,StatusRecord,PIApprovalDate,` +
+        const ptwWorkPermits = `?$select=Id,PermitType,PermitDate,PermitStartTime,PermitEndTime,RecordOrder,StatusRecord,PIApprovalDate,PIStatus,` +
           `PTWForm/Id,PTWForm/CoralReferenceNumber,` +
           `PIApprover/Id,PIApprover/Title,PIApprover/EMail` +
           `&$expand=PTWForm,PIApprover` +
@@ -2584,6 +2605,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setIsUrgentSubmission(!!headerFirstSelect?.IsUrgentSubmission);
           setPreviousPtwRef(headerFirstSelect?.PreviousPTWRef || '');
           setPermitPayloadValidityDays(headerFirstSelect?.PermitsValidityDays || 0);
+          setIsIssued(headerFirstSelect?.WorkflowStatus === PTWWorkflowStatus.Issued);
 
           if (headerFirstSelect?.AssetDetails) {
             const assetDetailId = Number(headerFirstSelect.AssetDetails.Id);
@@ -2701,10 +2723,12 @@ export default function PTWForm(props: IPTWFormProps) {
                   startTime: startTime,
                   endTime: endTime,
                   orderRecord: item.RecordOrder,
-                  isChecked: true,
+                  //TODO: confirm logic for isChecked
+                  isChecked: item.StatusRecord === 'new' ? true : false,
                   statusRecord: item.StatusRecord || undefined,
                   piApprover: item.PIApprover ? spHelpers.toPersona(item.PIApprover) : undefined,
-                  piApprovalDate: item.PIApprovalDate ? new Date(item.PIApprovalDate) : undefined
+                  piApprovalDate: item.PIApprovalDate ? new Date(item.PIApprovalDate) : undefined,
+                  piStatus: item.PIStatus || undefined,
                 });
               }
             });
@@ -2838,7 +2862,8 @@ export default function PTWForm(props: IPTWFormProps) {
         && (stage === 'ApprovedFromPAToPI'.toLowerCase() || stage === 'ApprovedFromPOToPI'.toLowerCase())
       )
       || (isSubmitted && paApproved && stage === 'ApprovedFromPOToPA'.toLowerCase() && selectedEmail == '')
-      || (!isSubmitted && _piUnlockedByPA)
+      || (!isSubmitted && _piUnlockedByPA) 
+      || (isSubmitted && !isIssued && isPermitIssuer)
     );
   }, [_workflowStage, _piPicker, currentUserEmail, isSubmitted, isPermitIssuer, _piUnlockedByPA, _paStatus]);
 
@@ -2879,11 +2904,10 @@ export default function PTWForm(props: IPTWFormProps) {
         stage === 'ApprovedFromPIToAsset'.toLowerCase()) ||
       (
         isSubmitted && isPermitIssuer && PiApproved && _overAllRiskAssessment?.toLowerCase() === 'high'
-      )
-
+      ) || (_isUrgentSubmission && isAssetDirector)
     );
 
-  }, [_workflowStage, _assetDirPicker, currentUserEmail, isSubmitted, isAssetDirector, _piStatus, _overAllRiskAssessment, isPermitIssuer]);
+  }, [_workflowStage, _assetDirPicker, currentUserEmail, isSubmitted, isAssetDirector, _piStatus, _overAllRiskAssessment, isPermitIssuer, _isUrgentSubmission]);
 
   React.useEffect(() => {
     const selectedEmail = String((_isAssetDirReplacer ? _assetDirReplacerPicker?.[0]?.secondaryText : _assetDirPicker?.[0]?.secondaryText) || '').toLowerCase();
@@ -2924,6 +2948,24 @@ export default function PTWForm(props: IPTWFormProps) {
     const firstNew = _permitPayload.find(r => r.type === 'new');
     return firstNew ? [firstNew] : _permitPayload.slice(0, 1);
   }, [isSubmitted, _permitPayload]);
+
+
+  const canRenewPermit = React.useMemo((): boolean => {
+    const rows: IPermitScheduleRow[] =
+      Array.isArray(_permitPayload) && _permitPayload.length
+        ? _permitPayload
+        : (payloadRef.current?.permitRows || []);
+
+    if (!rows.length) return false;
+
+    return rows.some(r =>
+      r.type.toLowerCase() === 'renewal' &&
+      String(r.statusRecord || '').toLowerCase() === 'new' &&
+      !String(r.date || '').trim() &&
+      !String(r.startTime || '').trim() &&
+      !String(r.endTime || '').trim()
+    );
+  }, [_permitPayload]);
 
   if (loading) {
     return (
@@ -3116,7 +3158,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 label={`Urgent submission (bypass Submission Range Interval${_coralFormList?.SubmissionRangeInterval ? `: ${_coralFormList.SubmissionRangeInterval}h` : ''})`}
                 checked={_isUrgentSubmission}
                 onChange={(_, chk) => setIsUrgentSubmission(!!chk)}
-                disabled = {isSubmitted}
+                disabled={isSubmitted}
               />
               <small className="text-muted">
                 Use only for urgent PTW forms that must be submitted earlier than the norm interval.
@@ -3137,6 +3179,7 @@ export default function PTWForm(props: IPTWFormProps) {
               onPermitRowUpdate={updatePermitRow}
               styles={styles}
               permitsValidityDays={_permitPayloadValidityDays}
+              isIssued={isIssued}
             />
           </div>
         </div>
@@ -3654,7 +3697,7 @@ export default function PTWForm(props: IPTWFormProps) {
               {/* )} */}
 
               {/* HIGH RISK PTW Approval (if applicable) - visible when submitted and overall risk is High */}
-              {(isSubmitted && isHighRisk) || (_isUrgentSubmission) && (
+              {isSubmitted && (isHighRisk || _isUrgentSubmission) && (
                 <div className="row pb-3" id="highRiskApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
                     <Label style={{ fontWeight: 600 }}>
@@ -3668,7 +3711,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       label={_isAssetDirReplacer ? 'Asset Director' : 'Delegate Asset Director'}
                       checked={!!_isAssetDirReplacer}
                       onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
-                      disabled={!isSubmitted || !isPermitIssuer || !_overAllRiskAssessment?.toLowerCase().includes('high') || !_isUrgentSubmission}
+                      // disabled={!isSubmitted || (!isPermitIssuer && !_overAllRiskAssessment?.toLowerCase().includes('high')) || !_isUrgentSubmission}
                     />
                     <Label style={{ fontWeight: 600 }}>{_isAssetDirReplacer ? 'Delegate Asset Director' : 'Asset Director'}</Label>
                     <NormalPeoplePicker
@@ -3686,7 +3729,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       }
                       // inputProps={{ placeholder: !_assetDirPicker || !_isAssetDirReplacer ? 'Enter name or email' : '' }}
                       pickerSuggestionsProps={suggestionProps}
-                      disabled={!isAssetDirectorStatusEnabled()}
+                      disabled={true}
                     />
                     <DatePicker
                       disabled={true}
@@ -3727,7 +3770,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       label={_isHseDirReplacer ? 'HSE Director' : 'Delegate HSE Director'}
                       checked={!!_isHseDirReplacer}
                       onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
-                      disabled={!isSubmitted || !isPermitIssuer || !(_overAllRiskAssessment?.toLowerCase().includes('high') ?? false) || !_isUrgentSubmission}
+                      // disabled={!isSubmitted || !isPermitIssuer || !(_overAllRiskAssessment?.toLowerCase().includes('high') ?? false)}
                     />
                     <Label style={{ fontWeight: 600 }}>{_isHseDirReplacer ? 'Delegate HSE Director' : 'HSE Director'}</Label>
                     <NormalPeoplePicker
@@ -3745,7 +3788,8 @@ export default function PTWForm(props: IPTWFormProps) {
                           : (_hseDirPicker?.[0]?.id ? _hseDirPicker : [])
                       }
                       pickerSuggestionsProps={suggestionProps}
-                      disabled={!stageEnabled.hseDirEnabled}
+                      // disabled={!stageEnabled.hseDirEnabled}
+                      disabled={true}
                     />
                     <DatePicker
                       disabled={true}
@@ -3782,7 +3826,7 @@ export default function PTWForm(props: IPTWFormProps) {
               )}
 
               {/* PTW Closure */}
-              {isSubmitted && (isPermitOriginator || isAssetManager) && (
+              {isSubmitted && (isPermitOriginator || isAssetManager) && !canRenewPermit && isIssued && (
                 <div className="row pb-3" id="ptwClosureSection"
                   style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
@@ -3923,16 +3967,19 @@ export default function PTWForm(props: IPTWFormProps) {
           )
         )}
 
-        {(mode === "submitted") && (
-          (
-            (isAssetDirector && _workflowStage?.toLowerCase() == "ApprovedFromPIToAsset".toLowerCase()) ||
+        {(mode === "submitted") &&
+          ((isAssetDirector && _workflowStage?.toLowerCase() == "ApprovedFromPIToAsset".toLowerCase()) ||
             (isHSEDirector && _workflowStage?.toLowerCase() == "ApprovedFromAssetToHSE".toLowerCase()) ||
             (isPermitOriginator && _workflowStage?.toLowerCase() == "ApprovedFromHSEToPO".toLowerCase()) ||
-            (isAssetManager && _workflowStage?.toLowerCase() == "ApprovedFromPOtoAssetmanager".toLowerCase())
-          ) && (
-            <PrimaryButton text="Approve" onClick={() => approveForm('approve')} disabled={isBusy} />
-          )
-        )}
+            (isAssetManager && _workflowStage?.toLowerCase() == "ApprovedFromPOtoAssetmanager".toLowerCase()) ||
+            (_isUrgentSubmission)
+          ) &&
+          (<PrimaryButton text="Approve" onClick={() => approveForm('approve')} disabled={isBusy} />)
+        }
+
+        {(mode === "submitted") && canRenewPermit && isIssued &&
+          (<PrimaryButton text="Renew" onClick={() => _renewPermit('renew')} disabled={isBusy} />)
+        }
 
       </div>
 

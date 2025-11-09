@@ -11,9 +11,10 @@ export interface IPermitScheduleRow {
   endTime: string;
   isChecked: boolean;
   orderRecord: number;
-  statusRecord: WorkPermitStatus | undefined;
-  piApprover: IPersonaProps | undefined;
-  piApprovalDate: Date | undefined;
+  statusRecord?: WorkPermitStatus | undefined;
+  piApprover?: IPersonaProps | undefined;
+  piApprovalDate?: Date | undefined;
+  piStatus?: 'Approved' | 'Rejected' | undefined;
 }
 
 export interface IPermitScheduleProps {
@@ -25,4 +26,5 @@ export interface IPermitScheduleProps {
   styles?: any;
   isEndTimeOptionDisabled?: (row: IPermitScheduleRow, optionTime: string) => boolean;
   permitsValidityDays: number;
+  isIssued?: boolean;
 }

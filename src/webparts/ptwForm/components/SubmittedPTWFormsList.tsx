@@ -146,13 +146,13 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 160, maxWidth: 180, isResizable: true },
       {key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 100, isResizable: true},
       {
-        key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 160, isResizable: true,
+        key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 180, isResizable: true,
         onRender: (row: Row) => {
           const status = row.WorkflowStatus || '';
           const poEmail = (row.permitOriginatorEmail || '').toLowerCase();
           const edEmail = (row.editorEmail || '').toLowerCase();
           const showModifiedBy = poEmail !== edEmail;
-          return showModifiedBy ? `${status} - ${row.editorName || row.editorEmail}` : status;
+          return showModifiedBy ? `${status} - Modified By ${row.editorName || row.editorEmail}` : status;
         }
       },
       { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 160, isResizable: true },
@@ -362,10 +362,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         text: 'Refresh',
         disabled: isDeleting,
         iconProps: { iconName: 'Refresh' },
-        onClick: () => {
+        onClick: async () => {
           setNextLink(undefined);
           setHasMore(false);
-          loadItems(view, true);
+          await loadItems(view, true);
         }
       },
       {

@@ -38,7 +38,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   onPermitTypeChange,
   onPermitRowUpdate,
   styles,
-  permitsValidityDays
+  permitsValidityDays,
+  isIssued = false
 }) => {
 
   // const permitStatusOptions: IComboBoxOption[] = React.useMemo(
@@ -51,8 +52,10 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     {
       key: 'col-type', name: 'Type', minWidth: 165, maxWidth: 175,
       onRender: (row) => (
-        <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'} checked={row.isChecked}
+        <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'} 
+        checked={row.isChecked}
           onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked)}
+          disabled={isIssued}
         />
       )
     },
@@ -106,7 +109,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     //   )
     // },
 
-  ], [onPermitRowUpdate]);
+  ], [onPermitRowUpdate, isIssued]);
 
   return (
     <div id="permitTypeScheduleSection" className={styles?.formBody} style={{ marginTop: '20px' }}>
