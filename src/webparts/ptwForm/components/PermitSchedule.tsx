@@ -6,7 +6,6 @@ import {
   MessageBar,
   ComboBox,
   IComboBoxOption,
-  IComboBoxStyles,
   IPersonaProps
 } from '@fluentui/react';
 import { IPermitScheduleProps } from '../../../Interfaces/PtwForm/IPermitSchedule';
@@ -37,16 +36,16 @@ const datePickerBlackStyles: Partial<IDatePickerStyles> = {
 };
 
 // Styling Components
-const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
-  root: {
-    selectors: {
-      '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-      '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-      '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
-    }
-  },
-  input: { color: '#000' } // supported in v8; safe no-op if ignored
-};
+// const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+//   root: {
+//     selectors: {
+//       '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+//       '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+//       '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+//     }
+//   },
+//   input: { color: '#000' } // supported in v8; safe no-op if ignored
+// };
 
 const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitRows,
@@ -56,7 +55,9 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   styles,
   permitsValidityDays,
   permitStatus,
-  isPermitIssuer
+  isPermitIssuer,
+  piApproverList
+
 }) => {
 
   const piStatusOptions: IComboBoxOption[] = React.useMemo(
@@ -68,13 +69,21 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   const columns: IColumn[] = React.useMemo(() => [
     {
       key: 'col-type', name: 'Type', minWidth: 165, maxWidth: 175,
-      onRender: (row) => (
-        <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}
-          checked={row.isChecked}
-          onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked)}
-          disabled={(row.statusRecord.toLowerCase() === 'closed')}
-        />
-      )
+      onRender: (row) => {
+        const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
+        const hasPermitID = isNumericId(row.id);
+        const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
+        const disabled = (hasPermitID || isClosed);
+
+        return (
+          <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}
+            checked={row.isChecked}
+            onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked)}
+            disabled={disabled}
+          />
+        );
+      }
+
     },
     {
       key: 'col-date', name: 'Date', minWidth: 160, maxWidth: 170,
@@ -95,8 +104,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           max={row.endTime || undefined}
           step={60}
           onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '', row.isChecked)}
-          readOnly={(row.statusRecord.toLowerCase() === 'closed')}
-          disabled={!(row.isChecked || (row.statusRecord.toLowerCase() === 'closed'))}
+          readOnly={(row.statusRecord?.toLowerCase() === 'closed')}
+          disabled={!(row.isChecked || (row.statusRecord?.toLowerCase() === 'closed'))}
         />
       )
     },
@@ -109,31 +118,31 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           min={row.startTime || undefined}
           step={60}
           onChange={(_, newValue) => onPermitRowUpdate(row.id, 'endTime', newValue || '', row.isChecked)}
-          readOnly={(row.statusRecord.toLowerCase() === 'closed')}
-          disabled={!(row.isChecked || (row.statusRecord.toLowerCase() === 'closed'))}
+          readOnly={(row.statusRecord?.toLowerCase() === 'closed')}
+          disabled={!(row.isChecked || (row.statusRecord?.toLowerCase() === 'closed'))}
         />
       )
     },
     {
       key: 'col-piApprover', name: 'Permit Approver', minWidth: 140, maxWidth: 160,
       onRender: (row) => {
-        const isClosed = String(row.statusRecord || '').toLowerCase() === 'closed';
+        const effectiveList = row.piApproverList ?? piApproverList ?? [];
+        const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
         if (isClosed) {
           return <TextField value={row.piApprover ? row.piApprover?.text : ''} readOnly />
         }
         const selectedKey = row.piApprover && row.piApprover?.id !== undefined ? String(row.piApprover.id) : undefined;
-        const options = (row.piApproverList || []).map((m: IPersonaProps) => ({
+        const options = effectiveList.map((m: IPersonaProps) => ({
           key: String(m.id),
           text: m.title || m.text || ''
         }));
         return (
           <ComboBox
-            placeholder="Select Approver"
+            placeholder={row.isChecked ? "Select Approver" : ""}
             options={options}
             selectedKey={selectedKey}
-            onChange={(_, opt) => onPermitRowUpdate(row.id, 'piApprover', (opt?.key as string) || '', row.isChecked)}
+            onChange={(_, opt) => onPermitRowUpdate(row.id, 'piApproverList', (opt?.key as string) || '', row.isChecked)}
             useComboBoxAsMenuWidth
-            styles={comboBoxBlackStyles}
             disabled={!row.isChecked}
           />
         );
@@ -142,14 +151,14 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     {
       key: 'col-status', name: 'Permit Status', minWidth: 140, maxWidth: 160,
       onRender: (row) => {
-        const isClosed = String(row.statusRecord || '').toLowerCase() === 'closed';
+        const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
         if (isClosed) {
           return <TextField value={row.piStatus} readOnly />;
         }
         else {
           return (
             <ComboBox
-              placeholder="Select status"
+              placeholder={row.isChecked ? "Select status" : ""}
               options={piStatusOptions.filter(opt => opt.key !== 'Closed')}
               selectedKey={row.piStatus || undefined}
               onChange={(_, opt) => onPermitRowUpdate(row.id, 'piStatus', (opt?.key as string) || '', row.isChecked)}
@@ -161,7 +170,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
       }
     },
 
-  ], [onPermitRowUpdate]);
+  ], [onPermitRowUpdate, isPermitIssuer, piApproverList]);
 
   return (
     <div id="permitTypeScheduleSection" className={styles?.formBody} style={{ marginTop: '20px' }}>

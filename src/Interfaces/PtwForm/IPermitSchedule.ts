@@ -15,7 +15,7 @@ export interface IPermitScheduleRow {
   piApprover: IPersonaProps | undefined;
   piApproverList?: IPersonaProps[] | undefined;
   piApprovalDate?: Date | undefined;
-  piStatus?: 'Approved' | 'Rejected' | undefined;
+  piStatus?: string | undefined;
 }
 
 export interface IPermitScheduleProps {
@@ -29,4 +29,6 @@ export interface IPermitScheduleProps {
   permitsValidityDays: number;
   permitStatus?: boolean;
   isPermitIssuer?: boolean;
+  piApproverList: IPersonaProps[] | undefined;
+
 }

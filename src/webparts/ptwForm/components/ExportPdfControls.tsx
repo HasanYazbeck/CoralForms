@@ -190,6 +190,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             const toolboxTalkSection = document.getElementById('toolboxTalkSection') as HTMLElement | null;
             const ptwSignOffSection = document.getElementById('ptwSignOffSection') as HTMLElement | null;
             const highRiskApprovalSection = document.getElementById('highRiskApprovalSection') as HTMLElement | null;
+            const urgentApprovalSection = document.getElementById('urgentApprovalSection') as HTMLElement | null;
             const ptwClosureSection = document.getElementById('ptwClosureSection') as HTMLElement | null;
 
             // Add in order; DO NOT force extra pages unless segment doesn't fit
@@ -208,6 +209,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             if (toolboxTalkSection) await addSegment(toolboxTalkSection);
             if (ptwSignOffSection) await addSegment(ptwSignOffSection);
             if (highRiskApprovalSection) await addSegment(highRiskApprovalSection);
+            if (urgentApprovalSection) await addSegment(urgentApprovalSection);
             if (ptwClosureSection) await addSegment(ptwClosureSection);
 
             // Draw footer on the last page
