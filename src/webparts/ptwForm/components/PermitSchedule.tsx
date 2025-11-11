@@ -3,7 +3,11 @@ import {
   Label, Checkbox, TextField, IDatePickerStyles, defaultDatePickerStrings,
   DatePicker, IColumn, DetailsList, SelectionMode,
   DetailsListLayoutMode,
-  MessageBar
+  MessageBar,
+  ComboBox,
+  IComboBoxOption,
+  IComboBoxStyles,
+  IPersonaProps
 } from '@fluentui/react';
 import { IPermitScheduleProps } from '../../../Interfaces/PtwForm/IPermitSchedule';
 
@@ -32,6 +36,18 @@ const datePickerBlackStyles: Partial<IDatePickerStyles> = {
   icon: { color: '#000  !important' }
 };
 
+// Styling Components
+const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+  root: {
+    selectors: {
+      '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+    }
+  },
+  input: { color: '#000' } // supported in v8; safe no-op if ignored
+};
+
 const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitRows,
   selectedPermitTypeList,
@@ -39,23 +55,24 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   onPermitRowUpdate,
   styles,
   permitsValidityDays,
-  isIssued = false
+  permitStatus,
+  isPermitIssuer
 }) => {
 
-  // const permitStatusOptions: IComboBoxOption[] = React.useMemo(
-  //   () => ['New', 'Renew', 'Open', 'Closed'].map(s => ({ key: s, text: s })),
-  //   []
-  // );
+  const piStatusOptions: IComboBoxOption[] = React.useMemo(
+    () => ['Approved', 'Rejected', 'Closed'].map(s => ({ key: s, text: s })),
+    []
+  );
 
   // Define DetailsList columns
   const columns: IColumn[] = React.useMemo(() => [
     {
       key: 'col-type', name: 'Type', minWidth: 165, maxWidth: 175,
       onRender: (row) => (
-        <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'} 
-        checked={row.isChecked}
+        <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}
+          checked={row.isChecked}
           onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked)}
-          disabled={isIssued}
+          disabled={(row.statusRecord.toLowerCase() === 'closed')}
         />
       )
     },
@@ -78,7 +95,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           max={row.endTime || undefined}
           step={60}
           onChange={(_, newValue) => onPermitRowUpdate(row.id, 'startTime', newValue || '', row.isChecked)}
-          disabled={!row.isChecked}
+          readOnly={(row.statusRecord.toLowerCase() === 'closed')}
+          disabled={!(row.isChecked || (row.statusRecord.toLowerCase() === 'closed'))}
         />
       )
     },
@@ -91,25 +109,59 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           min={row.startTime || undefined}
           step={60}
           onChange={(_, newValue) => onPermitRowUpdate(row.id, 'endTime', newValue || '', row.isChecked)}
-          disabled={!row.isChecked}
+          readOnly={(row.statusRecord.toLowerCase() === 'closed')}
+          disabled={!(row.isChecked || (row.statusRecord.toLowerCase() === 'closed'))}
         />
       )
     },
-    // {
-    //   key: 'col-status', name: 'Status', minWidth: 140, maxWidth: 160,
-    //   onRender: (row) => (
-    //     <ComboBox
-    //       placeholder="Select status"
-    //       options={permitStatusOptions}
-    //       selectedKey={row.statusRecord || undefined}
-    //       onChange={(_, opt) => onPermitRowUpdate(row.id, 'statusRecord', (opt?.key as string) || '', row.isChecked)}
-    //       useComboBoxAsMenuWidth
-    //       disabled={!row.isChecked}
-    //     />
-    //   )
-    // },
+    {
+      key: 'col-piApprover', name: 'Permit Approver', minWidth: 140, maxWidth: 160,
+      onRender: (row) => {
+        const isClosed = String(row.statusRecord || '').toLowerCase() === 'closed';
+        if (isClosed) {
+          return <TextField value={row.piApprover ? row.piApprover?.text : ''} readOnly />
+        }
+        const selectedKey = row.piApprover && row.piApprover?.id !== undefined ? String(row.piApprover.id) : undefined;
+        const options = (row.piApproverList || []).map((m: IPersonaProps) => ({
+          key: String(m.id),
+          text: m.title || m.text || ''
+        }));
+        return (
+          <ComboBox
+            placeholder="Select Approver"
+            options={options}
+            selectedKey={selectedKey}
+            onChange={(_, opt) => onPermitRowUpdate(row.id, 'piApprover', (opt?.key as string) || '', row.isChecked)}
+            useComboBoxAsMenuWidth
+            styles={comboBoxBlackStyles}
+            disabled={!row.isChecked}
+          />
+        );
+      }
+    },
+    {
+      key: 'col-status', name: 'Permit Status', minWidth: 140, maxWidth: 160,
+      onRender: (row) => {
+        const isClosed = String(row.statusRecord || '').toLowerCase() === 'closed';
+        if (isClosed) {
+          return <TextField value={row.piStatus} readOnly />;
+        }
+        else {
+          return (
+            <ComboBox
+              placeholder="Select status"
+              options={piStatusOptions.filter(opt => opt.key !== 'Closed')}
+              selectedKey={row.piStatus || undefined}
+              onChange={(_, opt) => onPermitRowUpdate(row.id, 'piStatus', (opt?.key as string) || '', row.isChecked)}
+              useComboBoxAsMenuWidth
+              disabled={!isPermitIssuer}
+            />
+          );
+        }
+      }
+    },
 
-  ], [onPermitRowUpdate, isIssued]);
+  ], [onPermitRowUpdate]);
 
   return (
     <div id="permitTypeScheduleSection" className={styles?.formBody} style={{ marginTop: '20px' }}>

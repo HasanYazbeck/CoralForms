@@ -1194,12 +1194,13 @@ export default function PTWForm(props: IPTWFormProps) {
 
         // Preserve any existing row values when possible
         const existingById = new Map(_permitPayload.map(r => [r.id, r] as const));
+        const hsePartners = assetCategoriesDetailsList?.filter(itm => itm.id == _selectedAssetDetails)[0].hsePartner || [];
 
         const rows: IPermitScheduleRow[] = [];
         // Always include the New Permit row
         rows.push(
           existingById.get('permit-row-0') ?? {
-            id: 'permit-row-0', type: 'new', date: '', startTime: '', endTime: '', isChecked: false, orderRecord: 1, statusRecord: undefined, piApprover: undefined, piApprovalDate: undefined, piStatus: undefined
+            id: 'permit-row-0', type: 'new', date: '', startTime: '', endTime: '', isChecked: false, orderRecord: 1, statusRecord: undefined, piApprover: undefined, piApproverList: hsePartners, piApprovalDate: undefined, piStatus: undefined
           }
         );
 
@@ -1225,7 +1226,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       return { ...prev, workCategories: nextWorkCategories } as IPTWForm;
     });
-  }, [_permitPayload, safeguards, _permitPayloadValidityDays]);
+  }, [_permitPayload, safeguards, _permitPayloadValidityDays, assetCategoriesDetailsList]);
 
   // Keep filtered safeguards in sync if safeguards or selected categories change elsewhere
   React.useEffect(() => {
@@ -1670,93 +1671,99 @@ export default function PTWForm(props: IPTWFormProps) {
     return undefined;
   }, [buildPayload, ptwFormStructure?.workHazardosList, _isUrgentSubmission, _coralFormList]);
 
-  const validateBeforeApprove = React.useCallback((mode: 'approve'): string | undefined => {
+  const validateBeforeApprove = React.useCallback((mode: 'approve' | 'issuePermit'): string | undefined => {
     const missing: string[] = [];
     const payload = buildPayload();
     payloadRef.current = payload;
 
     if (!payload) missing.push('Form data is missing. Please reload the page.');
 
-    if (isPerformingAuthority && !isIssued) {
-      if (payload.paStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      if (payload.paStatus === 'Rejected' && (!payload.paPickerId || String(payload.paPickerId).trim() === '')) missing.push('Performing Authority');
-      if (payload.paStatus === 'Approved' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
-      if (payload.paStatus === 'Rejected' && !String(payload.paRejectionReason || '').trim()) missing.push('PA Rejection Reason');
-    }
+    if (mode === 'approve') {
+      if (isPerformingAuthority && !isIssued) {
+        if (payload.paStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        if (payload.paStatus === 'Rejected' && (!payload.paPickerId || String(payload.paPickerId).trim() === '')) missing.push('Performing Authority');
+        if (payload.paStatus === 'Approved' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
+        if (payload.paStatus === 'Rejected' && !String(payload.paRejectionReason || '').trim()) missing.push('PA Rejection Reason');
+      }
 
-    if (isPermitIssuer && !isIssued) {
-      if (payload.piStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      if (payload.piStatus === 'Rejected' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
-      // if (payload.piStatus === 'Approved' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
-      if (payload.piStatus === 'Rejected' && !String(payload.piRejectionReason || '').trim()) missing.push('PI Rejection Reason');
-      // Tasks required when 3 + hazards: list rows missing a task
-      const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
-      if (hazardsCount >= 3) {
-        const rows = Array.isArray(payload.workTaskLists) ? payload.workTaskLists : [];
-        if (rows.length >= 1) {
-          // Initial Risk required per row
-          const missingInitialRiskRows = rows
-            .map((row: any, idx: number) => ({ idx, ok: !!String(row?.initialRisk || '').trim() }))
-            .filter((x: { ok: any; }) => !x.ok)
-            .map((x: { idx: number; }) => x.idx + 1);
+      if (isPermitIssuer && !isIssued) {
+        if (payload.piStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        if (payload.piStatus === 'Rejected' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
+        // if (payload.piStatus === 'Approved' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
+        if (payload.piStatus === 'Rejected' && !String(payload.piRejectionReason || '').trim()) missing.push('PI Rejection Reason');
+        // Tasks required when 3 + hazards: list rows missing a task
+        const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
+        if (hazardsCount >= 3) {
+          const rows = Array.isArray(payload.workTaskLists) ? payload.workTaskLists : [];
+          if (rows.length >= 1) {
+            // Initial Risk required per row
+            const missingInitialRiskRows = rows
+              .map((row: any, idx: number) => ({ idx, ok: !!String(row?.initialRisk || '').trim() }))
+              .filter((x: { ok: any; }) => !x.ok)
+              .map((x: { idx: number; }) => x.idx + 1);
 
-          if (missingInitialRiskRows.length) {
-            missing.push(`Initial Risk missing for row(s): ${missingInitialRiskRows.join(', ')}`);
+            if (missingInitialRiskRows.length) {
+              missing.push(`Initial Risk missing for row(s): ${missingInitialRiskRows.join(', ')}`);
+            }
+
+            const missingResidualRiskRows = rows
+              .map((row: any, idx: number) => ({ idx, ok: !!String(row?.residualRisk || '').trim() }))
+              .filter((x: { ok: any; }) => !x.ok)
+              .map((x: { idx: number; }) => x.idx + 1);
+
+            if (missingResidualRiskRows.length) {
+              missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
+            }
           }
 
-          const missingResidualRiskRows = rows
-            .map((row: any, idx: number) => ({ idx, ok: !!String(row?.residualRisk || '').trim() }))
-            .filter((x: { ok: any; }) => !x.ok)
-            .map((x: { idx: number; }) => x.idx + 1);
+          // Overall Risk Assessment required
+          if (!String(payload.overallRiskAssessment || '').trim()) {
+            missing.push('Overall Risk Assessment');
+          }
 
-          if (missingResidualRiskRows.length) {
-            missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
+          // If Detailed (L2) is checked, require reference number
+          const l2Required = !!payload.detailedRiskAssessment;
+          if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
+            missing.push('Risk Assessment Ref Number (Detailed L2)');
+          }
+
+          // If all above are satisfied and Overall Risk is High, require Asset Director selection
+          if (missing.length === 0) {
+            // const isHigh = String(payload.overallRiskAssessment || '').toLowerCase().includes('high');
+            // if (isHigh && (!payload.assetDirPickerId && payload.assetDirPickerId.trim() === "")) {
+            //   missing.push('Asset Director (required for High Overall Risk)');
+            // }
           }
         }
+      }
 
-        // Overall Risk Assessment required
-        if (!String(payload.overallRiskAssessment || '').trim()) {
-          missing.push('Overall Risk Assessment');
-        }
+      if (isAssetDirector && (isIssued || payload.isUrgentSubmission)) {
+        if (payload.assetDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        if (payload.assetDirStatus === 'Rejected' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
+        if (payload.assetDirStatus === 'Rejected' && !String(payload.assetDirRejectionReason || '').trim()) missing.push('Asset Director Rejection Reason');
+      }
 
-        // If Detailed (L2) is checked, require reference number
-        const l2Required = !!payload.detailedRiskAssessment;
-        if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
-          missing.push('Risk Assessment Ref Number (Detailed L2)');
-        }
+      if (isHSEDirector && (isIssued || payload.isUrgentSubmission)) {
+        if (payload.hseDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        if (payload.hseDirStatus === 'Rejected' && (!payload.hseDirPickerId || String(payload.hseDirPickerId).trim() === '')) missing.push('HSE Director');
+        if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
+      }
 
-        // If all above are satisfied and Overall Risk is High, require Asset Director selection
-        if (missing.length === 0) {
-          // const isHigh = String(payload.overallRiskAssessment || '').toLowerCase().includes('high');
-          // if (isHigh && (!payload.assetDirPickerId && payload.assetDirPickerId.trim() === "")) {
-          //   missing.push('Asset Director (required for High Overall Risk)');
-          // }
-        }
+      if (isPermitOriginator && isIssued) {
+        if (payload.closurePOStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        // if (payload.closurePOStatus === 'Rejected' && (!payload.closurePOPickerId || String(payload.closurePOPickerId).trim() === '')) missing.push('HSE Director');
+        if (payload.closurePOStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
+      }
+
+      if (isAssetManager && isIssued) {
+        if (payload.closureAssetManagerStatus === 'Pending') missing.push('Approval/Rejection Status.');
+        if (payload.closureAssetManagerStatus === 'Rejected' && (!payload.closureAssetManagerPickerId || String(payload.closureAssetManagerPickerId).trim() === '')) missing.push('Asset Manager');
+        if (payload.closureAssetManagerStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('Asset Manager Rejection Reason');
       }
     }
 
-    if (isAssetDirector && (isIssued || payload.isUrgentSubmission)) {
-      if (payload.assetDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      if (payload.assetDirStatus === 'Rejected' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
-      if (payload.assetDirStatus === 'Rejected' && !String(payload.assetDirRejectionReason || '').trim()) missing.push('Asset Director Rejection Reason');
-    }
-
-    if (isHSEDirector && (isIssued || payload.isUrgentSubmission)) {
-      if (payload.hseDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      if (payload.hseDirStatus === 'Rejected' && (!payload.hseDirPickerId || String(payload.hseDirPickerId).trim() === '')) missing.push('HSE Director');
-      if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
-    }
-
-    if (isPermitOriginator && isIssued) {
-      if (payload.closurePOStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      // if (payload.closurePOStatus === 'Rejected' && (!payload.closurePOPickerId || String(payload.closurePOPickerId).trim() === '')) missing.push('HSE Director');
-      if (payload.closurePOStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
-    }
-
-    if (isAssetManager && isIssued) {
-      if (payload.closureAssetManagerStatus === 'Pending') missing.push('Approval/Rejection Status.');
-      if (payload.closureAssetManagerStatus === 'Rejected' && (!payload.closureAssetManagerPickerId || String(payload.closureAssetManagerPickerId).trim() === '')) missing.push('Asset Manager');
-      if (payload.closureAssetManagerStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('Asset Manager Rejection Reason');
+    if (mode === 'issuePermit') {
+      //TODO: Add validations if any on issue permit
     }
 
     if (missing.length) {
@@ -1830,15 +1837,17 @@ export default function PTWForm(props: IPTWFormProps) {
           if (res.ok) {
             if (!isHigh) {
               await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
+              const issueResult = await issuePermit('issuePermit');
+              if (!issueResult) throw new Error('Failed to issue permit.');
             } else {
               await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
             }
           }
+
           showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
           goBackToHost();
           return true;
         }
-
 
         if (payload.isUrgentSubmission) {
           if (isAssetDirector) {
@@ -1863,6 +1872,9 @@ export default function PTWForm(props: IPTWFormProps) {
             if (!res.ok) throw new Error('Failed to update workflow status.');
 
             _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
+
+            const issueResult = await issuePermit('issuePermit');
+            if (!issueResult) throw new Error('Failed to issue permit.');
           }
 
           const updated = await _updatePTWForm(formId, 'approve');
@@ -1873,39 +1885,6 @@ export default function PTWForm(props: IPTWFormProps) {
           return true;
         }
 
-
-
-        // if (!payload.isUrgentSubmission) {
-        //   if (payload.isPerformingAuthority) {
-        //     body.PAApprovalDate = payload.paStatus !== 'Pending' ? payload.paApprovalDate : null;
-        //     body.PARejectionReason = payload.paStatus === 'Rejected' ? payload.paRejectionReason : '';
-        //   }
-
-        //   if (payload.isPermitIssuer) {
-        //         body.IsAssetDirectorReplacer = payload.isAssetDirectorReplacer;
-        // body.IsHSEDirectorReplacer = payload.isHSEDirectorReplacer;
-        //     body.PIApprovalDate = payload.piStatus !== 'Pending' ? payload.piApprovalDate : null;
-        //     body.PIRejectionReason = payload.piStatus === 'Rejected' ? payload.piRejectionReason : '';
-        //   }
-
-        //   if (payload.isAssetDirector) {
-        //     body.AssetDirectorApprovalDate = payload.assetDirStatus !== 'Pending' ? payload.assetDirApprovalDate : null;
-        //     body.AssetDirectorRejectionReason = payload.assetDirStatus === 'Rejected' ? payload.assetDirRejectionReason : '';
-        //   }
-
-        //   if (payload.isHSEDirector) {
-        //     body.HSEDirectorApprovalDate = payload.hseDirStatus !== 'Pending' ? payload.hseDirApprovalDate : null;
-        //     body.HSEDirectorRejectionReason = payload.hseDirStatus === 'Rejected' ? payload.hseDirRejectionReason : '';
-        //   }
-
-        //   if (payload.isPermitCloser) {
-        //     body.POClosureApprovalDate = payload.closurePoStatus !== 'Pending' ? payload.closurePoDate : null;
-        //   }
-
-        //   if (payload.isAssetManager) {
-        //     body.AssetManagerApprovalDate = payload.closureAssetManagerStatus !== 'Pending' ? payload.closureAssetManagerDate : null;
-        //   }
-        // }
       }
       catch (e) {
         showBanner('Failed to approve. Please try again.', { autoHideMs: 5000, fade: true, kind: 'error' });
@@ -1935,21 +1914,36 @@ export default function PTWForm(props: IPTWFormProps) {
         const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
         if (!wfItemId) throw new Error('Workflow item not found.');
 
-        const nowIso = new Date().toISOString();
+        // const nowIso = new Date().toISOString();
         let body = {};
         if (isAssetDirector) {
           body = {
             AssetDirectorStatus: payload.assetDirStatus,
-            AssetDirectorApprovalDate: payload.assetDirectorApprovalDate || nowIso,
+            AssetDirectorApprovalDate: payload.assetDirStatus !== 'Pending' ? payload.assetDirectorApprovalDate : null,
           }
         }
 
         if (isHSEDirector) {
           body = {
             HSEDirectorStatus: payload.hseDirStatus,
-            HSEDirectorApprovalDate: payload.hseDirectorApprovalDate || nowIso,
+            HSEDirectorApprovalDate: payload.hseDirStatus !== 'Pending' ? payload.hseDirectorApprovalDate : null,
           }
         }
+
+        if (isPermitOriginator && isIssued) {
+          body = {
+            POClousureDate: payload.closurePOStatus !== 'Pending' ? payload.closurePOApprovalDate : null,
+            POClosureStatus: payload.closurePOStatus,
+          }
+        }
+
+        if (isAssetManager) {
+          body = {
+            AssetManagerApprovalDate: payload.closureAssetManagerStatus !== 'Pending' ? payload.closureAssetManagerApprovalDate : null,
+            AssetManagerStatus: payload.closureAssetManagerStatus,
+          }
+        }
+
         const res = await ops._updateItem(String(wfItemId), body);
         if (!res.ok) throw new Error('Failed to update workflow status.');
         showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
@@ -1964,6 +1958,49 @@ export default function PTWForm(props: IPTWFormProps) {
       return true;
     }
   }, [validateBeforeApprove, buildPayload, isAssetDirector, isHSEDirector, props.formId, webUrl, props.context.spHttpClient]);
+
+  const issuePermit = React.useCallback(async (mode: 'issuePermit'): Promise<boolean> => {
+    payloadRef.current = buildPayload();
+    const payload = payloadRef.current;
+    const validationError = validateBeforeApprove(mode);
+    if (validationError) {
+      showBanner(validationError);
+      return false;
+    }
+    else {
+      setIsBusy(true);
+      try {
+        // Find workflow item for this form
+        const formId = Number(props.formId);
+        const query = `?$select=Id&$filter=PTWForm/Id eq ${formId} && StatusRecord ne 'New'`;
+        const ops = new SPCrudOperations((props.context as any).spHttpClient, webUrl, 'PTW_Form_Work_Permits', query);
+        const list = await ops._getItemsWithQuery();
+        const itemId = Array.isArray(list) && list[0]?.Id;
+        if (!itemId) throw new Error('Permit item not found.');
+
+        let body = {};
+        if (isAssetDirector) {
+          body = {
+            //TODO: Add other fields if any
+            PIStatus: payload.permitStatus,
+            PIApprovalDate: payload.permitStatus !== 'Pending' ? payload.permitApprovalDate : null,
+          }
+        }
+
+        const res = await ops._updateItem(String(itemId), body);
+        if (!res.ok) throw new Error('Failed to update Permit status.');
+        showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
+        goBackToHost();
+        return true;
+      }
+      catch (e) {
+        showBanner('Failed to approve. Please try again.', { autoHideMs: 5000, fade: true, kind: 'error' });
+      } finally {
+        setIsBusy(false);
+      }
+      return true;
+    }
+  }, [validateBeforeApprove, buildPayload, , props.formId, webUrl, props.context.spHttpClient]);
 
   const submitForm = React.useCallback(async (mode: 'save' | 'submit'): Promise<boolean> => {
     if (!isPermitOriginator) {
@@ -2178,7 +2215,8 @@ export default function PTWForm(props: IPTWFormProps) {
         PermitStartTime: spHelpers.combineDateAndTime(item.date.toString(), item.startTime),
         PermitEndTime: spHelpers.combineDateAndTime(item.date.toString(), item.endTime),
         RecordOrder: index + 1,
-        Title: item.type === 'new' ? 'New Permit' : 'Renewal Permit'
+        Title: item.type === 'new' ? 'New Permit' : 'Renewal Permit',
+        PIApproverId: _piPicker?.[0]?.id ? Number(_piPicker[0].id) : null,
       };
 
       const data = ops._insertItem(body);
@@ -2407,7 +2445,7 @@ export default function PTWForm(props: IPTWFormProps) {
       showBanner('No permit rows found to renew.', { autoHideMs: 4000, fade: true, kind: 'warning' });
       return false;
     }
-
+    goBackToHost();
     return true;
   }, [props.context.spHttpClient, payloadRef.current, isPermitIssuer]);
 
@@ -2458,7 +2496,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
           AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : undefined,
           AssetManagerStatus: payload.closureAssetManagerStatus || 'Pending',
-          POClosureApproverId: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : undefined,
+
+          POClosureApproverId: payload.originatorId ? Number(payload.originatorId) : undefined,
           POClosureStatus: payload.closurePoStatus || 'Pending',
 
           AssetDirectorReplacerId: payload.assetDirReplacerPickerId ? Number(payload.assetDirReplacerPickerId) : undefined,
@@ -2472,7 +2511,7 @@ export default function PTWForm(props: IPTWFormProps) {
           StatusRecord: 'New',
           IsFinalApprover: false,
 
-          POApproverId: payload.permitOriginatorId,
+          POApproverId: payload.originatorId ? Number(payload.originatorId) : undefined,
           POApprovalDate: payload.poApprovalDate || null,
           POStatus: payload.poStatus || 'Approved',
 
@@ -2486,7 +2525,7 @@ export default function PTWForm(props: IPTWFormProps) {
           HSEDirectorRejectionReason: payload.hseDirRejectionReason || '',
           HSEDirectorReplacerId: payload.hseDirReplacerPickerId ? Number(payload.hseDirReplacerPickerId) : undefined,
 
-          POClosureApproverId: payload.permitOriginatorId ? Number(payload.permitOriginatorId) : undefined,
+          POClosureApproverId: payload.originatorId ? Number(payload.originatorId) : undefined,
           POClosureStatus: payload.closurePoStatus || 'Pending',
 
           AssetManagerApproverId: payload.closureAssetManagerPickerId ? Number(payload.closureAssetManagerPickerId) : undefined,
@@ -2760,6 +2799,7 @@ export default function PTWForm(props: IPTWFormProps) {
               if (item) {
                 const startTime = item?.PermitStartTime ? spHelpers.toHHmm(item.PermitStartTime) : '';
                 const endTime = item?.PermitEndTime ? spHelpers.toHHmm(item.PermitEndTime) : '';
+                const persona = item.PIApprover ? spHelpers.toPersona(item.PIApprover) : undefined;
                 permitsList.push({
                   id: String(item.Id),
                   type: item.PermitType,
@@ -2770,7 +2810,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   //TODO: confirm logic for isChecked
                   isChecked: item.StatusRecord === 'new' ? true : false,
                   statusRecord: item.StatusRecord || undefined,
-                  piApprover: item.PIApprover ? spHelpers.toPersona(item.PIApprover) : undefined,
+                  piApprover: persona ? persona : undefined,
                   piApprovalDate: item.PIApprovalDate ? new Date(item.PIApprovalDate) : undefined,
                   piStatus: item.PIStatus || undefined,
                 });
@@ -3017,8 +3057,10 @@ export default function PTWForm(props: IPTWFormProps) {
     const filled = rows.filter(r =>
       String(r.date || '').trim() &&
       String(r.startTime || '').trim() &&
-      String(r.endTime || '').trim()
-    );
+      String(r.endTime || '').trim() &&
+      r.statusRecord === 'Closed'
+    ).sort((a, b) => a.orderRecord - b.orderRecord);
+
     if (!filled.length) return false;
 
     // 1) Capacity: still have remaining permits to use
@@ -3033,6 +3075,78 @@ export default function PTWForm(props: IPTWFormProps) {
     return hasRemainingCapacity && latestExpired;
   }, [_permitPayload, _permitPayloadValidityDays, spHelpers]);
 
+  const _addNewPermit = React.useCallback(() => {
+    // Allow only one renewal row in "New" status at a time
+    const hasNewRenewal = _permitPayload.some(r =>
+      r.type === 'renewal' && String(r.statusRecord || '').toLowerCase() === 'new'
+    );
+    if (hasNewRenewal) {
+      showBanner('A renewal permit in "New" status already exists. Complete it before adding another.', {
+        kind: 'warning', autoHideMs: 5000, fade: true
+      });
+      return;
+    }
+
+    // Guard: no validity days configured
+    if (_permitPayloadValidityDays <= 0) {
+      showBanner('Permit validity days not defined. Cannot add renewal.', { kind: 'warning', autoHideMs: 5000, fade: true });
+      return;
+    }
+
+    // Guard: reached max allowed permits
+    if (_permitPayload.length >= _permitPayloadValidityDays) {
+      showBanner(
+        `Maximum number of permits (${_permitPayloadValidityDays}) reached. Create a new PTW form and reference ${_coralReferenceNumber} for continuation.`,
+        { kind: 'warning', autoHideMs: 6000, fade: true }
+      );
+      return;
+    }
+
+    // Require last existing permit to be fully populated before adding renewal
+    const lastFilled = [..._permitPayload]
+      .filter(r => r.date && r.startTime && r.endTime)
+      .sort((a, b) => a.orderRecord - b.orderRecord)
+      .pop();
+
+    if (!lastFilled) {
+      showBanner('Fill the current permit (date, start time, end time) before adding a renewal.', { kind: 'error', autoHideMs: 5000, fade: true });
+      return;
+    }
+
+    // Check end time passed (optional business rule)
+    const lastEnd = spHelpers.combineDateAndTime(lastFilled.date, lastFilled.endTime);
+    if (lastEnd && lastEnd.getTime() > Date.now()) {
+      showBanner('Current permit has not expired yet. Cannot add renewal.', { kind: 'warning', autoHideMs: 5000, fade: true });
+      return;
+    }
+    const hsePartners = assetCategoriesDetailsList?.filter(itm => itm.id == _selectedAssetDetails)[0].hsePartner || [];
+    // Create new renewal row
+    const nextOrder = _permitPayload.reduce((m, r) => Math.max(m, r.orderRecord), 0) + 1;
+    const newRow: IPermitScheduleRow = {
+      id: `permit-row-${nextOrder - 1}`,
+      type: 'renewal',
+      date: '',
+      startTime: '',
+      endTime: '',
+      isChecked: false,
+      orderRecord: nextOrder,
+      statusRecord: 'New',
+      piApprover: undefined,
+      piApproverList: hsePartners,
+      piApprovalDate: undefined,
+      piStatus: undefined
+    };
+
+    setPermitPayload(prev => [...prev, newRow]);
+    showBanner('Renewal permit added. Please fill date and times.', { kind: 'success', autoHideMs: 4000, fade: true });
+  }, [
+    _permitPayload,
+    _permitPayloadValidityDays,
+    _coralReferenceNumber,
+    spHelpers,
+    showBanner,
+    assetCategoriesDetailsList
+  ]);
 
   const toogleAssetDirectorStatus = React.useMemo(() => {
     return (
@@ -3254,26 +3368,29 @@ export default function PTWForm(props: IPTWFormProps) {
               onPermitRowUpdate={updatePermitRow}
               styles={styles}
               permitsValidityDays={_permitPayloadValidityDays}
-              isIssued={isIssued}
+              isPermitIssuer={isPermitIssuer}
             />
             {/* //TODO: fix missing key prop warning */}
             {/* Action buttons under PermitSchedule */}
             {(() => {
-              if (!canRenewPermit) return null; // render nothing if no action applies
+              const showRenewActions = mode === 'submitted' && canRenewPermit && isPermitOriginator && permitScheduleRows.length > 0;
+              if (!showRenewActions) return null; // render nothing if no action applies
               return (
                 <div className="col-md-12" id="permitScheduleActions"
                   style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
                   {canRenewPermit && (
                     <>
                       <PrimaryButton
-                        text="Submit"
-                        onClick={() => submitForm('submit')}
+                        text="Renew Permit"
+                        onClick={() => _renewPermit('renew')}
                         disabled={!isPermitOriginator || isBusy}
                       />
 
-                      <PrimaryButton
-                        text="Renew"
-                        onClick={() => _renewPermit('renew')}
+                      <DefaultButton
+                        iconProps={{ iconName: 'Add' }}
+                        text="Add Renewal Permit"
+                        onClick={() => _addNewPermit()}
+                        styles={{ label: { fontWeight: 600 } as any }}
                         disabled={isBusy}
                       />
                     </>
@@ -3674,7 +3791,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label style={{ fontWeight: 600 }}>Permit Originator (PO)</Label>
                   <TextField className='pb-1'
                     value={_PermitOriginator?.[0]?.text || ''}
-                    disabled={true}
+                    readOnly={true}
                   />
                   <DatePicker
                     disabled={true}
