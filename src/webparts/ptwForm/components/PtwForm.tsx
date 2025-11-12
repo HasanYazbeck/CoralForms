@@ -1284,6 +1284,11 @@ export default function PTWForm(props: IPTWFormProps) {
         // Special: selecting approver from combo -> set piApprover
         if (field === 'piApproverList') {
           const selectedPersona = (item.piApproverList || []).find(p => String(p.id) === value);
+          if (selectedPersona) {
+            setPiPicker([selectedPersona]);
+          } else {
+            setPiPicker([]);
+          }
           return { ...item, piApprover: selectedPersona, isChecked: !!checked };
         }
 
@@ -1534,7 +1539,7 @@ export default function PTWForm(props: IPTWFormProps) {
       originatorId: _PermitOriginator?.[0]?.id || '',
       originatorEMail: _PermitOriginator?.[0]?.secondaryText || '',
       toolboxTalk: _selectedToolboxTalk !== undefined && _selectedToolboxTalk ? true : false,
-      toolboxTalkDate: _selectedToolboxTalkDate || '',
+      toolboxTalkDate: _selectedToolboxTalkDate,
       toolboxTalkConductedById: _selectedToolboxConductedBy?.[0]?.secondaryText || '',
       toolboxHSEReference: _toolboxHSEReference || '',
       poApprovalDate: _poDate || '',
@@ -1611,30 +1616,34 @@ export default function PTWForm(props: IPTWFormProps) {
         if (selectedNewPermitRows.length >= 1) {
           const newRowDateIso = selectedNewPermitRows[0].date;
           const permitStartTime = selectedNewPermitRows[0].startTime;
+          const permitApprover = selectedNewPermitRows[0].piApprover;
 
           if (!newRowDateIso) {
             missing.push('New Permit Row Date');
           } else if (!permitStartTime) {
             missing.push('New Permit Row Start Time');
+          } else if (!permitApprover) {
+            missing.push('New Permit Row Permit Issuer');
           } else {
-
             const startDateTimeIso = spHelpers.combineDateAndTime(newRowDateIso, permitStartTime)?.toISOString();
             if (!startDateTimeIso) return `Please fill in the required fields: Invalid New Permit Row Date/Time.`;
             const permitDate = new Date(startDateTimeIso);
 
             if (isNaN(permitDate.getTime())) {
               missing.push('New Permit Row Date (invalid)');
-            } else if (!payload.isUrgentSubmission) {
-              const now = new Date();
-              // Interpret SubmissionRangeInterval as hours (default 24)
-              const intervalHours = Number(_coralFormList?.SubmissionRangeInterval) || 24;
-              const diffMs = permitDate.getTime() - now.getTime();
-              const diffHours = diffMs / (1000 * 60 * 60);
-              const meetsInterval = diffHours >= intervalHours;
-              if (!meetsInterval) {
-                missing.push(`New Permit Row start must be at least ${intervalHours} hours after the current submission date/time.`);
-              }
             }
+            // else if (!payload.isUrgentSubmission) {
+            //   const now = new Date();
+            //   // Interpret SubmissionRangeInterval as hours (default 24)
+            //   const intervalHours = Number(_coralFormList?.SubmissionRangeInterval) || 24;
+            //   const diffMs = permitDate.getTime() - now.getTime();
+            //   const diffHours = diffMs / (1000 * 60 * 60);
+            //   const meetsInterval = diffHours >= intervalHours;
+            //   if (!meetsInterval) {
+            //     missing.push(`New Permit Row start must be at least ${intervalHours} hours after the current submission date/time.`);
+            //   }
+            // }
+
           }
         }
         else if (selectedNewPermitRows.length === 0) {
@@ -1750,34 +1759,52 @@ export default function PTWForm(props: IPTWFormProps) {
               missing.push(`Residual Risk missing for row(s): ${missingResidualRiskRows.join(', ')}`);
             }
           }
+        }
 
-          // Overall Risk Assessment required
-          if (!String(payload.overallRiskAssessment || '').trim()) {
-            missing.push('Overall Risk Assessment');
+        // Overall Risk Assessment required
+        if (!String(payload.overallRiskAssessment || '').trim()) {
+          missing.push('Overall Risk Assessment');
+        }
+
+        // If Detailed (L2) is checked, require reference number
+        const l2Required = !!payload.detailedRiskAssessment;
+        if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
+          missing.push('Risk Assessment Ref Number (Detailed L2)');
+        }
+
+        // NEW: Gas Test / Fire Watch / Attachments validations for renewal approval
+        const gasYes = String(payload.gasTestRequired || '').toLowerCase() === 'yes';
+        if (gasYes && !String(payload.gasTestResult || '').trim()) {
+          missing.push('Gas Test Result');
+        }
+
+        const fireWatchYes = String(payload.fireWatchNeeded || '').toLowerCase() === 'yes';
+        if (fireWatchYes && !String(payload.fireWatchAssigned || '').trim()) {
+          missing.push('Firewatch Assigned');
+        }
+
+        const attachmentsYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
+        if (attachmentsYes && !String(payload.attachmentsDetails || '').trim()) {
+          missing.push('Attachment(s) Details');
+        }
+
+        // NEW: Toolbox Talk validations (if checked, all fields required)
+        if (payload.toolboxTalk) {
+          if (!String(payload.toolboxTalkConductedById || '').trim()) {
+            missing.push('Toolbox Talk - Conducted By');
           }
-
-          // If Detailed (L2) is checked, require reference number
-          const l2Required = !!payload.detailedRiskAssessment;
-          if (l2Required && !String(payload.detailedRiskAssessmentRef || '').trim()) {
-            missing.push('Risk Assessment Ref Number (Detailed L2)');
+          if (!String(payload.toolboxHSEReference || '').trim()) {
+            missing.push('HSE TBT Reference');
           }
-
-          // NEW: Gas Test / Fire Watch / Attachments validations for renewal approval
-          const gasYes = String(payload.gasTestRequired || '').toLowerCase() === 'yes';
-          if (gasYes && !String(payload.gasTestResult || '').trim()) {
-            missing.push('Gas Test Result');
-          }
-
-          const fireWatchYes = String(payload.fireWatchNeeded || '').toLowerCase() === 'yes';
-          if (fireWatchYes && !String(payload.fireWatchAssigned || '').trim()) {
-            missing.push('Firewatch Assigned');
-          }
-
-          const attachmentsYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
-          if (attachmentsYes && !String(payload.attachmentsDetails || '').trim()) {
-            missing.push('Attachment(s) Details');
+          const dt = payload.toolboxTalkDate instanceof Date
+            ? payload.toolboxTalkDate
+            : (payload.toolboxTalkDate ? new Date(payload.toolboxTalkDate) : undefined);
+          if (!dt || isNaN(dt.getTime())) {
+            missing.push('Toolbox Talk Date');
           }
         }
+
+
       }
 
       if (isAssetDirector && (isIssued || payload.isUrgentSubmission)) {
@@ -1860,6 +1887,22 @@ export default function PTWForm(props: IPTWFormProps) {
         const attachmentsYes = String(payload.attachmentsProvided || '').toLowerCase() === 'yes';
         if (attachmentsYes && !String(payload.attachmentsDetails || '').trim()) {
           missing.push('Attachment(s) Details');
+        }
+
+        // NEW: Toolbox Talk validations (if checked, all fields required)
+        if (payload.toolboxTalk) {
+          if (!String(payload.toolboxTalkConductedById || '').trim()) {
+            missing.push('Toolbox Talk - Conducted By');
+          }
+          if (!String(payload.toolboxHSEReference || '').trim()) {
+            missing.push('HSE TBT Reference');
+          }
+          const dt = payload.toolboxTalkDate instanceof Date
+            ? payload.toolboxTalkDate
+            : (payload.toolboxTalkDate ? new Date(payload.toolboxTalkDate) : undefined);
+          if (!dt || isNaN(dt.getTime())) {
+            missing.push('Toolbox Talk Date');
+          }
         }
 
         const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
@@ -1962,6 +2005,9 @@ export default function PTWForm(props: IPTWFormProps) {
                 await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
                 const issueResult = await issuePermit('issuePermit');
                 if (!issueResult) throw new Error('Failed to issue permit.');
+
+                const ptwNewPermitApproved = await _approveNewWorkPermitOnPTWIssuing('approve');
+                if (!ptwNewPermitApproved) throw new Error('Failed to approve new work permit on PTW issuing.');
               } else {
                 await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
               }
@@ -1998,6 +2044,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
               const issueResult = await issuePermit('issuePermit');
               if (!issueResult) throw new Error('Failed to issue permit.');
+
+              const ptwNewPermitApproved = await _approveNewWorkPermitOnPTWIssuing('approve');
+              if (!ptwNewPermitApproved) throw new Error('Failed to approve new work permit on PTW issuing.');
             }
 
             const updated = await _updatePTWForm(formId, 'approve');
@@ -2334,7 +2383,9 @@ export default function PTWForm(props: IPTWFormProps) {
         PermitEndTime: spHelpers.combineDateAndTime(item.date.toString(), item.endTime),
         RecordOrder: index + 1,
         Title: item.type === 'new' ? 'New Permit' : 'Renewal Permit',
-        PIApproverId: _piPicker?.[0]?.id ? Number(_piPicker[0].id) : null,
+        // PIApproverId: _piPicker?.[0]?.id ? Number(_piPicker[0].id) : null,
+        PIApproverId: item.piApprover ? Number(item.piApprover?.id) : null,
+        StatusRecord: 'New',
       };
 
       const data = ops._insertItem(body);
@@ -2435,8 +2486,9 @@ export default function PTWForm(props: IPTWFormProps) {
       body.ToolboxTalkHSEReference = payload.toolboxHSEReference ?? null;
     }
 
-    if (payload.toolboxTalkDate instanceof Date) {
-      body.ToolBoxTalkDate = payload.toolboxTalkDate;
+    if (payload.toolboxTalkDate) {
+      const dt = payload.toolboxTalkDate instanceof Date ? payload.toolboxTalkDate : new Date(payload.toolboxTalkDate);
+      if (!isNaN(dt.getTime())) body.ToolBoxTalkDate = dt;
     }
 
     if (payload.permitTypes?.length) {
@@ -2585,6 +2637,50 @@ export default function PTWForm(props: IPTWFormProps) {
     return true;
   }, [props.context.spHttpClient, payloadRef.current, buildPayload, props.formId, spHelpers]);
 
+  const _approveNewWorkPermitOnPTWIssuing = React.useCallback(async (mode: 'approve'): Promise<boolean> => {
+    const payload = buildPayload();
+    payloadRef.current = payload;
+
+    if (!payload) throw new Error('Form payload is not available'); ``
+
+    const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
+    let renewedPermit: IPermitScheduleRow | undefined;
+
+    if (payload.permitRows && payload.permitRows.length) {
+      // Validate there is at least one non-numeric renewal row fully filled
+      renewedPermit = payload.permitRows
+        .filter((r: IPermitScheduleRow) =>
+          r.type === 'new' &&
+          !isNumericId(r.id) && r.orderRecord === 1
+        ).sort((a, b) => a.orderRecord - b.orderRecord)[0];
+
+      if (!renewedPermit) {
+        showBanner('No New Permit row found to approve.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
+
+      const permitBody: any = {
+        PIStatus: renewedPermit.piStatus ?? null,
+        PIApprovalDate: renewedPermit.piStatus === 'Approved' || renewedPermit.piStatus === 'Rejected' ? new Date() : null,
+      }
+
+      spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
+      const response = await spCrudRef.current._updateItem(String(renewedPermit.id), permitBody);
+
+      if (!response.ok) {
+        showBanner('Failed to update PTW Work New Permit.', { autoHideMs: 5000, fade: true, kind: 'error' });
+        return false;
+      }
+
+    }
+    else {
+      showBanner('No permit rows found to renew.', { autoHideMs: 5000, fade: true, kind: 'warning' });
+      return false;
+    }
+    goBackToHost();
+    return true;
+  }, [props.context.spHttpClient, payloadRef.current, buildPayload, props.formId, spHelpers]);
+
   const _approveRenewalPermit = React.useCallback(async (mode: 'approveRenewalPermit'): Promise<boolean> => {
     const payload = buildPayload();
     payloadRef.current = payload;
@@ -2608,6 +2704,7 @@ export default function PTWForm(props: IPTWFormProps) {
       const permitBody: any = {
         PIStatus: renewedPermit.piStatus ?? null,
         PIApprovalDate: renewedPermit.piStatus === 'Approved' || renewedPermit.piStatus === 'Rejected' ? new Date() : null,
+        StatusRecord: renewedPermit.piStatus === 'Approved' ? 'Open' : 'Closed',
       }
 
       spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form_Work_Permits', '');
@@ -2928,7 +3025,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
           setToolboxTalk(headerSecondSelect?.ToolboxTalk || '');
           setToolboxHSEReference(headerSecondSelect?.ToolboxTalkHSEReference || '');
-          setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? headerSecondSelect?.ToolBoxTalkDate : undefined);
+          setToolboxTalkDate(headerSecondSelect?.ToolBoxTalkDate ? new Date(headerSecondSelect.ToolBoxTalkDate) : undefined);
           const toolboxConductedBy = toPersona({ Id: headerSecondSelect?.ToolboxConductedBy?.Id, displayName: headerSecondSelect?.ToolboxConductedBy?.Title, EMail: headerSecondSelect?.ToolboxConductedBy?.EMail });
           setToolboxConductedBy(toolboxConductedBy && toolboxConductedBy?.id ? [toolboxConductedBy] : undefined);
 
@@ -3099,11 +3196,11 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const stageEnabled = React.useMemo(() => {
     const poEnabled = isPermitOriginator; // Originator signs first
-    const paEnabled = (isPerformingAuthority && _poStatus.toString() != 'Approved') || !isSubmitted;
-    const piEnabled = (isPermitIssuer && _paStatus.toString() != 'Approved') || _piUnlockedByPA;
+    const paEnabled = (isPerformingAuthority && _poStatus.toString() !== 'Approved') || !isSubmitted;
+    const piEnabled = (isPermitIssuer && _paStatus.toString() !== 'Approved') || _piUnlockedByPA;
     // High risk requires AD then HSE; otherwise skip to closure after PI
-    const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus.toString() != 'Approved';
-    const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus.toString() != 'Approved';
+    const assetDirEnabled = isHighRisk && isAssetDirector && _piStatus.toString() !== 'Approved';
+    const hseDirEnabled = isHighRisk && isHSEDirector && _assetDirStatus.toString() !== 'Approved';
     const closureEnabled = isAssetManager && (
       (isHighRisk ? _hseDirStatus.toString() != 'Approved' : _piStatus.toString() != 'Approved')
     );
@@ -3201,10 +3298,9 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [_hseDirPicker, _hseDirReplacerPicker, _isHseDirReplacer, currentUserEmail]);
 
   React.useEffect(() => {
-    const selected =
-      _selectedCompany?.id != null
-        ? (ptwFormStructure?.companies || []).find(c => Number(c.id) === Number(_selectedCompany.id))
-        : undefined;
+    const selected = _selectedCompany?.id != null
+      ? (ptwFormStructure?.companies || []).find(c => Number(c.id) === Number(_selectedCompany.id))
+      : undefined;
 
     setCompanyLogoUrl(selected?.logoUrl ? String(selected.logoUrl) : initialLogoUrl);
 
@@ -3398,11 +3494,9 @@ export default function PTWForm(props: IPTWFormProps) {
     );
   }
 
-
   function onInputChange(input: string): string { const outlookRegEx = /<.*>/g; const emailAddress = outlookRegEx.exec(input); if (emailAddress && emailAddress[0]) return emailAddress[0].substring(1, emailAddress[0].length - 1); return input; }
 
   return (
-
     <div style={{ position: 'relative' }} ref={containerRef} data-export-mode={exportMode ? 'true' : 'false'}>
       <div ref={bannerTopRef} />
       {isBusy && (
@@ -3988,7 +4082,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(items) => setToolboxConductedBy(items || undefined)}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
-                      disabled={_selectedToolboxTalk ? false : true}
+                      disabled={!_selectedToolboxTalk}
                     />
                   </div>
 
@@ -3998,7 +4092,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       placeholder="Enter reference"
                       value={String(_toolboxHSEReference || '')}
                       onChange={(_, v) => setToolboxHSEReference(v || '')}
-                      disabled={_selectedToolboxTalk ? false : true}
+                      disabled={!_selectedToolboxTalk}
                     />
                   </div>
 
@@ -4006,9 +4100,9 @@ export default function PTWForm(props: IPTWFormProps) {
                     <Label>Date</Label>
                     <DatePicker
                       placeholder="Select date"
-                      value={_selectedToolboxTalkDate ? new Date(String(_selectedToolboxTalkDate)) : new Date()}
-                      onSelectDate={(date) => setToolboxTalkDate(date ? date : new Date())}
-                      disabled={_selectedToolboxTalk ? false : true}
+                      value={_selectedToolboxTalkDate}
+                      onSelectDate={(date) => setToolboxTalkDate(date ?? undefined)}
+                      disabled={!_selectedToolboxTalk}
                     />
                   </div>
                 </div>
@@ -4281,7 +4375,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 </div>
               )}
 
-              {(isSubmitted && _isUrgentSubmission && !isHighRisk) && (
+              {(_isUrgentSubmission && !isHighRisk) && (
                 <div className="row pb-3" id="urgentApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
 
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
@@ -4333,7 +4427,6 @@ export default function PTWForm(props: IPTWFormProps) {
                       useComboBoxAsMenuWidth
                     />
 
-                    {/* Show reason only when Rejected */}
                     {_assetDirStatus === 'Rejected' && (
                       <TextField
                         label="Rejection Reason"
@@ -4347,6 +4440,61 @@ export default function PTWForm(props: IPTWFormProps) {
                     )}
 
                   </div>
+
+                  {/* Permit Issuer (PI) */}
+                  {isSubmitted && (_assetDirStatus?.toLowerCase() === 'approved') && (
+                    <div className="col-md-6" style={{ padding: 8 }}>
+                      <div >
+                      </div>
+                      <Label style={{ fontWeight: 600 }}>Permit Issuer (PI)</Label>
+                      <ComboBox
+                        placeholder="Select Permit Issuer"
+                        // disabled={!stageEnabled.piEnabled}
+                        disabled={!isPIPickerEnabled()}
+                        options={_piHsePartnerFilteredByCategory?.map(m => ({
+                          key: String(m.id),
+                          text: m.title || m.text || ''
+                        }))}
+                        selectedKey={_piPicker?.[0]?.id || undefined}
+                        onChange={onPermitIssuerChange((items) => setPiPicker(items), setPiStatusEnabled)}
+                        useComboBoxAsMenuWidth
+                        styles={comboBoxBlackStyles}
+                        className={'pb-1'}
+                      />
+                      <DatePicker
+                        disabled={true}
+                        placeholder="Select date"
+                        value={_piDate ? new Date(_piDate) : new Date()}
+                      />
+                      <ComboBox
+                        disabled={!isPIStatusEnabled}
+                        placeholder="Status"
+                        options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
+                        selectedKey={_piStatus}
+                        onChange={(_, opt) => {
+                          setPaRejectionReason('');
+                          setPiStatus((opt?.key as SignOffStatus) ?? 'Pending');
+                          if (opt && (opt?.key as SignOffStatus) !== 'Pending') {
+                            setPiDate(new Date());
+                          }
+                        }
+                        }
+                        useComboBoxAsMenuWidth
+                      />
+                      {/* Show reason only when Rejected */}
+                      {_piStatus === 'Rejected' && (
+                        <TextField
+                          label="Rejection Reason"
+                          placeholder="Enter reason for rejection"
+                          value={_paRejectionReason}
+                          onChange={(_, v) => setPaRejectionReason(v || '')}
+                          required
+                          autoAdjustHeight
+                          rows={2}
+                        />
+                      )}
+                    </div>
+                  )}
 
                 </div>
               )
