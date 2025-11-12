@@ -1803,8 +1803,6 @@ export default function PTWForm(props: IPTWFormProps) {
             missing.push('Toolbox Talk Date');
           }
         }
-
-
       }
 
       if (isAssetDirector && (isIssued || payload.isUrgentSubmission)) {
@@ -1970,7 +1968,7 @@ export default function PTWForm(props: IPTWFormProps) {
             if (!res.ok) throw new Error('Failed to update workflow status.');
 
             if (res.ok) {
-              await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview)
+              // await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview)
             }
             showBanner(`Approved Successfully.`, { autoHideMs: 3000, fade: true, kind: 'success' });
             goBackToHost();
@@ -2002,14 +2000,14 @@ export default function PTWForm(props: IPTWFormProps) {
 
             if (res.ok) {
               if (!isHigh) {
-                await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
+                // await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
                 const issueResult = await issuePermit('issuePermit');
                 if (!issueResult) throw new Error('Failed to issue permit.');
 
                 const ptwNewPermitApproved = await _approveNewWorkPermitOnPTWIssuing('approve');
                 if (!ptwNewPermitApproved) throw new Error('Failed to approve new work permit on PTW issuing.');
               } else {
-                await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
+                // await _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
               }
             }
 
@@ -2028,7 +2026,7 @@ export default function PTWForm(props: IPTWFormProps) {
               const res = await ops._updateItem(String(wfItemId), body);
               if (!res.ok) throw new Error('Failed to update workflow status.');
 
-              _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
+              // _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.InReview);
             }
 
             if (isHSEDirector) {
@@ -2040,7 +2038,7 @@ export default function PTWForm(props: IPTWFormProps) {
               const res = await ops._updateItem(String(wfItemId), body);
               if (!res.ok) throw new Error('Failed to update workflow status.');
 
-              _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
+              // _updatePTWFormWorkflowStatus(formId, PTWWorkflowStatus.Issued);
 
               const issueResult = await issuePermit('issuePermit');
               if (!issueResult) throw new Error('Failed to issue permit.');
@@ -2343,11 +2341,11 @@ export default function PTWForm(props: IPTWFormProps) {
           throw new Error('Failed to create PTW Form Approval Workflow');
         }
 
-        const _updatedFormWorkflowStatus = await _updatePTWFormWorkflowStatus(Number(newId), PTWWorkflowStatus.InReview);
+        // const _updatedFormWorkflowStatus = await _updatePTWFormWorkflowStatus(Number(newId), PTWWorkflowStatus.InReview);
 
-        if (!_updatedFormWorkflowStatus) {
-          throw new Error('Failed to update PTW Form Workflow Status');
-        }
+        // if (!_updatedFormWorkflowStatus) {
+        //   throw new Error('Failed to update PTW Form Workflow Status');
+        // }
       }
 
       if (payload.workTaskLists?.length) {
@@ -2651,7 +2649,7 @@ export default function PTWForm(props: IPTWFormProps) {
       renewedPermit = payload.permitRows
         .filter((r: IPermitScheduleRow) =>
           r.type === 'new' &&
-          !isNumericId(r.id) && r.orderRecord === 1
+          isNumericId(r.id) && r.orderRecord === 1
         ).sort((a, b) => a.orderRecord - b.orderRecord)[0];
 
       if (!renewedPermit) {
@@ -2816,23 +2814,23 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, [props.context.spHttpClient, payloadRef.current]);
 
-  const _updatePTWFormWorkflowStatus = React.useCallback(async (formId: number, status: string): Promise<boolean> => {
-    const payload = payloadRef.current;
-    if (!payload) throw new Error('Form payload is not available');
+  // const _updatePTWFormWorkflowStatus = React.useCallback(async (formId: number, status: string): Promise<boolean> => {
+  //   const payload = payloadRef.current;
+  //   if (!payload) throw new Error('Form payload is not available');
 
-    let body: any = {
-      WorkflowStatus: status,
-    };
+  //   let body: any = {
+  //     WorkflowStatus: status,
+  //   };
 
-    spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
-    const response = await spCrudRef.current._updateItem(String(formId), body);
-    if (!response.ok) {
-      showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
-      return false;
-    }
+  //   spCrudRef.current = new SPCrudOperations((props.context as any).spHttpClient, props.context.pageContext.web.absoluteUrl, 'PTW_Form', '');
+  //   const response = await spCrudRef.current._updateItem(String(formId), body);
+  //   if (!response.ok) {
+  //     showBanner('Failed to update PTW Form.', { autoHideMs: 5000, fade: true, kind: 'error' });
+  //     return false;
+  //   }
 
-    return true;
-  }, [props.context.spHttpClient, payloadRef.current]);
+  //   return true;
+  // }, [props.context.spHttpClient, payloadRef.current]);
 
   // ---------------------------
   // Render
@@ -3251,12 +3249,14 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const isAssetDirectorStatusEnabled = React.useCallback((): boolean => {
     const stage = String(_workflowStage || '').toLowerCase();
-    // const selectedEmail = String(_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const selectedEmail = String(_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
 
     return (
-      (isSubmitted && isAssetDirector && stage === 'ApprovedFromPIToAsset'.toLowerCase()) ||
+      (isSubmitted && isAssetDirector &&
+        selectedEmail === currentUserEmail &&
+        stage === 'ApprovedFromAssetToHSE'.toLowerCase()) ||
       (_isUrgentSubmission && isAssetDirector) ||
-      (isHighRisk && isAssetDirector && stage === 'ApprovedFromPIToAsset'.toLowerCase())
+      (isHighRisk && isAssetDirector && stage === 'ApprovedFromAssetToHSE'.toLowerCase())
     );
 
   }, [_workflowStage, _assetDirPicker, currentUserEmail, isSubmitted, isAssetDirector, _isUrgentSubmission]);
@@ -4059,6 +4059,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         setToolboxTalk(isChecked);
                         if (!isChecked) {
                           setToolboxConductedBy(undefined);
+                          setTimeout(() => setToolboxConductedBy([]), 0);
                           setToolboxHSEReference('');
                           setToolboxTalkDate(undefined);
                         }
@@ -4073,13 +4074,13 @@ export default function PTWForm(props: IPTWFormProps) {
                       onResolveSuggestions={_onFilterChanged}
                       itemLimit={1}
                       className={'ms-PeoplePicker'}
-                      key={'toolboxConductedBy'}
+                      key={`toolboxConductedBy-${_selectedToolboxTalk ? 'on' : 'off'}-${_selectedToolboxConductedBy?.[0]?.id || 'none'}`}
                       removeButtonAriaLabel={'Remove'}
                       onInputChange={onInputChange}
                       resolveDelay={150}
                       styles={peoplePickerBlackStyles}
-                      selectedItems={_selectedToolboxConductedBy}
-                      onChange={(items) => setToolboxConductedBy(items || undefined)}
+                      selectedItems={_selectedToolboxConductedBy || []}
+                      onChange={(items) => setToolboxConductedBy(items && items.length ? items : [])}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
                       disabled={!_selectedToolboxTalk}

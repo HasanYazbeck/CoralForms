@@ -112,10 +112,10 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     `PermitOriginator/Title,PermitOriginator/EMail,` +
     `AssetCategory/Id,AssetCategory/Title,` +
     `AssetDetails/Id,AssetDetails/Title,` +
-    `CompanyRecord/Id,CompanyRecord/Title,` +
-    `Author/Id,Author/EMail,` +
-    `Editor/Id,Editor/EMail,Editor/Title` +
-    `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord,Author,Editor`
+    `CompanyRecord/Id,CompanyRecord/Title` +
+    // `Author/Id,Author/EMail` +
+    // `Editor/Id,Editor/EMail,Editor/Title` +
+    `&$expand=PermitOriginator,AssetCategory,AssetDetails,CompanyRecord`
   ), []);
 
   const mapRows = React.useCallback((data: any[]): Row[] => {
@@ -134,8 +134,8 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         WorkflowStatus: obj.WorkflowStatus ?? undefined,
         isUrgentSubmission: !!obj.IsUrgentSubmission,
         permitOriginatorEmail: obj.PermitOriginator?.EMail,
-        editorName: obj.Editor?.Title || obj.Editor?.EMail,
-        editorEmail: obj.Editor?.EMail, 
+        // editorName: obj.Editor?.Title || obj.Editor?.EMail,
+        // editorEmail: obj.Editor?.EMail, 
         rejectionReason: obj.RejectionReason ?? undefined
       };
     });
@@ -149,10 +149,11 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 180, isResizable: true,
         onRender: (row: Row) => {
           const status = row.WorkflowStatus || '';
-          const poEmail = (row.permitOriginatorEmail || '').toLowerCase();
-          const edEmail = (row.editorEmail || '').toLowerCase();
-          const showModifiedBy = poEmail !== edEmail;
-          return showModifiedBy ? `${status} - Modified By ${row.editorName || row.editorEmail}` : status;
+          return `${status}`;
+          // const poEmail = (row.permitOriginatorEmail || '').toLowerCase();
+          // const edEmail = (row.editorEmail || '').toLowerCase();
+          // const showModifiedBy = poEmail !== edEmail;
+          // return showModifiedBy ? `${status} - Modified By ${row.editorName || row.editorEmail}` : status;
         }
       },
       { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 160, isResizable: true },
