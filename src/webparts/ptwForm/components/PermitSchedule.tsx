@@ -56,8 +56,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitsValidityDays,
   permitStatus,
   isPermitIssuer,
-  piApproverList
-
+  piApproverList,
+  isIssued
 }) => {
 
   const piStatusOptions: IComboBoxOption[] = React.useMemo(
@@ -192,6 +192,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
                 return (
                   <div key={category.id} className="col-xl-2 col-lg-3 col-3 col-md-3 col-sm-6 col-12" style={{ marginBottom: '10px' }}>
                     <Checkbox
+                      disabled={isIssued}
                       label={category.title}
                       checked={checked}
                       onChange={(e, checked) => onPermitTypeChange(checked, category)}

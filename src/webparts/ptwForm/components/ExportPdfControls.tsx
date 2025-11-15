@@ -235,7 +235,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
         <>
             {showButton && (
                 <DefaultButton
-                    text={exportMode ? 'Preparing…' : 'Export PDF'}
+                    text={exportMode ? 'Preparing…' : 'Export to PDF'}
                     onClick={exportPdf}
                     disabled={disabled || exportMode}
                     style={{ marginLeft: 8 }}

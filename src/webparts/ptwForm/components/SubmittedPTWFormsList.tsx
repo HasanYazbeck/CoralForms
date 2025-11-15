@@ -196,7 +196,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       return;
     }
 
-    const filterActive = `&$filter=FormStatusRecord eq 'Submitted' and WorkflowStatus ne 'Rejected' and WorkflowStatus ne 'Closed By System'`;
+    const filterActive = `&$filter=FormStatusRecord eq 'Submitted' and (WorkflowStatus eq 'In Review' or WorkflowStatus eq 'New' or WorkflowStatus eq 'Issued' or WorkflowStatus eq 'Renewed')`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed' or WorkflowStatus eq 'Permanently Closed'`;
     const filterRejected = `&$filter=WorkflowStatus eq 'Rejected'`;
     const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
