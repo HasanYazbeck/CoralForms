@@ -252,9 +252,9 @@ export default function PTWForm(props: IPTWFormProps) {
 
   const currentUserEmail = (props.context?.pageContext?.user?.email || '').toLowerCase();
   const filterOutCurrentUser = React.useCallback((people?: IPersonaProps[]) => {
-      if (!people?.length) return [];
-      return people.filter(p => (p.secondaryText || '').toLowerCase() !== currentUserEmail);
-    },[currentUserEmail]);
+    if (!people?.length) return [];
+    return people.filter(p => (p.secondaryText || '').toLowerCase() !== currentUserEmail);
+  }, [currentUserEmail]);
 
   const showBanner = React.useCallback((text: string, opts?: { autoHideMs?: number; fade?: boolean, kind?: BannerKind }) => {
     setBannerText(text);
@@ -1036,12 +1036,12 @@ export default function PTWForm(props: IPTWFormProps) {
 
       setAssetDirFilteredByCategory(detail?.assetDirector || []);
       setAssetManagerFilteredByCategory(detail?.assetManager || []);
-      setPiHsePartnerFilteredByCategory(filterOutCurrentUser(detail?.hsePartner) || []);
+      setPiHsePartnerFilteredByCategory(detail?.hsePartner || []);
 
       // Apply selections safely (won't overwrite user-cleared values while suppressed)
       safeSetPicker(_assetDirPicker, setAssetDirPicker, detail?.assetDirector);
       safeSetPicker(_assetDirReplacerPicker, setAssetDirReplacerPicker, detail?.assetDirectorReplacer);
-      safeSetPicker(_hseDirPicker, setHseDirPicker, filterOutCurrentUser(detail?.hseDirector));
+      safeSetPicker(_hseDirPicker, setHseDirPicker, detail?.hseDirector);
       safeSetPicker(_hseDirReplacerPicker, setHseDirReplacerPicker, detail?.hseDirectorReplacer);
       safeSetPicker(_closureAssetManagerPicker, setClosureAssetManagerPicker, detail?.assetManager);
 
@@ -1497,6 +1497,58 @@ export default function PTWForm(props: IPTWFormProps) {
   const handleDetailedRiskRefChange = React.useCallback((ref?: string) => {
     setRiskAssessmentReferenceNumber(ref?.trim() || '');
   }, []);
+
+  const isUniquePermitOriginator = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+    const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === pOEMail;
+    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
+
+    if (isPermitOriginator && isUniquePO) {
+      return true;
+    }
+    return false;
+  }, [_PermitOriginator, _piPicker, _assetDirPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail, isPermitOriginator]);
+
+  const isUniquePermitIssuer = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+
+    const loggedInUserIsPIEMail = currentUserEmail.toLowerCase() === pIEMail.toLowerCase();
+
+    const isUniquePI = (loggedInUserIsPIEMail && (pIEMail !== (pOEMail || pAEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail)));
+
+    if (isPermitIssuer && isUniquePI) {
+      return true;
+    }
+    return false;
+  }, [isPermitIssuer, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail]);
+
+  const isUniqueHSEDirector = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+
+    const loggedInUserIshseEMail = currentUserEmail.toLowerCase() === hSEDirectorEMail.toLowerCase();
+
+    const isUniquehse = (loggedInUserIshseEMail && (assetDirectorEMail !== (pOEMail || pIEMail || pAEMail || assetDirectorEMail || assetManagerEMail)));
+
+    if (isHSEDirector && isUniquehse) {
+      return true;
+    }
+    return false;
+  }, [isHSEDirector, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail]);
+
 
   // Minimal payload builder (adjust to your save schema)
   const buildPayload = React.useCallback(() => {
@@ -2618,9 +2670,12 @@ export default function PTWForm(props: IPTWFormProps) {
       body.FormStatusRecord = 'Saved';
       body.WorkflowStatus = '';
     }
-    else {
+    else if (mode === 'submit') {
       body.FormStatusRecord = 'Submitted';
       body.WorkflowStatus = PTWWorkflowStatus.New;
+    }
+    else if (mode === 'approve') {
+      body.WorkflowStatus = PTWWorkflowStatus.InReview;
     }
 
     if (mode === 'submitAfterRejection') {
@@ -3133,14 +3188,14 @@ export default function PTWForm(props: IPTWFormProps) {
             const cached = (assetCategoriesDetailsList || []).find(d => Number(d.id) === assetDetailId);
 
             const setFromDetail = (detail: any) => {
-              setPiHsePartnerFilteredByCategory(filterOutCurrentUser(detail?.HSEPartner) || []);
+              setPiHsePartnerFilteredByCategory(detail?.HSEPartner || []);
               setAssetDirFilteredByCategory(detail?.AssetDirector || []);
               setAssetManagerFilteredByCategory(detail?.AssetManager || []);
             };
 
             if (cached) {
               setFromDetail({
-                HSEPartner: filterOutCurrentUser(cached.hsePartner),
+                HSEPartner: cached.hsePartner,
                 AssetDirector: cached.assetDirector,
                 AssetManager: cached.assetManager
               });
@@ -3357,7 +3412,7 @@ export default function PTWForm(props: IPTWFormProps) {
     load();
 
     return () => { cancelled = true; };
-  }, [props.formId, prefilledFormId, loading, props.context, spHelpers, assetCategoriesDetailsList, _piHsePartnerFilteredByCategory]);
+  }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
 
   const stageEnabled = React.useMemo(() => {
     const poEnabled = isPermitOriginator; // Originator signs first
@@ -3490,20 +3545,38 @@ export default function PTWForm(props: IPTWFormProps) {
 
   React.useEffect(() => {
     if (!_piHsePartnerFilteredByCategory?.length) return;
+
     setPermitPayload(prev =>
-      prev.map(r => r.piApproverList ? r : { ...r, piApproverList: _piHsePartnerFilteredByCategory })
+      prev.map(r => {
+        const isNew = String(r.type || '').toLowerCase() === 'new';
+        const targetListRaw = isNew
+          ? filterOutCurrentUser(_piHsePartnerFilteredByCategory)
+          : _piHsePartnerFilteredByCategory;
+        const targetList = Array.isArray(targetListRaw) ? targetListRaw : [];
+
+        const current = Array.isArray(r.piApproverList) ? r.piApproverList : [];
+
+        // shallow compare by id to avoid unnecessary updates
+        const sameLength = current.length === targetList.length;
+        const sameIds = sameLength && current.every((p, i) => String(p.id) === String(targetList[i].id));
+
+        // Update if empty, undefined, or different from current
+        if (!current.length || !sameIds) {
+          return { ...r, piApproverList: targetList };
+        }
+        return r;
+      })
     );
-  }, [_piHsePartnerFilteredByCategory]);
+  }, [_piHsePartnerFilteredByCategory, filterOutCurrentUser]);
 
   const canRenewPermit = React.useMemo((): boolean => {
     const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
-    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
     const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
     const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
     const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
     const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
-    const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === pOEMail.toLowerCase();
-    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pAEMail || pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
+    const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === pOEMail;
+    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
 
     const rows = Array.isArray(_permitPayload) ? _permitPayload : [];
     const totalAllowed = Number(_permitPayloadValidityDays || 0);
@@ -3524,7 +3597,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
     // 1) Capacity: still have remaining permits to use
     const usedCount = filled.length; // or rows.length if placeholders count as used
-    const hasRemainingCapacity = totalAllowed > usedCount;
+    const hasRemainingCapacity = totalAllowed >= usedCount;
 
     // 2) Time: latest permit end time already passed
     const latest = filled.reduce((a, b) => (b.orderRecord > a.orderRecord ? b : a), filled[0]);
@@ -3532,7 +3605,32 @@ export default function PTWForm(props: IPTWFormProps) {
     const latestExpired = endDt instanceof Date && !isNaN(endDt.getTime()) && endDt.getTime() <= Date.now();
 
     return (hasRemainingCapacity && latestExpired && isPermitOriginator && isIssued && isUniquePO);
-  }, [_permitPayload, _permitPayloadValidityDays, spHelpers, isPermitOriginator, isIssued, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker]);
+
+  }, [_permitPayload, _permitPayloadValidityDays, spHelpers, isPermitOriginator,
+    isIssued, currentUserEmail, _PermitOriginator, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker]);
+
+  // const canPOResubmitAfterRejection = React.useMemo((): boolean => {
+  //   if (mode !== 'submitted' && !isPermitOriginator) return false;
+  //   const stage = String(_workflowStage || '').toLowerCase();
+  //   if (stage === 'rejected' && isPermitOriginator) {
+  //     setCanPOResubmitAfterRejection(true);
+  //     return true;
+  //   } else {
+  //     setCanPOResubmitAfterRejection(false);
+  //     return false;
+  //   }
+
+  // }, [mode, isPermitOriginator, _workflowStage]);
+
+  const poCanResubmit = React.useMemo(() => {
+    if (mode !== 'submitted' && !isPermitOriginator) return false;
+    const stage = String(_workflowStage || '').toLowerCase();
+    return stage === 'rejected' && isPermitOriginator && isUniquePermitOriginator;
+  }, [mode, isPermitOriginator, _workflowStage, isUniquePermitOriginator]);
+
+  React.useEffect(() => {
+    setCanPOResubmitAfterRejection(prev => (prev !== poCanResubmit ? poCanResubmit : prev));
+  }, [poCanResubmit]);
 
   const _addNewPermit = React.useCallback(() => {
     // Allow only one renewal row in "New" status at a time
@@ -3619,14 +3717,13 @@ export default function PTWForm(props: IPTWFormProps) {
     // true when id has no letters (i.e., purely numeric -> no "text" in id)
     const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
     const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
-    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
     const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
     const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
     const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
     const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
     const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === pOEMail.toLowerCase();
 
-    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pAEMail || pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
+    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
 
     const hasCandidate = (permitScheduleRows || []).some(r =>
       r.type === 'renewal' &&
@@ -3711,19 +3808,9 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [mode, permitScheduleRows, isPermitOriginator, _permitPayloadValidityDays]);
 
   const showCancelPTWForm = React.useMemo((): boolean => {
-    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
-    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
-    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
-    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
-    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
-    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
-    const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === pOEMail.toLowerCase();
-
-    const isUniquePO = loggedInUserIsPOEMail && (pOEMail !== (pAEMail || pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
-
     if (mode !== 'submitted' || !isPermitOriginator) return false;
     const stage = String(_workflowStage || '').toLowerCase();
-    if (isPermitOriginator && isUniquePO && !(stage === 'rejected' || stage === 'ClosedByPO'.toLowerCase() || stage === 'ClosedByAssetManager'.toLowerCase()
+    if (isPermitOriginator && isUniquePermitOriginator && !(stage === 'rejected' || stage === 'ClosedByPO'.toLowerCase() || stage === 'ClosedByAssetManager'.toLowerCase()
       || stage === 'Permanently Closed'.toLowerCase()) && !isIssued) {
       return true;
     }
@@ -3742,21 +3829,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
   }, [mode, isPermitIssuer, _piStatus]);
 
-  const canPOResubmitAfterRejection = React.useMemo((): boolean => {
-    if (mode !== 'submitted' && !isPermitOriginator) return false;
-    const stage = String(_workflowStage || '').toLowerCase();
-    if (stage === 'rejected' && isPermitOriginator) {
-      setCanPOResubmitAfterRejection(true);
-      return true;
-    } else {
-      setCanPOResubmitAfterRejection(false);
-      return false;
-    }
-
-  }, [mode, isPermitOriginator, _workflowStage]);
-
   const disableRiskControlsIssuedForm = React.useMemo((): boolean => {
-    if ((isPermitIssuer || isHSEDirector) && !isIssued) {
+    if ((isUniqueHSEDirector || isUniquePermitIssuer) && !isIssued) {
       if (_isUrgentSubmission && isHighRisk) {
         return true;
       } else {
@@ -3764,7 +3838,7 @@ export default function PTWForm(props: IPTWFormProps) {
       }
     }
     return false;
-  }, [isIssued, isPermitIssuer, isHSEDirector, _isUrgentSubmission, isHighRisk]);
+  }, [isIssued, isUniqueHSEDirector, isUniquePermitIssuer, _isUrgentSubmission, isHighRisk]);
 
   const rejectionResetDoneRef = React.useRef(false);
 
@@ -3778,8 +3852,11 @@ export default function PTWForm(props: IPTWFormProps) {
       }
     }, [suppressAutoPrefill]);
 
+
+
   React.useEffect(() => {
-    if (!_canPOResubmitAfterRejection) {
+
+    if (!_canPOResubmitAfterRejection || !isUniquePermitOriginator) {
       rejectionResetDoneRef.current = false; // allow future run when rejection happens again
       return;
     }
@@ -3808,7 +3885,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
     if (detail) {
       // Populate available PI options from HSE Partner; keep PI unselected so PO must choose
-      setPiHsePartnerFilteredByCategory(filterOutCurrentUser(detail.hsePartner) || []);
+      setPiHsePartnerFilteredByCategory(detail.hsePartner || []);
       setAssetDirFilteredByCategory(detail.assetDirector || []);
       setAssetManagerFilteredByCategory(detail.assetManager || []);
 
@@ -3959,6 +4036,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 placeholder="(optional)"
                 value={_previousPtwRef}
                 onChange={(_, v) => setPreviousPtwRef(v || '')}
+              // readOnly={isSubmitted}
               />
             </div>
           </div>
@@ -3977,13 +4055,17 @@ export default function PTWForm(props: IPTWFormProps) {
                 } : undefined)}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
+              // disabled={isSubmitted}
               />
             </div>
             <div className={`form-group col-md-6`}>
               <TextField
                 label="Asset ID"
                 value={_assetId}
-                onChange={(_, newValue) => setAssetId(newValue || '')} />
+                onChange={(_, newValue) => setAssetId(newValue || '')}
+              // readOnly={isSubmitted}
+              />
+
             </div>
           </div>
 
@@ -3997,6 +4079,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 onChange={(_e, ch) => onAssetCategoryChange(_e, ch)}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
+              // disabled={isSubmitted}
               />
             </div>
             <div className={`form-group col-md-6`}>
@@ -4007,6 +4090,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 selectedKey={_selectedAssetDetails}
                 onChange={(_e, ch) => onAssetDetailsChange(_e as any, ch as any)}
                 disabled={!_selectedAssetCategory}
+                // disabled={(!_selectedAssetCategory || isSubmitted)}
                 styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
@@ -4059,7 +4143,7 @@ export default function PTWForm(props: IPTWFormProps) {
               styles={styles}
               permitsValidityDays={_permitPayloadValidityDays}
               isPermitIssuer={permitNeedsApproval}
-              piApproverList={_piHsePartnerFilteredByCategory}
+              piApproverList={filterOutCurrentUser(_piHsePartnerFilteredByCategory)}
               isIssued={isIssued}
             />
             {/* //TODO: fix missing key prop warning *f/}
@@ -4168,9 +4252,9 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               <Separator />
-              {isSubmitted && isPermitIssuer && !isPerformingAuthority && (
-                <>
-                  <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
+              <div className='row pb-3' id="gasTestFireWatchAttachmentsSection">
+                {(isIssued || isUniquePermitIssuer || isUniqueHSEDirector) && (
+                  <>
                     {/* Gas Test Required Section */}
                     <div className='form-group col-md-12' style={{ display: "flex", alignItems: "center" }}>
                       <div className='col-md-3'><Label>Gas Test Required</Label></div>
@@ -4181,13 +4265,12 @@ export default function PTWForm(props: IPTWFormProps) {
                               <Checkbox
                                 label={gas}
                                 checked={_gasTestValue === gas}
-                                // onChange={() => setGasTestValue(gas)}
                                 onChange={() => {
                                   setGasTestValue(prev => (prev === gas ? '' : gas));
                                   setGasTestResult('');
                                 }
                                 }
-                                disabled={!isPermitIssuer && !isSubmitted}
+                                disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
                               />
                             </div>
                           ))}
@@ -4198,7 +4281,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           <TextField
                             type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                             placeholder="Enter result"
-                            disabled={!isPermitIssuer || _gasTestValue !== 'Yes'}
+                            disabled={_gasTestValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)}
                             value={_gasTestResult}
                             onChange={(e, newValue) => setGasTestResult(newValue || '')}
                           />
@@ -4221,7 +4304,7 @@ export default function PTWForm(props: IPTWFormProps) {
                                   setFireWatchValue(prev => (prev === item ? '' : item));
                                   setFireWatchAssigned('');
                                 }}
-                                disabled={!isPermitIssuer && !isSubmitted}
+                               disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
                               />
                             </div>
                           ))}
@@ -4230,46 +4313,46 @@ export default function PTWForm(props: IPTWFormProps) {
                         <div style={{ flex: '1' }}>
                           <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
                             placeholder="Enter name"
-                            disabled={!isPermitIssuer || _fireWatchValue !== 'Yes'}
+                            disabled={_fireWatchValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)}
                             value={_fireWatchAssigned}
                             onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
                           />
                         </div>
                       </div>
                     </div>
-
-                    {/* Attachments Required */}
-                    <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
-                      <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
-                      <div className="" style={{ display: "flex", alignItems: "center" }}></div>
-                      <div style={{ display: "flex", gap: "30px" }}>
-                        {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
-                          <div key={i}>
-                            <Checkbox
-                              label={attachment}
-                              checked={_attachmentsValue.toLowerCase() == attachment.toLowerCase() ? true : false}
-                              onChange={() => {
-                                setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
-                                setAttachmentsResult('');
-                              }}
-                            />
-                          </div>
-                        ))}
-                        <Label style={{ paddingRight: '10px' }}>Details:</Label>
-                      </div>
-                      <div style={{ flex: '1' }}>
-                        <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                          placeholder="Enter detail"
-                          disabled={_attachmentsValue !== 'Yes'}
-                          value={_attachmentsResult}
-                          onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                  </>
+                )}
+                {/* Attachments Required */}
+                <div className='form-group col-md-12 mt-3' style={{ display: "flex", alignItems: "center" }}>
+                  <div className='col-md-3'><Label>Attachment(s) provided</Label></div>
+                  <div className="" style={{ display: "flex", alignItems: "center" }}></div>
+                  <div style={{ display: "flex", gap: "30px" }}>
+                    {ptwFormStructure?.attachmentsProvided?.map((attachment, i) => (
+                      <div key={i}>
+                        <Checkbox
+                          label={attachment}
+                          checked={_attachmentsValue.toLowerCase() == attachment.toLowerCase() ? true : false}
+                          onChange={() => {
+                            setAttachmentsValue(prev => (prev === attachment ? '' : attachment))
+                            setAttachmentsResult('');
+                          }}
                         />
                       </div>
-                    </div>
+                    ))}
+                    <Label style={{ paddingRight: '10px' }}>Details:</Label>
                   </div>
-                  <Separator />
-                </>
-              )}
+                  <div style={{ flex: '1' }}>
+                    <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                      placeholder="Enter detail"
+                      disabled={_attachmentsValue !== 'Yes'}
+                      value={_attachmentsResult}
+                      onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                    />
+                  </div>
+                </div>
+
+              </div>
+              <Separator />
 
               <div className="row pb-3" id="protectiveSafetyEquipmentSection" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
                 <div>
@@ -4409,7 +4492,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* Toolbox Talk (TBT) */}
-              {isSubmitted && isPermitIssuer && (
+              {(isIssued || isUniquePermitIssuer || isUniqueHSEDirector) && (
                 <div className="row pb-3" id="toolboxTalkSection" style={{ breakAfter: exportMode ? 'page' : 'auto' }} >
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
                     <Checkbox
@@ -4425,7 +4508,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           setToolboxTalkDate(undefined);
                         }
                       }}
-                      disabled={!isPermitIssuer && isSubmitted}
+                      disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
                     />
                   </div>
 
@@ -4910,7 +4993,10 @@ export default function PTWForm(props: IPTWFormProps) {
                           placeholder='Status'
                           options={statusOptions.filter(opt => opt.text.toLowerCase() === 'approved' || opt.text.toLowerCase() === 'pending' || opt.text.toLowerCase() === 'rejected')}
                           selectedKey={_closurePoStatus}
-                          onChange={(_, opt) => setClosurePoStatus((opt?.key as SignOffStatus) ?? 'Pending')}
+                          onChange={(_, opt) => {
+                            setClosurePoStatus((opt?.key as SignOffStatus) ?? 'Pending');
+                          }
+                          }
                           useComboBoxAsMenuWidth
                         />
                       );
@@ -4996,7 +5082,7 @@ export default function PTWForm(props: IPTWFormProps) {
       <div id="formButtonsSection" className="no-pdf" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8, marginBottom: 8 }}>
         <DefaultButton text="Close" onClick={handleCancel} />
 
-        {showCancelPTWForm && (
+        {showCancelPTWForm && isUniquePermitOriginator && (
           <DefaultButton
             text="Cancel PTW"
             onClick={() => cancelPTW('cancel')}
@@ -5037,12 +5123,12 @@ export default function PTWForm(props: IPTWFormProps) {
           _workflowStage?.toLowerCase() !== "Rejected".toLowerCase() && (
             (
               (isPerformingAuthority && (_workflowStage?.toLowerCase() == "ApprovedFromPOToPA".toLowerCase() || _workflowStage?.toLowerCase() == "ApprovedFromPIToPA".toLowerCase())) ||
-              (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPAToPI".toLowerCase()) ||
-              (isPermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPOToPI".toLowerCase()) ||
+              (isPermitIssuer && isUniquePermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPAToPI".toLowerCase()) ||
+              (isPermitIssuer && isUniquePermitIssuer && _workflowStage?.toLowerCase() == "ApprovedFromPOToPI".toLowerCase()) ||
               (isAssetDirector && _isUrgentSubmission && _workflowStage?.toLowerCase() == "ApprovedFromPOtoAssetUrgent".toLowerCase()) ||
-              (isHSEDirector && _isUrgentSubmission && _workflowStage?.toLowerCase() == "ApprovedFromAssetToHSE".toLowerCase()) ||
+              (isHSEDirector && isUniqueHSEDirector && _isUrgentSubmission && _workflowStage?.toLowerCase() == "ApprovedFromAssetToHSE".toLowerCase()) ||
               (isAssetDirector && _workflowStage?.toLowerCase() == "ApprovedFromPIToAsset".toLowerCase() && isHighRisk) ||
-              (isHSEDirector && _workflowStage?.toLowerCase() == "ApprovedFromAssetToHSE".toLowerCase() && isHighRisk)
+              (isHSEDirector && isUniqueHSEDirector && _workflowStage?.toLowerCase() == "ApprovedFromAssetToHSE".toLowerCase() && isHighRisk)
             ) && (
               <PrimaryButton id="approveFormWWithUpdate" text="Confirm" onClick={() => approveFormWWithUpdate('approve')} disabled={isBusy} />
             )
@@ -5050,15 +5136,15 @@ export default function PTWForm(props: IPTWFormProps) {
 
         {(mode === "submitted") && _workflowStage?.toLowerCase() !== "ClosedByAssetManager".toLowerCase()
           && _workflowStage?.toLowerCase() !== "Rejected".toLowerCase() &&
-          ((isPermitOriginator && _workflowStage?.toLowerCase() == "ApprovedFromHSEToPO".toLowerCase()) ||
-            (isPermitOriginator && showConfirmButtonForPermitOriginator) ||
+          ((isPermitOriginator && isUniquePermitOriginator && _workflowStage?.toLowerCase() == "ApprovedFromHSEToPO".toLowerCase()) ||
+            (isPermitOriginator && isUniquePermitOriginator && showConfirmButtonForPermitOriginator) ||
             (isAssetManager && _workflowStage?.toLowerCase() == "ClosedByPO".toLowerCase()) ||
             (isAssetManager && _workflowStage?.toLowerCase() == "ApprovedFromPOtoAssetmanager".toLowerCase())
           ) &&
           (<PrimaryButton id="approveForm" text="Confirm" onClick={() => approveForm('approve')} disabled={isBusy} />)
         }
 
-        {showPermitIssuerApprovalButton && (
+        {showPermitIssuerApprovalButton && !isUniquePermitOriginator && (
           <PrimaryButton
             text="Approve Renewal Permit"
             onClick={() => _approveRenewalPermit('approveRenewalPermit')}
@@ -5066,7 +5152,7 @@ export default function PTWForm(props: IPTWFormProps) {
           />
         )}
 
-        {canPOResubmitAfterRejection && (
+        {poCanResubmit && (
           <PrimaryButton
             text="Resubmit PTW"
             onClick={() => resubmitAfterRejection('submitAfterRejection')}

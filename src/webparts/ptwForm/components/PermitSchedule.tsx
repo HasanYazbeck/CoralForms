@@ -126,7 +126,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     {
       key: 'col-piApprover', name: 'Permit Approver', minWidth: 140, maxWidth: 160,
       onRender: (row) => {
-        const effectiveList = row.piApproverList ?? piApproverList ?? [];
+        const effectiveList = piApproverList ?? [];
         const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
         if (isClosed) {
           return <TextField value={row.piApprover ? row.piApprover?.text : ''} readOnly />
