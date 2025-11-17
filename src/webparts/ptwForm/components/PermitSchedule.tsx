@@ -65,6 +65,12 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     []
   );
 
+  const today = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
   // Define DetailsList columns
   const columns: IColumn[] = React.useMemo(() => [
     {
@@ -88,10 +94,15 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
     {
       key: 'col-date', name: 'Date', minWidth: 160, maxWidth: 170,
       onRender: (row) => (
-        <DatePicker value={row.date ? new Date(row.date) : undefined} style={{ maxWidth: '100%' }} strings={defaultDatePickerStrings}
+        <DatePicker
+          value={row.date ? new Date(row.date) : undefined}
+          style={{ maxWidth: '100%' }}
+          strings={defaultDatePickerStrings}
           onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '', row.isChecked)}
           disabled={!row.isChecked}
           styles={datePickerBlackStyles}
+          minDate={today}              // disallow past dates
+          allowTextInput={false}
         />
       )
     },

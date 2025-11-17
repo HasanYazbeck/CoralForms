@@ -100,6 +100,9 @@ export interface IPTWWorkflow {
     AssetDirectorReplacer: IPersonaProps | undefined;
     AssetDirectorApprovalDate: Date | undefined;
     AssetDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    UrgentAssetDirectorRejectionReas: string;
+    UrgentAssetDirectorApprovalDate: Date | undefined;
+    UrgentAssetDirectorStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
     HSEDirectorApprover: IPersonaProps | undefined;
     HSEDirectorReplacer: IPersonaProps | undefined;
     HSEDirectorApprovalDate: Date | undefined;
