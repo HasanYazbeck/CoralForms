@@ -57,7 +57,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitStatus,
   isPermitIssuer,
   piApproverList,
-  isIssued
+  isIssued,
+  isSubmitted
 }) => {
 
   const piStatusOptions: IComboBoxOption[] = React.useMemo(
@@ -79,7 +80,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
         const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
         const hasPermitID = isNumericId(row.id);
         const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
-        const disabled = (hasPermitID || isClosed);
+        const disabled = (hasPermitID || isClosed) && isSubmitted;
 
         return (
           <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}

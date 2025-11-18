@@ -31,4 +31,5 @@ export interface IPermitScheduleProps {
   isPermitIssuer?: boolean;
   piApproverList: IPersonaProps[] | undefined;
   isIssued: boolean;
+  isSubmitted: boolean;
 }

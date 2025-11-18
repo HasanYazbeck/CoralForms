@@ -144,7 +144,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   const columns = React.useMemo<IColumn[]>(
     () => [
       { key: 'colCoralReferenceNumber', name: 'Ref #', fieldName: 'coralReferenceNumber', minWidth: 160, maxWidth: 180, isResizable: true },
-      {key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 100, isResizable: true},
+      { key: 'colAssetId', name: 'Asset Id', fieldName: 'assetId', minWidth: 100, isResizable: true },
       {
         key: 'colWorkflowStatus', name: 'Status', fieldName: 'WorkflowStatus', minWidth: 180, isResizable: true,
         onRender: (row: Row) => {
@@ -156,7 +156,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
           // return showModifiedBy ? `${status} - Modified By ${row.editorName || row.editorEmail}` : status;
         }
       },
-      { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 160, isResizable: true },
+      // { key: 'colRejectionReason', name: 'Rejection Reason', fieldName: 'rejectionReason', minWidth: 160, isResizable: true },
       { key: 'colProjectTitle', name: 'Project Title', fieldName: 'projectTitle', minWidth: 160, isResizable: true },
       { key: 'colAssetCategory', name: 'Asset Category', fieldName: 'assetCategory', minWidth: 200, isResizable: true },
       { key: 'colAssetDetails', name: 'Asset Details', fieldName: 'assetDetails', minWidth: 200, isResizable: true },
@@ -199,7 +199,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     const filterActive = `&$filter=FormStatusRecord eq 'Submitted' and (WorkflowStatus eq 'In Review' or WorkflowStatus eq 'New' or WorkflowStatus eq 'Issued' or WorkflowStatus eq 'Renewed')`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed' or WorkflowStatus eq 'Permanently Closed'`;
     const filterRejected = `&$filter=WorkflowStatus eq 'Rejected'`;
-    const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
+    // const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
     const orderBy = `&$orderby=Created desc`;
 
     const headers = { Accept: 'application/json;odata=nometadata', 'odata-version': '' } as any;
@@ -210,7 +210,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
       // Continue from SharePoint’s paging link (absolute URL)
       url = nextLink;
     } else {
-      const filter = scope === 'closed' ? filterClosed : scope === 'rejected' ? filterRejected : scope === 'saved' ? filterSaved : filterActive;
+      const filter = scope === 'closed' ? filterClosed : scope === 'rejected' ? filterRejected : filterActive;
       url = `${webUrl}/_api/web/lists(guid'${listGuid}')/items${baseSelect}${filter}${orderBy}&$top=${PAGE_SIZE}`;
     }
 
@@ -294,7 +294,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
     }
   }, [selectedRows, listGuid, context, loadItems, onDelete]);
 
-  const switchState = React.useCallback((next: 'submitted' | 'rejected' | 'closed' | 'saved') => {
+  const switchState = React.useCallback((next: 'submitted' | 'rejected' | 'closed') => {
     setView(next);
     setNextLink(undefined);
     setHasMore(false);
@@ -322,9 +322,9 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
   };
 
   const viewLabel = React.useMemo(() => (
-    view === 'submitted' ? 'Submitted' :
+    // view === 'submitted' ? 'Submitted' :
       view === 'rejected' ? 'Rejected' :
-        view === 'closed' ? 'Closed' : 'Saved'
+        view === 'closed' ? 'Closed' : 'Submitted'
   ), [view]);
 
   const cmdItems = React.useMemo<ICommandBarItemProps[]>(() => {
@@ -376,12 +376,12 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
         iconProps: { iconName: 'View' },
         subMenuProps: {
           items: [
-            {
-              key: 'saved',
-              text: 'Saved',
-              iconProps: { iconName: 'Save' },
-              onClick: () => switchState('saved')
-            },
+            // {
+            //   key: 'saved',
+            //   text: 'Saved',
+            //   iconProps: { iconName: 'Save' },
+            //   onClick: () => switchState('saved')
+            // },
             {
               key: 'submitted',
               text: 'Submitted',

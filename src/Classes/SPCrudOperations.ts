@@ -388,8 +388,8 @@ export class SPCrudOperations {
       if (response.ok) {
         console.log("Item deleted successfully");
       } else {
-        // const errorResponse: any = await response.json();
-        // console.error(`Error deleting item. Status: ${response.status}`, errorResponse);
+        const errorResponse: any = await response.json();
+        console.error(`Error deleting item. Status: ${response.status}`, errorResponse);
         throw new Error(`Error deleting item. Status: ${response.status}`);
       }
     } catch (error) {
