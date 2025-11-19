@@ -30,7 +30,8 @@ import {
   defaultDatePickerStrings,
   IDatePickerStyles,
   TeachingBubble,
-  MessageBarType
+  ITextFieldStyles,
+  IToggleStyles
 } from '@fluentui/react';
 import { NormalPeoplePicker, IBasePickerSuggestionsProps, IBasePickerStyles } from '@fluentui/react/lib/Pickers';
 import { ICompany, ILKPItemInstructionsForUse } from '../../../Interfaces/Common/ICommon';
@@ -47,6 +48,7 @@ import { DocumentMetaBanner } from '../../../Components/DocumentMetaBanner';
 import { ICoralFormsList } from '../../../Interfaces/Common/ICoralFormsList';
 import ExportPdfControls from '../../ptwForm/components/ExportPdfControls';
 import BannerComponent, { BannerKind } from '../../ppeForm/components/BannerComponent';
+import { PTWWorkflowStatus } from '../../../Enums/enums';
 
 interface IRiskAssessmentResult {
   rows: IRiskTaskRow[];
@@ -56,6 +58,17 @@ interface IRiskAssessmentResult {
 }
 
 export default function PTWForm(props: IPTWFormProps) {
+
+  // Add status type and options
+  type SignOffStatus = 'Pending' | 'Approved' | 'Rejected' | 'Closed';
+
+  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
+    { key: 'Pending', text: 'Pending' },
+    { key: 'Approved', text: 'Approved' },
+    { key: 'Rejected', text: 'Rejected' },
+    { key: 'Closed', text: 'Closed' }
+  ]), []);
+
   // Helpers and refs
   const formName = "Permit To Work";
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -147,28 +160,6 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_isAssetDirReplacer, setIsAssetDirectorReplacer] = React.useState<boolean>(false);
   const [_isHseDirReplacer, setIsHseDirectorReplacer] = React.useState<boolean>(false);
 
-  // Add status type and options
-  type SignOffStatus = 'Pending' | 'Approved' | 'Rejected' | 'Closed';
-
-  enum PTWWorkflowStatus {
-    New = 'New',
-    InReview = 'In Review',
-    Issued = 'Issued',
-    Open = 'Open',
-    Renewed = 'Renewed',
-    Closed = 'Closed',
-    PermanentlyClosed = 'Permanently Closed',
-    Rejected = 'Rejected',
-    Cancelled = 'Cancelled'
-  }
-
-  const statusOptions: IDropdownOption[] = React.useMemo(() => ([
-    { key: 'Pending', text: 'Pending' },
-    { key: 'Approved', text: 'Approved' },
-    { key: 'Rejected', text: 'Rejected' },
-    { key: 'Closed', text: 'Closed' }
-  ]), []);
-
   // SharePoint group members cache
   type SPGroupUser = { id: number; title: string; email: string };
   const [groupMembers, setGroupMembers] = React.useState<Record<string, SPGroupUser[]>>({});
@@ -235,6 +226,17 @@ export default function PTWForm(props: IPTWFormProps) {
   const [_canPOResubmitAfterRejection, setCanPOResubmitAfterRejection] = React.useState<boolean>(false);
   const [suppressAutoPrefill, setSuppressAutoPrefill] = React.useState<boolean>(false);
   const [showExtendDialog, setShowExtendDialog] = React.useState(false);
+
+  // States for Work Extension Dialog
+  const rejectionResetDoneRef = React.useRef(false);
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
+  const [startTime, setStartTime] = React.useState('');
+  const [endTime, setEndTime] = React.useState('');
+  const [selectedApprover, setSelectedApprover] = React.useState<string | undefined>(undefined);
+  const [errors, setErrors] = React.useState<string[]>([]);
+  const [isTeachingBubbleVisible, setIsTeachingBubbleVisible] = React.useState(false);
+  const buttonRef = React.useRef<HTMLDivElement>(null);
+
   // Styling Components
   const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
@@ -258,6 +260,58 @@ export default function PTWForm(props: IPTWFormProps) {
     },
     input: { color: '#000 !important', fontWeight: '500 !important', }
   };
+
+  const datePickerBlackStyles: Partial<IDatePickerStyles> = {
+    root: { width: '100%', selectors: { '> *': { marginBottom: 15 } } },
+    readOnlyTextField: {
+      selectors: {
+        '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+        '.field': { color: '#000 !important', fontWeight: 500, },
+      }
+    },
+    textField: {
+      selectors: {
+        '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+        '.field': { color: '#000 !important', fontWeight: 500, },
+      },
+      field: { color: '#000 !important', fontWeight: 500, },
+      root: { color: '#000  !important' },
+      suffix: { color: '#000' },
+      description: { color: '#000  !important' },
+      fieldGroup: {
+        // keep disabled background clean
+        selectors: { '&.is-disabled': { background: 'transparent' } }
+      }
+    },
+    icon: { color: '#000  !important' }
+  };
+
+  const textFieldBlackStyles: Partial<ITextFieldStyles> = {
+    // Applies to both input and textarea
+    field: {
+      color: '#000', // <-- main text
+      selectors: {
+        '&::placeholder': { color: '#666', fontWeight: 500, },        // optional: darker placeholder
+        '&:disabled': { color: '#000', fontWeight: 500, }             // ensure disabled still renders black
+      },
+      subComponentStyles: {
+        label: { root: { color: '#000', fontWeight: 500, } }
+      }
+    }
+  };
+
+  const customToggleStyles: Partial<IToggleStyles> = {
+    label: {
+      color: '#000',       // Black color
+      fontWeight: 500,     // Bold
+      fontSize: '14px',    // Optional: slightly bigger font
+    },
+    thumb:{
+      backgroundColor: '#cccccc' // Black color for the thumb
+    }
+  };
+
+  // End Styling Components
 
   const isHighRisk = React.useMemo(() => {
     return String(_overAllRiskAssessment || '').toLowerCase().includes('high');
@@ -2770,7 +2824,6 @@ export default function PTWForm(props: IPTWFormProps) {
       body['WorkCategoryId@odata.type'] = 'Collection(Edm.Int32)';
       body['WorkCategoryId'] = payload.permitTypes.map(Number);
     }
-
     if (payload.workHazardIds?.length) {
       body['WorkHazardsId@odata.type'] = 'Collection(Edm.Int32)';
       body['WorkHazardsId'] = payload.workHazardIds.map(Number);
@@ -3867,7 +3920,7 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [mode, permitScheduleRows, isPermitIssuer, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker]);
 
   const showPOClosureSection = React.useMemo((): boolean => {
-    if (mode !== 'submitted' || (!isPermitOriginator && !isAssetManager)) return false;
+    if (mode !== 'submitted' || (!isUniquePermitOriginator && !isAssetManager)) return false;
 
     // true when id has no letters (i.e., purely numeric -> no "text" in id)
     const isNumericId = (id: string) => /^[0-9]+$/.test(String(id || ''));
@@ -3877,8 +3930,8 @@ export default function PTWForm(props: IPTWFormProps) {
 
     const completedApprovals = approvedPermitsCount === _permitPayloadValidityDays;
 
-    return (isPermitOriginator && completedApprovals) || (isAssetManager && completedApprovals);
-  }, [mode, permitScheduleRows, isPermitOriginator, _permitPayloadValidityDays, isAssetManager]);
+    return (isUniquePermitOriginator && completedApprovals) || (isAssetManager && completedApprovals);
+  }, [mode, permitScheduleRows, isUniquePermitOriginator, _permitPayloadValidityDays, isAssetManager]);
 
   const showConfirmButtonForPermitOriginator = React.useMemo((): boolean => {
     if (mode !== 'submitted' || (!isPermitOriginator)) return false;
@@ -3926,8 +3979,6 @@ export default function PTWForm(props: IPTWFormProps) {
     }
     return false;
   }, [isIssued, isUniqueHSEDirector, isUniquePermitIssuer, _isUrgentSubmission, isHighRisk]);
-
-  const rejectionResetDoneRef = React.useRef(false);
 
   // Small helpers: set only if not suppressed OR current selection is empty
   const safeSetPicker = React.useCallback(
@@ -4014,42 +4065,6 @@ export default function PTWForm(props: IPTWFormProps) {
     return d;
   }, []);
 
-  const datePickerBlackStyles: Partial<IDatePickerStyles> = {
-    root: { width: '100%', selectors: { '> *': { marginBottom: 15 } } },
-    readOnlyTextField: {
-      selectors: {
-        '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
-        '.field': { color: '#000 !important', fontWeight: 500, },
-      }
-    },
-    textField: {
-      selectors: {
-        '&.is-disabled .ms-TextField-field': { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
-        '.field': { color: '#000 !important', fontWeight: 500, },
-      },
-      field: { color: '#000 !important', fontWeight: 500, },
-      root: { color: '#000  !important' },
-      suffix: { color: '#000' },
-      description: { color: '#000  !important' },
-      fieldGroup: {
-        // keep disabled background clean
-        selectors: { '&.is-disabled': { background: 'transparent' } }
-      }
-    },
-    icon: { color: '#000  !important' }
-  };
-
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
-  const [startTime, setStartTime] = React.useState('');
-  const [endTime, setEndTime] = React.useState('');
-  const [selectedApprover, setSelectedApprover] = React.useState<string | undefined>(undefined);
-  const [errors, setErrors] = React.useState<string[]>([]);
-  const [isTeachingBubbleVisible, setIsTeachingBubbleVisible] = React.useState(false);
-  const buttonRef = React.useRef<HTMLDivElement>(null)
-
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
-
   const validateNewPermitExtension = (item: any): string[] => {
     const errors: string[] = [];
     if (!item.date) errors.push("Date is required.");
@@ -4085,7 +4100,8 @@ export default function PTWForm(props: IPTWFormProps) {
     }
     setIsTeachingBubbleVisible(false);
     setShowExtendDialog(false);
-    setIsLoading(true);
+    setIsBusy(true);
+    setBusyLabel('Creating PTW renewal...');
     try {
       const extendedFormId = await _extendCurrentPTW(Number(_PermitOriginator?.[0]?.id), item);
       if (extendedFormId) {
@@ -4095,10 +4111,13 @@ export default function PTWForm(props: IPTWFormProps) {
       }
     }
     catch (error) {
-      setSuccessMessage(error instanceof Error ? error.message : 'An unexpected error occurred. Reload and try again.');
+      setIsBusy(false);
+      setShowExtendDialog(false);
+      showBanner(error instanceof Error ? error.message : 'An unexpected error occurred. Reload and try again.', { kind: 'error', autoHideMs: 5000, fade: true });
     }
     finally {
-      setIsLoading(false); // Hide loader
+      setIsBusy(false);
+      setBusyLabel(''); // Hide loader
     }
   };
 
@@ -4333,7 +4352,7 @@ export default function PTWForm(props: IPTWFormProps) {
         dialogContentProps={{
           type: DialogType.largeHeader,
           title: 'Extend Work Permit',
-          subText: `Maximum number of permit(s) ${_permitPayloadValidityDays} are reached.` +
+          subText: `Maximum number of permit(s) ${_permitPayloadValidityDays} are reached. ` +
             `Do you want to extend your current work permit? This will create a new PTW form with the same details and reference number ${_coralReferenceNumber}.`
         }}
         modalProps={{
@@ -4354,22 +4373,10 @@ export default function PTWForm(props: IPTWFormProps) {
           />
 
           {/* Start Time */}
-          <TextField
-            label="Starting Time"
-            type="time"
-            value={startTime}
-            onChange={(_, val) => setStartTime(val || '')}
-            step={60}
-          />
+          <TextField label="Starting Time" type="time" value={startTime} onChange={(_, val) => setStartTime(val || '')} step={60}/>
 
           {/* Expiry Time */}
-          <TextField
-            label="Expiry Time"
-            type="time"
-            value={endTime}
-            onChange={(_, val) => setEndTime(val || '')}
-            step={60}
-          />
+          <TextField  label="Expiry Time"  type="time" value={endTime} onChange={(_, val) => setEndTime(val || '')} step={60}/>
 
           {/* Permit Approver */}
           <ComboBox
@@ -4383,20 +4390,6 @@ export default function PTWForm(props: IPTWFormProps) {
         </DialogContent>
         <DialogFooter>
           <>
-            {isLoading && (
-              <Spinner size={SpinnerSize.large} label="Processing PTW renewal..." />
-            )}
-
-            {successMessage && (
-              <MessageBar
-                messageBarType={MessageBarType.success}
-                isMultiline={false}
-                onDismiss={() => setSuccessMessage(null)}
-              >
-                {successMessage}
-              </MessageBar>
-            )}
-
             <div ref={buttonRef}>
               <PrimaryButton
                 text="Yes, Extend"
@@ -4448,7 +4441,7 @@ export default function PTWForm(props: IPTWFormProps) {
         <div id="formHeaderInfo" className={styles.formBody} style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           {/* Administrative Note */}
           <div className={`row mb-1`} id="administrativeNoteDiv">
-            <div className={`form-group col-md-12`}>
+            <div className={`form-group col-md-6`}>
               <NormalPeoplePicker label={"Permit Originator"} onResolveSuggestions={_onFilterChanged} itemLimit={1}
                 className={'ms-PeoplePicker'}
                 key={'permitOriginator'}
@@ -4474,7 +4467,6 @@ export default function PTWForm(props: IPTWFormProps) {
             <div className={`form-group col-md-6`} id="previousPtwRefDiv">
               <TextField
                 label="Previous PTW Ref #"
-                // placeholder="(optional)"
                 value={_previousPtwRef}
                 onChange={(_, v) => setPreviousPtwRef(v || '')}
                 readOnly={true}
@@ -4494,9 +4486,8 @@ export default function PTWForm(props: IPTWFormProps) {
                   id: Number(item.key), title: item.text, orderRecord: 0,
                   fullName: ptwFormStructure?.companies?.find(c => c.id === Number(item.key))?.fullName || ''
                 } : undefined)}
-                styles={comboBoxBlackStyles}
+                // styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
-              // disabled={isSubmitted}
               />
             </div>
             <div className={`form-group col-md-6`}>
@@ -4504,7 +4495,6 @@ export default function PTWForm(props: IPTWFormProps) {
                 label="Asset ID"
                 value={_assetId}
                 onChange={(_, newValue) => setAssetId(newValue || '')}
-              // readOnly={isSubmitted}
               />
 
             </div>
@@ -4518,7 +4508,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 options={assetCategoriesList?.map(c => ({ key: c.id, text: c.title || '' })) || []}
                 selectedKey={_selectedAssetCategory}
                 onChange={(_e, ch) => onAssetCategoryChange(_e, ch)}
-                styles={comboBoxBlackStyles}
+                // styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               // disabled={isSubmitted}
               />
@@ -4531,8 +4521,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 selectedKey={_selectedAssetDetails}
                 onChange={(_e, ch) => onAssetDetailsChange(_e as any, ch as any)}
                 disabled={!_selectedAssetCategory}
-                // disabled={(!_selectedAssetCategory || isSubmitted)}
-                styles={comboBoxBlackStyles}
+                styles={!_selectedAssetCategory ? comboBoxBlackStyles : undefined}
                 useComboBoxAsMenuWidth={true}
               />
             </div>
@@ -4563,6 +4552,7 @@ export default function PTWForm(props: IPTWFormProps) {
                   setIsUrgentSubmission(!!chk)
                 }}
                 disabled={isSubmitted}
+                styles={isSubmitted ? customToggleStyles : undefined}
               />
               <small className="text-muted">
                 Use only for urgent PTW forms that must be submitted earlier than the norm interval.
@@ -4719,13 +4709,21 @@ export default function PTWForm(props: IPTWFormProps) {
                           <Label style={{ paddingRight: '10px' }}>Gas Test Result:</Label>
                         </div>
                         <div style={{ flex: '1' }}>
-                          <TextField
-                            type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                            placeholder="Enter result"
-                            disabled={_gasTestValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)}
-                            value={_gasTestResult}
-                            onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                          />
+                          {(
+                            () => {
+                              const enabled = _gasTestValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector);
+                              return (
+                                <TextField
+                                  type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                  placeholder="Enter result"
+                                  disabled={enabled}
+                                  value={_gasTestResult}
+                                  onChange={(e, newValue) => setGasTestResult(newValue || '')}
+                                  styles={enabled ? textFieldBlackStyles : undefined}
+                                />
+                              );
+                            }
+                          )()}
                         </div>
                       </div>
                     </div>
@@ -4752,12 +4750,18 @@ export default function PTWForm(props: IPTWFormProps) {
                           <Label style={{ paddingRight: '10px' }}>Firewatch Assigned:</Label>
                         </div>
                         <div style={{ flex: '1' }}>
-                          <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                            placeholder="Enter name"
-                            disabled={_fireWatchValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)}
-                            value={_fireWatchAssigned}
-                            onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
-                          />
+
+                          {(() => {
+                            const disabled = _fireWatchValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)
+                            return (<TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                              placeholder="Enter name"
+                              disabled={disabled}
+                              value={_fireWatchAssigned}
+                              onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
+                              styles={disabled ? textFieldBlackStyles : undefined}
+                            />);
+                          })()}
+
                         </div>
                       </div>
                     </div>
@@ -4783,12 +4787,20 @@ export default function PTWForm(props: IPTWFormProps) {
                     <Label style={{ paddingRight: '10px' }}>Details:</Label>
                   </div>
                   <div style={{ flex: '1' }}>
-                    <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                      placeholder="Enter detail"
-                      disabled={_attachmentsValue !== 'Yes'}
-                      value={_attachmentsResult}
-                      onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
-                    />
+                    {(
+                      () => {
+                        const disabled = _attachmentsValue !== 'Yes';
+                        return (
+                          <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            placeholder="Enter detail"
+                            disabled={disabled}
+                            value={_attachmentsResult}
+                            onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
+                            styles={disabled ? textFieldBlackStyles : undefined}
+                          />
+                        );
+                      }
+                    )()}
                   </div>
                 </div>
 
@@ -4968,7 +4980,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       onChange={(items) => setToolboxConductedBy(items && items.length ? items : [])}
                       inputProps={{ placeholder: 'Enter name or email' }}
                       pickerSuggestionsProps={suggestionProps}
-                      disabled={!_selectedToolboxTalk}
+                      disabled={!(_selectedToolboxTalk)}
                     />
                   </div>
 
@@ -5046,6 +5058,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
                         selectedKey={_paStatus}
                         useComboBoxAsMenuWidth
+                        styles={comboBoxBlackStyles}
                         onChange={(_, opt) => {
                           setPaRejectionReason('');
                           setPaStatus((opt?.key as SignOffStatus) ?? 'Pending');
@@ -5086,7 +5099,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           selectedKey={_piPicker?.[0]?.id || undefined}
                           onChange={onPermitIssuerChange((items) => setPiPicker(items), setPiStatusEnabled)}
                           useComboBoxAsMenuWidth
-                          styles={comboBoxBlackStyles}
+                          styles={!(isPIPickerEnabled() || suppressAutoPrefill) ? comboBoxBlackStyles : undefined}
                           className={'pb-1'}
                         />
                         <DatePicker
@@ -5108,6 +5121,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           }
                           }
                           useComboBoxAsMenuWidth
+                          styles={!isPIStatusEnabled ? comboBoxBlackStyles : undefined}
                         />
                         {/* Show reason only when Rejected */}
                         {_piStatus === 'Rejected' && (
@@ -5185,6 +5199,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           placeholder="Status"
                           options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
                           selectedKey={_urgentAssetDirStatus}
+                          styles={comboBoxBlackStyles}
                           onChange={(_, opt) => {
                             setUrgentAssetDirRejectionReas('');
                             setUrgentAssetDirStatus((opt?.key as SignOffStatus) ?? 'Pending')
@@ -5238,6 +5253,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         placeholder="Status"
                         options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'closed')}
                         selectedKey={_piStatus}
+                        styles={comboBoxBlackStyles}
                         onChange={(_, opt) => {
                           setPiRejectionReason('');
                           setPiStatus((opt?.key as SignOffStatus) ?? 'Pending');
@@ -5325,6 +5341,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           placeholder="Status"
                           options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
                           selectedKey={_assetDirStatus}
+                          styles={comboBoxBlackStyles}
                           onChange={(_, opt) => {
                             setAssetDirRejectionReason('');
                             setAssetDirStatus((opt?.key as SignOffStatus) ?? 'Pending')
@@ -5396,6 +5413,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           placeholder="Status"
                           options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
                           selectedKey={_hseDirStatus}
+                          styles={!enabled ? comboBoxBlackStyles : undefined}
                           onChange={(_, opt) => {
                             setHseDirRejectionReason('');
                             setHseDirStatus((opt?.key as SignOffStatus) ?? 'Pending');
@@ -5456,6 +5474,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           placeholder='Status'
                           options={statusOptions.filter(opt => opt.text.toLowerCase() === 'approved' || opt.text.toLowerCase() === 'pending' || opt.text.toLowerCase() === 'rejected')}
                           selectedKey={_closurePoStatus}
+                          styles={!enabled ? comboBoxBlackStyles : undefined}
                           onChange={(_, opt) => {
                             setClosurePoStatus((opt?.key as SignOffStatus) ?? 'Pending');
                           }
@@ -5512,6 +5531,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           selectedKey={_closureAssetManagerStatus}
                           onChange={(_, opt) => setClosureAssetManagerStatus((opt?.key as SignOffStatus) ?? 'Pending')}
                           useComboBoxAsMenuWidth
+                          styles={!enabled ? comboBoxBlackStyles : undefined}
                         />
                       );
                     }
@@ -5621,14 +5641,6 @@ export default function PTWForm(props: IPTWFormProps) {
             onClick={() => resubmitAfterRejection('submitAfterRejection')}
           />
         )}
-
-        {/* {mode === "saved" && isUniquePermitOriginator && (
-          <PrimaryButton
-            text="Delete Saved PTW"
-            onClick={() => _deleteSavedForm('delete')}
-            disabled={!isUniquePermitOriginator || isBusy}
-          />
-        )} */}
 
       </div>
 

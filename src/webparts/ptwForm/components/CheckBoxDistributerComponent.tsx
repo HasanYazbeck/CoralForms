@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ILookupItem } from "../../../Interfaces/PtwForm/IPTWForm";
-import { Checkbox, TextField } from "@fluentui/react";
+import { Checkbox, ITextFieldStyles, TextField } from "@fluentui/react";
 import styles from "./PtwForm.module.scss";
 
 interface ICheckBoxDistributerComponentProps {
@@ -25,6 +25,20 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
   );
   const countOthers = props.countOthersAsSelection ?? true;
 
+  const textFieldBlackStyles: Partial<ITextFieldStyles> = {
+    // Applies to both input and textarea
+    field: {
+      color: '#000', // <-- main text
+      selectors: {
+        '&::placeholder': { color: '#666', fontWeight: 500, },        // optional: darker placeholder
+        '&:disabled': { color: '#000', fontWeight: 500, }             // ensure disabled still renders black
+      },
+      subComponentStyles: {
+        label: { root: { color: '#000', fontWeight: 500, } }
+      }
+    }
+  };
+
   const { regularCategories, othersCategory } = React.useMemo(() => {
     const items = props.optionList?.slice()?.sort((a, b) => a.orderRecord - b.orderRecord) ?? [];
     const others = items.find(c => c.title === 'Others' || c.title === 'Other' || c.title === 'Other(s)');
@@ -32,7 +46,7 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
     return { regularCategories: regular, othersCategory: others };
   }, [props.optionList]);
 
-   // NEW: derive active state and sync checkbox when text/value exists or Others selected
+  // NEW: derive active state and sync checkbox when text/value exists or Others selected
   const isOthersActive = React.useMemo(() => {
     const hasText = !!props.othersTextValue && props.othersTextValue.trim() !== '';
     const othersSelected = !!othersCategory && effectiveSelectedIds.includes(othersCategory.id);
@@ -106,6 +120,7 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
                 props.onOthersChange?.(othersChecked, val);
               }}
               disabled={!isOthersActive}
+              styles={!isOthersActive ? textFieldBlackStyles : undefined}
             />
           </div>
         </div>

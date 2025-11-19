@@ -51,6 +51,17 @@ export interface IRiskAssessmentListProps {
 const toComboOptions = (values: string[]): IComboBoxOption[] =>
     (values || []).map(v => ({ key: v, text: v }));
 
+const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+    root: {
+        selectors: {
+            '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+            '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+            '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+        }
+    },
+    input: { color: '#000' } // supported in v8; safe no-op if ignored
+};
+
 const newRow = (): IRiskTaskRow => ({
     id: `riskrow-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     task: '',
@@ -266,7 +277,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     useComboBoxAsMenuWidth
                     disabled={disableRiskControls || row.disabledFields}
                     onRenderOption={renderRiskOption}
-                    styles={getRiskComboStyles(row.initialRisk)}
+                    styles={getRiskComboStyles(row.initialRisk) && comboBoxBlackStyles}
                 />
             )
         },
@@ -358,7 +369,8 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     useComboBoxAsMenuWidth
                     disabled={disableRiskControls || row.disabledFields}
                     onRenderOption={renderRiskOption}
-                    styles={getRiskComboStyles(row.residualRisk)}
+                    styles={getRiskComboStyles(row.residualRisk) && comboBoxBlackStyles}
+                    
                 />
             )
         },

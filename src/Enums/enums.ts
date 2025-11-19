@@ -19,10 +19,15 @@ export enum FormsApprovalLevels {
   FOLA = 4,
   FILA = 5
 }
-// Example status options for workflow status field
-// export const lKPWorkflowStatus: ISPListItem[] = [
-//   { Id: "1", Title: 'Pending' },
-//   { Id: "2", Title: 'Approved' },
-//   { Id: "3", Title: 'Rejected' },
-//   { Id: "4", Title: 'Closed' },
-// ];
+
+export enum PTWWorkflowStatus {
+  New = 'New',
+  InReview = 'In Review',
+  Issued = 'Issued',
+  Open = 'Open',
+  Renewed = 'Renewed',
+  Closed = 'Closed',
+  PermanentlyClosed = 'Permanently Closed',
+  Rejected = 'Rejected',
+  Cancelled = 'Cancelled'
+}

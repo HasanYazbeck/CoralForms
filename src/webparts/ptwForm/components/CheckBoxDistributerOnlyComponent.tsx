@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ILookupItem } from "../../../Interfaces/PtwForm/IPTWForm";
-import { Checkbox, TextField } from "@fluentui/react";
+import { Checkbox, ITextFieldStyles, TextField } from "@fluentui/react";
 import styles from "./PtwForm.module.scss";
 
 interface ICheckBoxDistributerOnlyComponentProps {
@@ -15,7 +15,19 @@ interface ICheckBoxDistributerOnlyComponentProps {
 export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnlyComponentProps): JSX.Element {
     const [othersChecked, setOthersChecked] = React.useState(false);
     const [othersText, setOthersText] = React.useState('');
-
+    const textFieldBlackStyles: Partial<ITextFieldStyles> = {
+        // Applies to both input and textarea
+        field: {
+            color: '#000', // <-- main text
+            selectors: {
+                '&::placeholder': { color: '#666', fontWeight: 500, },        // optional: darker placeholder
+                '&:disabled': { color: '#000', fontWeight: 500, }             // ensure disabled still renders black
+            },
+            subComponentStyles: {
+                label: { root: { color: '#000', fontWeight: 500, } }
+            }
+        }
+    };
     const { regularCategories, othersCategory } = React.useMemo(() => {
         const items = props.optionList?.slice()?.sort((a, b) => a.orderRecord - b.orderRecord) ?? [];
         const others = items.find(c => c.title === 'Others' || c.title === 'Other');
@@ -60,6 +72,7 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
                             value={othersText}
                             // onChange={(e) => setOthersText(e.target.value)}
                             disabled={!othersChecked}
+                            styles={!othersChecked ? textFieldBlackStyles : undefined}
                         />
                     </div>
                 </div>
