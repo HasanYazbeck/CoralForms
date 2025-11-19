@@ -16,7 +16,8 @@ import {
     Checkbox,
     DefaultButton,
     IComboBoxStyles,
-    TooltipHost, DirectionalHint
+    TooltipHost, DirectionalHint,
+    ITextFieldStyles
 } from '@fluentui/react';
 
 export interface IRiskTaskRow {
@@ -46,6 +47,7 @@ export interface IRiskAssessmentListProps {
     onChange?: (state: {
         rows: IRiskTaskRow[];
     }) => void;
+    exportMode: boolean;
 }
 
 const toComboOptions = (values: string[]): IComboBoxOption[] =>
@@ -54,12 +56,26 @@ const toComboOptions = (values: string[]): IComboBoxOption[] =>
 const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
     root: {
         selectors: {
-            '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-            '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-            '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+            '.ms-ComboBox-Input': { color: '#000', fontWeight: 400, },
+            '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 400, },
+            '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 400, },
         }
     },
     input: { color: '#000' } // supported in v8; safe no-op if ignored
+};
+const textFieldBlackStyles: Partial<ITextFieldStyles> = {
+    // Applies to both input and textarea
+    field: {
+        color: '#000', // <-- main text
+        selectors: {
+            '&::placeholder': { color: '#666', fontWeight: 500, },        // optional: darker placeholder
+            '&:disabled': { color: '#000', fontWeight: 500, }             // ensure disabled still renders black
+        },
+        subComponentStyles: {
+            label: { root: { color: '#000', fontWeight: 500, } }
+        }
+    },
+    root: { width: '68%' }
 };
 
 const newRow = (): IRiskTaskRow => ({
@@ -86,11 +102,13 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
     onDetailedRiskChange,
     onDetailedRiskRefChange,
     onChange,
-    disableRiskControls = false
+    disableRiskControls = false,
+    exportMode
 }) => {
     const [rows, setRows] = React.useState<IRiskTaskRow[]>(defaultRows?.length ? defaultRows : [newRow()]);
     const [safeFilterByRow, setSafeFilterByRow] = React.useState<Record<string, string>>({});
     const allSafeguardsById = React.useRef<Map<number, ILookupItem>>(new Map());
+    const uiDisabled = React.useCallback((normalDisabled: boolean) => (exportMode ? false : normalDisabled), [exportMode]);
 
     React.useEffect(() => {
         (safeguards || []).forEach(s => {
@@ -370,7 +388,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                     disabled={disableRiskControls || row.disabledFields}
                     onRenderOption={renderRiskOption}
                     styles={getRiskComboStyles(row.residualRisk) && comboBoxBlackStyles}
-                    
+
                 />
             )
         },
@@ -451,19 +469,10 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                         backgroundColor: '#f1f1f1'
                     }}>
                         <Label style={{ marginRight: "10px", paddingTop: "10px" }}>Overall Risk Assessment</Label>
-                        <ChoiceGroup
-                            disabled={disableRiskControls || rows.some(r => r.disabledFields)}
-                            selectedKey={selectedOverallRisk}
-                            options={overallOptions}
-                            onChange={(_, option) => onOverallRiskChange(option?.key)}
-                            style={{ color: '#232020', fontWeight: "700" }}
-                            styles={{
-                                flexContainer: {
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    flexWrap: 'nowrap', // keep on one line
-                                    columnGap: "12px"
-                                },
+                        {(() => {
+                            const disabled = disableRiskControls || rows.some(r => r.disabledFields);
+                            const styles = {
+                                flexContainer: { display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', columnGap: "12px"},
                                 root: {
                                     selectors: {
                                         '.ms-ChoiceFieldGroup-flexContainer': {
@@ -474,8 +483,17 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                         }
                                     }
                                 }
-                            }}
-                        />
+                            }
+                            return (<ChoiceGroup
+                                disabled={uiDisabled(disabled)}
+                                selectedKey={selectedOverallRisk}
+                                options={overallOptions}
+                                onChange={(_, option) => onOverallRiskChange(option?.key)}
+                                style={{ color: '#232020', fontWeight: "700" }}
+                                styles={styles}
+                            />);
+                        })()}
+
                         <Label styles={{ root: { fontStyle: 'italic', fontSize: 12, color: '#6b6b6b' } as any }}>
                             If the Overall Risk Assessment is ranked as High (as per COR-HSE-03-MTX-001), HSE & terminal management approval is required.
                         </Label>
@@ -497,18 +515,22 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                                 label="Detailed (L2) Risk Assessment required"
                                 checked={l2Required}
                                 onChange={(_, chk) => onDetailedRiskChange(!!chk)}
-                                disabled={disableRiskControls}
+                                disabled={uiDisabled(disableRiskControls)}
+                                styles={disableRiskControls ? comboBoxBlackStyles : undefined}
                             />
                         </div>
 
                         <div className='col-md-7' style={{ display: 'flex', flexWrap: "nowrap", gap: "10px" }}>
                             <Label style={{ fontStyle: 'italic' }}>Risk Assessment Ref. Nbr.</Label>
-                            <TextField
-                                value={l2Ref}
-                                disabled={disableRiskControls || !l2Required}
-                                onChange={(_, v) => onDetailedRiskRefChange(v || '')}
-                                styles={{ root: { width: '68%' } }}
-                            />
+                            {(() => {
+                                const disable = disableRiskControls || !l2Required;
+                                return (<TextField
+                                    value={l2Ref}
+                                    disabled={disable}
+                                    onChange={(_, v) => onDetailedRiskRefChange(v || '')}
+                                    styles={disable ? textFieldBlackStyles : { root: { width: '68%' } }}
+                                />);
+                            })()}
                         </div>
 
                     </div>

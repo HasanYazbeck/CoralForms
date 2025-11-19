@@ -6,9 +6,23 @@ import {
   MessageBar,
   ComboBox,
   IComboBoxOption,
-  IPersonaProps
+  IPersonaProps,
+  IComboBoxStyles
 } from '@fluentui/react';
 import { IPermitScheduleProps } from '../../../Interfaces/PtwForm/IPermitSchedule';
+
+// Styling Components
+const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
+  root: {
+    selectors: {
+      '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
+      '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
+    }
+  },
+  inputDisabled:{ color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+  input: { color: '#000' }
+};
 
 const datePickerBlackStyles: Partial<IDatePickerStyles> = {
   root: { width: '100%', selectors: { '> *': { marginBottom: 15 } } },
@@ -35,18 +49,6 @@ const datePickerBlackStyles: Partial<IDatePickerStyles> = {
   icon: { color: '#000  !important' }
 };
 
-// Styling Components
-// const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
-//   root: {
-//     selectors: {
-//       '.ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-//       '&.is-disabled .ms-ComboBox-Input': { color: '#000', fontWeight: 500, },
-//       '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
-//     }
-//   },
-//   input: { color: '#000' } // supported in v8; safe no-op if ignored
-// };
-
 const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   permitRows,
   selectedPermitTypeList,
@@ -58,13 +60,15 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   isPermitIssuer,
   piApproverList,
   isIssued,
-  isSubmitted
+  isSubmitted,
+  exportMode
 }) => {
 
   const piStatusOptions: IComboBoxOption[] = React.useMemo(
     () => ['Approved', 'Rejected', 'Closed'].map(s => ({ key: s, text: s })),
     []
   );
+  const uiDisabled = React.useCallback((normalDisabled: boolean) => (exportMode ? false : normalDisabled), [exportMode]);
 
   const today = React.useMemo(() => {
     const d = new Date();
@@ -101,8 +105,8 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           strings={defaultDatePickerStrings}
           onSelectDate={(date) => onPermitRowUpdate(row.id, 'date', date ? date.toISOString() : '', row.isChecked)}
           disabled={!row.isChecked}
-          styles={datePickerBlackStyles}
-          minDate={today}              // disallow past dates
+          styles={!row.isChecked ? datePickerBlackStyles : undefined}
+          minDate={today}
           allowTextInput={false}
         />
       )
@@ -204,10 +208,11 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
                 return (
                   <div key={category.id} className="col-xl-2 col-lg-3 col-3 col-md-3 col-sm-6 col-12" style={{ marginBottom: '10px' }}>
                     <Checkbox
-                      disabled={isIssued}
+                      disabled={uiDisabled(isIssued)}
                       label={category.title}
                       checked={checked}
                       onChange={(e, checked) => onPermitTypeChange(checked, category)}
+                      styles={checked ? comboBoxBlackStyles : undefined}
                     />
                   </div>
                 );

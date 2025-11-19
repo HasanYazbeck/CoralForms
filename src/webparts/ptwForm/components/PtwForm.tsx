@@ -306,12 +306,13 @@ export default function PTWForm(props: IPTWFormProps) {
       fontWeight: 500,     // Bold
       fontSize: '14px',    // Optional: slightly bigger font
     },
-    thumb:{
+    thumb: {
       backgroundColor: '#cccccc' // Black color for the thumb
     }
   };
 
   // End Styling Components
+  const uiDisabled = React.useCallback((normalDisabled: boolean) => (exportMode ? false : normalDisabled), [exportMode]);
 
   const isHighRisk = React.useMemo(() => {
     return String(_overAllRiskAssessment || '').toLowerCase().includes('high');
@@ -1473,43 +1474,6 @@ export default function PTWForm(props: IPTWFormProps) {
     }
   }, [workPermitRequired]);
 
-  React.useEffect(() => {
-    if (!bannerText) return;
-
-    // Determine current scrollTop (container or window)
-    const currentScrollTop = (containerRef.current && typeof containerRef.current.scrollTop === 'number'
-      ? containerRef.current.scrollTop
-      : (window.scrollY || document.documentElement.scrollTop || 0));
-
-    if (currentScrollTop >= 0) {
-      // Wait a tick so the banner renders, then scroll to it
-      requestAnimationFrame(() => {
-        if (bannerTopRef.current) {
-          bannerTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else if (containerRef.current) {
-          containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-    }
-  }, [bannerText, bannerTick]);
-
-  // When we start submitting/updating, scroll to where the loader overlay is rendered
-  React.useEffect(() => {
-    if (!isBusy) return;
-    // Wait for overlay to render, then scroll it into view
-    requestAnimationFrame(() => {
-      if (overlayRef.current && overlayRef.current.scrollIntoView) {
-        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
-      } else if (containerRef.current) {
-        try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
-      } else {
-        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
-      }
-    });
-  }, [isBusy]);
-
   const mergeRiskRows = (prev?: IRiskTaskRow[], next?: IRiskTaskRow[]): IRiskTaskRow[] => {
     if (!next || next.length === 0) return prev ? prev.slice() : [];
     if (!prev || prev.length === 0) return next.slice();
@@ -1705,11 +1669,11 @@ export default function PTWForm(props: IPTWFormProps) {
     _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment,
     _poDate, _poStatus, _paPicker, _paDate, _paStatus, _piPicker, _piDate, _piStatus,
     _assetDirPicker, _assetDirDate, _assetDirStatus,
-    _hseDirPicker, _hseDirDate, _hseDirStatus,
+    _hseDirPicker, _hseDirDate, _hseDirStatus,_toolboxHSEReference,_selectedToolboxConductedBy,_selectedToolboxTalkDate,_selectedToolboxTalk,
     _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
     _closurePoDate, _closurePoStatus, _isUrgentSubmission, _previousPtwRef, _paRejectionReason, _piRejectionReason,
     _assetDirRejectionReason, _hseDirRejectionReason, _isAssetDirReplacer, _isHseDirReplacer, _permitPayloadValidityDays, _urgentAssetDirDate, _urgentAssetDirStatus,
-    _urgentAssetDirRejectionReas
+    _urgentAssetDirRejectionReas , _poRejectionReason , _asssetManagerRejectionReason, _hseDirReplacerPicker, _assetDirReplacerPicker
   ]);
 
   const validateBeforeSubmit = React.useCallback((originatorId: number | undefined, mode: 'save' | 'submit' | 'approve' | 'approveWithoutUpdate'): string | undefined => {
@@ -1945,9 +1909,8 @@ export default function PTWForm(props: IPTWFormProps) {
         if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
       }
 
-      if (isPermitOriginator && _workflowStage?.toLowerCase() === 'Issued'.toLowerCase()) {
+      if (isUniquePermitOriginator && _workflowStage?.toLowerCase() === 'Issued'.toLowerCase()) {
         if (payload.closurePOStatus === 'Pending') missing.push('Approval/Rejection Status.');
-        // if (payload.closurePOStatus === 'Rejected' && (!payload.closurePOPickerId || String(payload.closurePOPickerId).trim() === '')) missing.push('HSE Director');
         if (payload.closurePOStatus === 'Rejected' && !String(payload.closurePORejectionReason || '').trim()) missing.push('Your Rejection Reason');
       }
 
@@ -2255,6 +2218,7 @@ export default function PTWForm(props: IPTWFormProps) {
             body = {
               UrgentAssetDirectorStatus: payload.urgentAssetDirStatus,
               UrgentAssetDirectorApprovalDate: payload.urgentAssetDirStatus !== 'Pending' ? payload.urgentAssetDirectorApprovalDate : nowIso,
+              UrgentAssetDirectorRejectionReas: payload.urgentAssetDirStatus === 'Rejected' ? payload.urgentAssetDirRejectionReas : null,
             }
           }
 
@@ -2262,9 +2226,10 @@ export default function PTWForm(props: IPTWFormProps) {
             body = {
               AssetDirectorStatus: payload.assetDirStatus,
               AssetDirectorApprovalDate: payload.assetDirStatus !== 'Pending' ? payload.assetDirectorApprovalDate : nowIso,
+              AssetDirectorRejectionReason: payload.assetDirStatus === 'Rejected' ? payload.assetDirRejectionReason : null,
             }
           }
-        }
+        } 
 
         if (isHSEDirector) {
           body = {
@@ -2277,6 +2242,7 @@ export default function PTWForm(props: IPTWFormProps) {
           body = {
             POClosureDate: payload.closurePOStatus !== 'Pending' ? nowIso : '',
             POClosureStatus: payload.closurePOStatus,
+            POClosureRejectionReason: payload.closurePOStatus === 'Rejected' ? payload.closurePORejectionReason : null,
           }
         }
 
@@ -2284,6 +2250,7 @@ export default function PTWForm(props: IPTWFormProps) {
           body = {
             AssetManagerApprovalDate: payload.closureAssetManagerStatus !== 'Pending' ? nowIso : '',
             AssetManagerStatus: payload.closureAssetManagerStatus,
+            AssetManagerRejectionReason: payload.closureAssetManagerStatus === 'Rejected' ? payload.assetManagerRejectionReason : null,
           }
         }
 
@@ -3262,7 +3229,7 @@ export default function PTWForm(props: IPTWFormProps) {
           `AssetDirectorReplacer/Id,AssetDirectorReplacer/EMail,AssetDirectorReplacer/Title,` +
           `HSEDirectorApprover/Id,HSEDirectorApprover/EMail,HSEDirectorApprover/Title,HSEDirectorRejectionReason,` +
           `HSEDirectorReplacer/Id,HSEDirectorReplacer/EMail,HSEDirectorReplacer/Title,` +
-          `POClosureApprover/Id,POClosureApprover/EMail,POClosureApprover/Title,` +
+          `POClosureApprover/Id,POClosureApprover/EMail,POClosureApprover/Title,POClosureRejectionReason,` +
           `AssetManagerApprover/Id,AssetManagerApprover/EMail,AssetManagerApprover/Title` +
           `&$expand=PTWForm,POApprover,PAApprover,PIApprover,AssetDirectorApprover,AssetDirectorReplacer,HSEDirectorApprover,HSEDirectorReplacer,POClosureApprover,AssetManagerApprover` +
           `&$filter=PTWForm/Id eq '${formId}'`;
@@ -3487,6 +3454,7 @@ export default function PTWForm(props: IPTWFormProps) {
               POClosureApprover: headerWorkflow.POClosureApprover !== undefined && headerWorkflow.POClosureApprover !== null ? toPersona(headerWorkflow.POClosureApprover) : undefined,
               POClosureDate: headerWorkflow.POClosureDate !== undefined && headerWorkflow.POClosureDate !== null ? headerWorkflow.POClosureDate : undefined,
               POClosureStatus: headerWorkflow.POClosureStatus !== undefined && headerWorkflow.POClosureStatus !== null ? headerWorkflow.POClosureStatus : undefined,
+              POClosureRejectionReason: headerWorkflow.POClosureRejectionReason || '',
 
               AssetManagerApprover: headerWorkflow.AssetManagerApprover !== undefined && headerWorkflow.AssetManagerApprover !== null ? spHelpers.toPersona(headerWorkflow.AssetManagerApprover) : undefined,
               AssetManagerApprovalDate: headerWorkflow.AssetManagerApprovalDate !== undefined && headerWorkflow.AssetManagerApprovalDate !== null ? headerWorkflow.AssetManagerApprovalDate : undefined,
@@ -3542,6 +3510,7 @@ export default function PTWForm(props: IPTWFormProps) {
               setClosureAssetManagerPicker(result.AssetManagerApprover ? [{ text: result.AssetManagerApprover.text || '', secondaryText: result.AssetManagerApprover.secondaryText || '', id: result.AssetManagerApprover.id || '' }] : []);
               setClosureAssetManagerDate(result.AssetManagerApprovalDate ? new Date(result.AssetManagerApprovalDate) : undefined);
               setClosureAssetManagerStatus((result.AssetManagerStatus as SignOffStatus) ?? undefined);
+              setPORejectionReason(result.POClosureRejectionReason || '');
 
               setPaRejectionReason(result.PARejectionReason || '');
               setPiRejectionReason(result.PIRejectionReason || '');
@@ -4280,6 +4249,58 @@ export default function PTWForm(props: IPTWFormProps) {
   //   }
   // }, [props.context.spHttpClient, props.formId, showBanner]);
 
+  // When we start submitting/updating, scroll to where the loader overlay is rendered
+  React.useEffect(() => {
+    if (!isExportingPdf) return;
+    // Wait for overlay to render, then scroll it into view
+    requestAnimationFrame(() => {
+      if (overlayRef.current && overlayRef.current.scrollIntoView) {
+        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+      } else if (containerRef.current) {
+        try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      } else {
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      }
+    });
+  }, [isExportingPdf]);
+
+  React.useEffect(() => {
+    if (!bannerText) return;
+
+    // Determine current scrollTop (container or window)
+    const currentScrollTop = (containerRef.current && typeof containerRef.current.scrollTop === 'number'
+      ? containerRef.current.scrollTop
+      : (window.scrollY || document.documentElement.scrollTop || 0));
+
+    if (currentScrollTop >= 0) {
+      // Wait a tick so the banner renders, then scroll to it
+      requestAnimationFrame(() => {
+        if (bannerTopRef.current) {
+          bannerTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (containerRef.current) {
+          containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    }
+  }, [bannerText, bannerTick]);
+
+  // When we start submitting/updating, scroll to where the loader overlay is rendered
+  React.useEffect(() => {
+    if (!isBusy) return;
+    // Wait for overlay to render, then scroll it into view
+    requestAnimationFrame(() => {
+      if (overlayRef.current && overlayRef.current.scrollIntoView) {
+        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+      } else if (containerRef.current) {
+        try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      } else {
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
+      }
+    });
+  }, [isBusy]);
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -4325,6 +4346,7 @@ export default function PTWForm(props: IPTWFormProps) {
       {/* Screen-blocking overlay while preparing the PDF */}
       {isExportingPdf && (
         <div
+          ref={overlayRef}
           aria-busy="true"
           role="dialog"
           aria-modal="true"
@@ -4342,7 +4364,7 @@ export default function PTWForm(props: IPTWFormProps) {
             pointerEvents: 'all'
           }}
         >
-          <Spinner label="Preparing PDF…" />
+          <Spinner label="Preparing PDF…" size={SpinnerSize.large} />
         </div>
       )}
 
@@ -4373,10 +4395,10 @@ export default function PTWForm(props: IPTWFormProps) {
           />
 
           {/* Start Time */}
-          <TextField label="Starting Time" type="time" value={startTime} onChange={(_, val) => setStartTime(val || '')} step={60}/>
+          <TextField label="Starting Time" type="time" value={startTime} onChange={(_, val) => setStartTime(val || '')} step={60} />
 
           {/* Expiry Time */}
-          <TextField  label="Expiry Time"  type="time" value={endTime} onChange={(_, val) => setEndTime(val || '')} step={60}/>
+          <TextField label="Expiry Time" type="time" value={endTime} onChange={(_, val) => setEndTime(val || '')} step={60} />
 
           {/* Permit Approver */}
           <ComboBox
@@ -4486,7 +4508,6 @@ export default function PTWForm(props: IPTWFormProps) {
                   id: Number(item.key), title: item.text, orderRecord: 0,
                   fullName: ptwFormStructure?.companies?.find(c => c.id === Number(item.key))?.fullName || ''
                 } : undefined)}
-                // styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
               />
             </div>
@@ -4508,9 +4529,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 options={assetCategoriesList?.map(c => ({ key: c.id, text: c.title || '' })) || []}
                 selectedKey={_selectedAssetCategory}
                 onChange={(_e, ch) => onAssetCategoryChange(_e, ch)}
-                // styles={comboBoxBlackStyles}
                 useComboBoxAsMenuWidth={true}
-              // disabled={isSubmitted}
               />
             </div>
             <div className={`form-group col-md-6`}>
@@ -4551,7 +4570,7 @@ export default function PTWForm(props: IPTWFormProps) {
                 onChange={(_, chk) => {
                   setIsUrgentSubmission(!!chk)
                 }}
-                disabled={isSubmitted}
+                disabled={uiDisabled(isSubmitted)}
                 styles={isSubmitted ? customToggleStyles : undefined}
               />
               <small className="text-muted">
@@ -4577,6 +4596,7 @@ export default function PTWForm(props: IPTWFormProps) {
               piApproverList={_piHsePartnerFilteredByCategory}
               isIssued={isIssued}
               isSubmitted={isSubmitted}
+              exportMode={exportMode}
             />
             {/* Action buttons under PermitSchedule */}
             {(() => {
@@ -4659,6 +4679,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       onDetailedRiskRefChange={handleDetailedRiskRefChange}
                       l2Required={_detailedRiskAssessment}
                       l2Ref={_riskAssessmentReferenceNumber}
+                      exportMode={exportMode}
                     />
                   </div>
                 </div>
@@ -4701,7 +4722,7 @@ export default function PTWForm(props: IPTWFormProps) {
                                   setGasTestResult('');
                                 }
                                 }
-                                disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
+                                disabled={uiDisabled(!(isUniquePermitIssuer || isUniqueHSEDirector))}
                               />
                             </div>
                           ))}
@@ -4711,15 +4732,15 @@ export default function PTWForm(props: IPTWFormProps) {
                         <div style={{ flex: '1' }}>
                           {(
                             () => {
-                              const enabled = _gasTestValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector);
+                              const disabled = _gasTestValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector);
                               return (
                                 <TextField
                                   type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                                  placeholder="Enter result"
-                                  disabled={enabled}
+                                  placeholder={!disabled ? "Enter result" : ''}
+                                  disabled={uiDisabled(disabled)}
                                   value={_gasTestResult}
                                   onChange={(e, newValue) => setGasTestResult(newValue || '')}
-                                  styles={enabled ? textFieldBlackStyles : undefined}
+                                  styles={disabled ? textFieldBlackStyles : undefined}
                                 />
                               );
                             }
@@ -4743,7 +4764,7 @@ export default function PTWForm(props: IPTWFormProps) {
                                   setFireWatchValue(prev => (prev === item ? '' : item));
                                   setFireWatchAssigned('');
                                 }}
-                                disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
+                                disabled={uiDisabled(!(isUniquePermitIssuer || isUniqueHSEDirector))}
                               />
                             </div>
                           ))}
@@ -4753,13 +4774,14 @@ export default function PTWForm(props: IPTWFormProps) {
 
                           {(() => {
                             const disabled = _fireWatchValue !== 'Yes' && !(isUniquePermitIssuer || isUniqueHSEDirector)
-                            return (<TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                              placeholder="Enter name"
-                              disabled={disabled}
-                              value={_fireWatchAssigned}
-                              onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
-                              styles={disabled ? textFieldBlackStyles : undefined}
-                            />);
+                            return (
+                              <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                placeholder={!disabled ? "Enter name" : ''}
+                                disabled={uiDisabled(disabled)}
+                                value={_fireWatchAssigned}
+                                onChange={(e, newValue) => setFireWatchAssigned(newValue || '')}
+                                styles={disabled ? textFieldBlackStyles : undefined}
+                              />);
                           })()}
 
                         </div>
@@ -4792,8 +4814,8 @@ export default function PTWForm(props: IPTWFormProps) {
                         const disabled = _attachmentsValue !== 'Yes';
                         return (
                           <TextField type="text" style={{ padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px' }}
-                            placeholder="Enter detail"
-                            disabled={disabled}
+                            placeholder={!disabled ? "Enter detail" : ''}
+                            disabled={uiDisabled(disabled)}
                             value={_attachmentsResult}
                             onChange={(e, newValue) => setAttachmentsResult(newValue || '')}
                             styles={disabled ? textFieldBlackStyles : undefined}
@@ -4948,21 +4970,26 @@ export default function PTWForm(props: IPTWFormProps) {
               {(isIssued || isUniquePermitIssuer || isUniqueHSEDirector) && (
                 <div className="row pb-3" id="toolboxTalkSection" style={{ breakAfter: exportMode ? 'page' : 'auto' }} >
                   <div className="col-md-3" style={{ display: 'flex', alignItems: 'center' }}>
-                    <Checkbox
-                      label="Toolbox Talk (TBT); complete details if applicable"
-                      checked={!!_selectedToolboxTalk}
-                      onChange={(_, chk) => {
-                        const isChecked = !!chk;
-                        setToolboxTalk(isChecked);
-                        if (!isChecked) {
-                          setToolboxConductedBy(undefined);
-                          setTimeout(() => setToolboxConductedBy([]), 0);
-                          setToolboxHSEReference('');
-                          setToolboxTalkDate(undefined);
-                        }
-                      }}
-                      disabled={!(isUniquePermitIssuer || isUniqueHSEDirector)}
-                    />
+                    {(() => {
+                      const disabled = !(isUniquePermitIssuer || isUniqueHSEDirector)
+                      return (<Checkbox
+                        label="Toolbox Talk (TBT); complete details if applicable"
+                        checked={!!_selectedToolboxTalk}
+                        onChange={(_, chk) => {
+                          const isChecked = !!chk;
+                          setToolboxTalk(isChecked);
+                          if (!isChecked) {
+                            setToolboxConductedBy(undefined);
+                            setTimeout(() => setToolboxConductedBy([]), 0);
+                            setToolboxHSEReference('');
+                            setToolboxTalkDate(undefined);
+                          }
+                        }}
+                        disabled={uiDisabled(disabled)}
+                        styles={disabled ? comboBoxBlackStyles : undefined}
+                      />);
+                    })()}
+
                   </div>
 
                   <div className="col-md-4">
@@ -5026,6 +5053,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     disabled={true}
                     placeholder="Select date"
                     value={_poDate ? _poDate : new Date()}
+                    styles={datePickerBlackStyles}
                   />
                 </div>
 
@@ -5051,6 +5079,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         disabled={true}
                         placeholder="Select date"
                         value={_paDate ? new Date(_paDate) : new Date()}
+                        styles={datePickerBlackStyles}
                       />
                       <ComboBox
                         disabled={!(isPaStatusEnabled || suppressAutoPrefill)}
@@ -5106,6 +5135,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           disabled={true}
                           placeholder="Select date"
                           value={_piDate ? new Date(_piDate) : new Date()}
+                          styles={datePickerBlackStyles}
                         />
                         <ComboBox
                           disabled={!isPIStatusEnabled}
@@ -5187,6 +5217,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <DatePicker
                       disabled={true}
+                      styles={datePickerBlackStyles}
                       placeholder="Select date"
                       value={_urgentAssetDirDate ? new Date(_urgentAssetDirDate) : new Date()}
                     />
@@ -5245,6 +5276,7 @@ export default function PTWForm(props: IPTWFormProps) {
                       />
                       <DatePicker
                         disabled={true}
+                        styles={datePickerBlackStyles}
                         placeholder="Select date"
                         value={_piDate ? new Date(_piDate) : new Date()}
                       />
@@ -5330,6 +5362,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <DatePicker
                       disabled={true}
+                      styles={datePickerBlackStyles}
                       placeholder="Select date"
                       value={_assetDirDate ? new Date(_assetDirDate) : new Date()}
                     />
@@ -5396,11 +5429,11 @@ export default function PTWForm(props: IPTWFormProps) {
                           : (_hseDirPicker?.[0]?.id ? _hseDirPicker : [])
                       }
                       pickerSuggestionsProps={suggestionProps}
-                      // disabled={!stageEnabled.hseDirEnabled}
                       disabled={true}
                     />
                     <DatePicker
                       disabled={true}
+                      styles={datePickerBlackStyles}
                       placeholder="Select date"
                       value={_hseDirDate ? new Date(_hseDirDate) : new Date()}
                     />
@@ -5437,11 +5470,8 @@ export default function PTWForm(props: IPTWFormProps) {
                       />
                     )}
                   </div>
-
-
                 </div>
               )}
-
 
               {/* PTW Closure */}
               {showPOClosureSection && (
@@ -5462,6 +5492,7 @@ export default function PTWForm(props: IPTWFormProps) {
                     />
                     <DatePicker
                       placeholder="Select date"
+                      styles={datePickerBlackStyles}
                       value={_closurePoDate ? new Date(_closurePoDate) : new Date()}
                       disabled={true}
                     />
@@ -5517,6 +5548,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
                     <DatePicker
                       disabled={true}
+                      styles={datePickerBlackStyles}
                       placeholder="Select date"
                       value={_closureAssetManagerDate ? new Date(_closureAssetManagerDate) : new Date()}
                     />

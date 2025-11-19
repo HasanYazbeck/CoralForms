@@ -67,8 +67,8 @@ export function CheckBoxDistributerOnlyComponent(props: ICheckBoxDistributerOnly
 
                     <div className={styles.othersTextWrapper}>
                         <TextField type="text"
-                            className={styles.othersText}
-                            placeholder="Please specify"
+                            className={othersChecked ? styles.othersText : undefined}
+                            placeholder={othersChecked ? "Please specify" : ""}
                             value={othersText}
                             // onChange={(e) => setOthersText(e.target.value)}
                             disabled={!othersChecked}

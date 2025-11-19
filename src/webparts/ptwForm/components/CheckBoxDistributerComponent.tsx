@@ -112,7 +112,7 @@ export function CheckBoxDistributerComponent(props: ICheckBoxDistributerComponen
             <TextField
               type="text"
               className={styles.othersText}
-              placeholder="Please specify"
+              placeholder={isOthersActive ? "Please specify" : ''}
               value={props.othersTextValue !== undefined ? props.othersTextValue : othersText}
               onChange={(_, v) => {
                 const val = v || '';

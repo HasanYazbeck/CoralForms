@@ -110,6 +110,7 @@ export interface IPTWWorkflow {
     POClosureApprover: IPersonaProps | undefined;
     POClosureDate: Date | undefined;
     POClosureStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
+    POClosureRejectionReason: string;
     AssetManagerApprover: IPersonaProps | undefined;
     AssetManagerApprovalDate: Date | undefined;
     AssetManagerStatus: "Approved" | "Rejected" | "Pending" | "Closed" | undefined;
