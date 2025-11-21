@@ -3047,6 +3047,7 @@ export default function PTWForm(props: IPTWFormProps) {
           PIRejectionReason: payload.piRejectionReason || '',
 
           AssetDirectorApproverId: payload.assetDirPickerId ? Number(payload.assetDirPickerId) : undefined,
+          AssetDirectorReplacerId: payload.assetDirReplacerPickerId ? Number(payload.assetDirReplacerPickerId) : undefined,
           UrgentAssetDirectorStatus: payload.urgentAssetDirStatus || 'Pending',
 
           HSEDirectorApproverId: payload.hseDirPickerId ? Number(payload.hseDirPickerId) : undefined,
@@ -3054,6 +3055,8 @@ export default function PTWForm(props: IPTWFormProps) {
           HSEDirectorRejectionReason: payload.hseDirRejectionReason || '',
           HSEDirectorReplacerId: payload.hseDirReplacerPickerId ? Number(payload.hseDirReplacerPickerId) : undefined,
 
+            
+          
           POClosureApproverId: originatorId,
           POClosureStatus: payload.closurePoStatus || 'Pending',
 
