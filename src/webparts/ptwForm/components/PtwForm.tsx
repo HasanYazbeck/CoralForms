@@ -303,12 +303,12 @@ export default function PTWForm(props: IPTWFormProps) {
   const customToggleStyles: Partial<IToggleStyles> = {
     label: {
       color: '#000',       // Black color
-      fontWeight: 500,     // Bold
-      fontSize: '14px',    // Optional: slightly bigger font
+      fontWeight: 500
     },
-    thumb: {
-      backgroundColor: '#cccccc' // Black color for the thumb
-    }
+    // thumb: {
+    //   backgroundColor: '#000' // Black color for the thumb
+    // }
+    
   };
 
   // End Styling Components
