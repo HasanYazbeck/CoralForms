@@ -308,7 +308,7 @@ export default function PTWForm(props: IPTWFormProps) {
     // thumb: {
     //   backgroundColor: '#000' // Black color for the thumb
     // }
-    
+
   };
 
   // End Styling Components
@@ -1145,8 +1145,12 @@ export default function PTWForm(props: IPTWFormProps) {
   const machineryOptions = React.useMemo(() => {
     const items = ptwFormStructure?.machinaries || [];
     return items.sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0))
-      .map(m => ({ key: m.id, text: m.title, selected: _selectedMachineryIds?.includes(Number(m.id)) }));
-  }, [ptwFormStructure?.machinaries, _selectedMachineryIds]);
+      .map(m => ({
+        key: m.id, text: m.title,
+        // selected: _selectedMachineryIds?.includes(Number(m.id))
+      }));
+  }, [ptwFormStructure?.machinaries]);
+
 
   const onMachineryChange = React.useCallback((_: React.FormEvent<IComboBox>, option?: any) => {
     if (!option) return;
@@ -1175,9 +1179,9 @@ export default function PTWForm(props: IPTWFormProps) {
     return (personnelInvolved || []).map(p => ({
       key: p.Id,
       text: p.fullName || '',
-      selected: _selectedPersonnelIds?.includes(Number(p.Id))
+      // selected: _selectedPersonnelIds?.includes(Number(p.Id))
     }));
-  }, [personnelInvolved, _selectedPersonnelIds]);
+  }, [personnelInvolved]);
 
   const onPersonnelChange = React.useCallback((_: React.FormEvent<IComboBox>, option?: any) => {
     if (!option) return;
@@ -1572,13 +1576,49 @@ export default function PTWForm(props: IPTWFormProps) {
 
     const loggedInUserIshseEMail = currentUserEmail.toLowerCase() === hSEDirectorEMail.toLowerCase();
 
-    const isUniquehse = (loggedInUserIshseEMail && (assetDirectorEMail !== (pOEMail || pIEMail || pAEMail || assetDirectorEMail || assetManagerEMail)));
+    const isUniquehse = (loggedInUserIshseEMail && (hSEDirectorEMail !== (pOEMail || pIEMail || pAEMail || assetDirectorEMail || assetManagerEMail)));
 
     if (isHSEDirector && isUniquehse) {
       return true;
     }
     return false;
   }, [isHSEDirector, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail]);
+
+  const isUniqueAssetDirector = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+
+    const loggedInUserIshseEMail = currentUserEmail.toLowerCase() === assetDirectorEMail.toLowerCase();
+
+    const isUniqueAssetDir = (loggedInUserIshseEMail && (assetDirectorEMail !== (pOEMail || pIEMail || pAEMail || hSEDirectorEMail || assetManagerEMail)));
+
+    if (isAssetDirector && isUniqueAssetDir) {
+      return true;
+    }
+    return false;
+  }, [isAssetDirector, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail]);
+
+  const isUniqueAssetManager = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+
+    const loggedInUserIsAssetManagerEMail = currentUserEmail.toLowerCase() === assetManagerEMail.toLowerCase();
+
+    const isUniqueAssetManager = (loggedInUserIsAssetManagerEMail && (assetManagerEMail !== (pOEMail || pIEMail || pAEMail || hSEDirectorEMail || assetDirectorEMail)));
+
+    if (isAssetManager && isUniqueAssetManager) {
+      return true;
+    }
+    return false;
+  }, [isAssetManager, _PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail]);
 
   // Minimal payload builder (adjust to your save schema)
   const buildPayload = React.useCallback(() => {
@@ -1669,11 +1709,11 @@ export default function PTWForm(props: IPTWFormProps) {
     _workHazardsOtherText, _riskAssessmentsTasks, _riskAssessmentReferenceNumber, _overAllRiskAssessment, _detailedRiskAssessment,
     _poDate, _poStatus, _paPicker, _paDate, _paStatus, _piPicker, _piDate, _piStatus,
     _assetDirPicker, _assetDirDate, _assetDirStatus,
-    _hseDirPicker, _hseDirDate, _hseDirStatus,_toolboxHSEReference,_selectedToolboxConductedBy,_selectedToolboxTalkDate,_selectedToolboxTalk,
+    _hseDirPicker, _hseDirDate, _hseDirStatus, _toolboxHSEReference, _selectedToolboxConductedBy, _selectedToolboxTalkDate, _selectedToolboxTalk,
     _closureAssetManagerPicker, _closureAssetManagerDate, _closureAssetManagerStatus,
     _closurePoDate, _closurePoStatus, _isUrgentSubmission, _previousPtwRef, _paRejectionReason, _piRejectionReason,
     _assetDirRejectionReason, _hseDirRejectionReason, _isAssetDirReplacer, _isHseDirReplacer, _permitPayloadValidityDays, _urgentAssetDirDate, _urgentAssetDirStatus,
-    _urgentAssetDirRejectionReas , _poRejectionReason , _asssetManagerRejectionReason, _hseDirReplacerPicker, _assetDirReplacerPicker
+    _urgentAssetDirRejectionReas, _poRejectionReason, _asssetManagerRejectionReason, _hseDirReplacerPicker, _assetDirReplacerPicker
   ]);
 
   const validateBeforeSubmit = React.useCallback((originatorId: number | undefined, mode: 'save' | 'submit' | 'approve' | 'approveWithoutUpdate'): string | undefined => {
@@ -1815,7 +1855,7 @@ export default function PTWForm(props: IPTWFormProps) {
         if (payload.paStatus === 'Rejected' && !String(payload.paRejectionReason || '').trim()) missing.push('PA Rejection Reason');
       }
 
-      if (isPermitIssuer && !isIssued) {
+      if (isUniquePermitIssuer && !isIssued) {
         if (payload.piStatus === 'Pending') missing.push('Approval/Rejection Status.');
         if (payload.piStatus === 'Rejected' && (!payload.piPickerId || String(payload.piPickerId).trim() === '')) missing.push('Permit Issuer');
         // if (payload.piStatus === 'Approved' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
@@ -1890,7 +1930,7 @@ export default function PTWForm(props: IPTWFormProps) {
         }
       }
 
-      if (isAssetDirector && (isIssued || payload.isUrgentSubmission)) {
+      if (isUniqueAssetDirector && (isIssued || payload.isUrgentSubmission)) {
         if (payload.isUrgentSubmission) {
           if (payload.urgentAssetDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
           if (payload.urgentAssetDirStatus === 'Rejected' && (!payload.assetDirPickerId || String(payload.assetDirPickerId).trim() === '')) missing.push('Asset Director');
@@ -1903,7 +1943,7 @@ export default function PTWForm(props: IPTWFormProps) {
         }
       }
 
-      if (isHSEDirector && (isIssued || payload.isUrgentSubmission) && (_workflowStage?.toLowerCase() !== 'ApprovedFromAssetToHSE'.toLowerCase())) {
+      if (isUniqueHSEDirector && (isIssued || payload.isUrgentSubmission) && (_workflowStage?.toLowerCase() !== 'ApprovedFromAssetToHSE'.toLowerCase())) {
         if (payload.hseDirStatus === 'Pending') missing.push('Approval/Rejection Status.');
         if (payload.hseDirStatus === 'Rejected' && (!payload.hseDirPickerId || String(payload.hseDirPickerId).trim() === '')) missing.push('HSE Director');
         if (payload.hseDirStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('HSE Director Rejection Reason');
@@ -1914,7 +1954,7 @@ export default function PTWForm(props: IPTWFormProps) {
         if (payload.closurePOStatus === 'Rejected' && !String(payload.closurePORejectionReason || '').trim()) missing.push('Your Rejection Reason');
       }
 
-      if (isAssetManager && _workflowStage?.toLowerCase() === 'ClosedByPO'.toLowerCase()) {
+      if (isUniqueAssetManager && _workflowStage?.toLowerCase() === 'ClosedByPO'.toLowerCase()) {
         if (payload.closureAssetManagerStatus === 'Pending') missing.push('Approval/Rejection Status.');
         if (payload.closureAssetManagerStatus === 'Rejected' && (!payload.closureAssetManagerPickerId || String(payload.closureAssetManagerPickerId).trim() === '')) missing.push('Asset Manager');
         if (payload.closureAssetManagerStatus === 'Rejected' && !String(payload.hseDirRejectionReason || '').trim()) missing.push('Asset Manager Rejection Reason');
@@ -1924,7 +1964,7 @@ export default function PTWForm(props: IPTWFormProps) {
     if (mode === 'approveRenewalPermit') {
 
       //TODO: Add validations if any on issue permit
-      if (isPermitIssuer) {
+      if (isUniquePermitIssuer) {
         // Tasks required when 3 + hazards: list rows missing a task
         const hazardsCount = Array.isArray(payload.workHazardIds) ? payload.workHazardIds.length : 0;
         if (hazardsCount >= 3) {
@@ -2022,7 +2062,7 @@ export default function PTWForm(props: IPTWFormProps) {
       return `Please fill in the required fields: ${missing.join(', ')}.`;
     }
     return undefined;
-  }, [buildPayload, isPerformingAuthority, isPermitIssuer, _assetDirPicker]);
+  }, [buildPayload, isPerformingAuthority, isPermitIssuer, _assetDirPicker, isUniquePermitIssuer, isUniqueAssetManager, isUniquePermitOriginator, isUniqueHSEDirector]);
 
   const approveFormWWithUpdate = React.useCallback(async (mode: 'approve' | 'approveRenewalPermit'): Promise<boolean> => {
     payloadRef.current = buildPayload();
@@ -2229,7 +2269,7 @@ export default function PTWForm(props: IPTWFormProps) {
               AssetDirectorRejectionReason: payload.assetDirStatus === 'Rejected' ? payload.assetDirRejectionReason : null,
             }
           }
-        } 
+        }
 
         if (isHSEDirector) {
           body = {
@@ -3055,8 +3095,8 @@ export default function PTWForm(props: IPTWFormProps) {
           HSEDirectorRejectionReason: payload.hseDirRejectionReason || '',
           HSEDirectorReplacerId: payload.hseDirReplacerPickerId ? Number(payload.hseDirReplacerPickerId) : undefined,
 
-            
-          
+
+
           POClosureApproverId: originatorId,
           POClosureStatus: payload.closurePoStatus || 'Pending',
 
@@ -3336,14 +3376,17 @@ export default function PTWForm(props: IPTWFormProps) {
           }
 
           if (headerSecondSelect.ProtectiveSafetyEquipments.length > 0) {
-            setSelectedProtectiveEquipmentIds(headerSecondSelect.ProtectiveSafetyEquipments.map(
-              (item: any) => {
-                if (item.Title.toLowerCase().includes('other')) {
+            const ids = (headerSecondSelect.ProtectiveSafetyEquipments || [])
+              .map((item: any) => {
+                if (String(item?.Title || '').toLowerCase().includes('other')) {
                   setProtectiveEquipmentsOtherText(headerSecondSelect?.ProtectiveSafetyEquipmentsOthers || '');
                 }
                 return Number(item.Id);
-              }));
+              })
+              .filter((n: number) => !isNaN(n));
+            setSelectedProtectiveEquipmentIds(new Set<number>(ids));
           }
+
           if (headerSecondSelect?.MachineryInvolved.length > 0) {
             setSelectedMachineryIds(headerSecondSelect?.MachineryInvolved.map((item: any) => Number(item.Id)) || []);
           }
@@ -4304,6 +4347,23 @@ export default function PTWForm(props: IPTWFormProps) {
     });
   }, [isBusy]);
 
+
+
+  const lowestValidityPermit = React.useMemo(() => {
+
+    const lowest = (_selectedPermitTypeList || [])
+      .filter((pt): pt is IWorkCategory => pt != null && (pt as any).renewalValidity != null)
+      .reduce<IWorkCategory | undefined>((min, pt) => {
+        if (!min) return pt;
+        const minVal = typeof min.renewalValidity === 'number' ? min.renewalValidity : Number.POSITIVE_INFINITY;
+        const ptVal = typeof pt.renewalValidity === 'number' ? pt.renewalValidity : Number.POSITIVE_INFINITY;
+        return minVal < ptVal ? min : pt;
+      }, undefined);
+
+    return lowest;
+  }, [_selectedPermitTypeList]);
+
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -4318,7 +4378,6 @@ export default function PTWForm(props: IPTWFormProps) {
     key: String(m.id),
     text: m.title || m.text || ''
   }));
-
 
   return (
     <div style={{ position: 'relative' }} ref={containerRef} data-export-mode={exportMode ? 'true' : 'false'}>
@@ -4564,29 +4623,31 @@ export default function PTWForm(props: IPTWFormProps) {
             </div>
           </div>
 
-          <div className="row" id="urgentToggleDiv">
-            <div className="form-group col-md-12">
-              <Toggle
-                inlineLabel
-                label={`Urgent submission (bypass Submission Range Interval${_coralFormList?.SubmissionRangeInterval ? `: ${_coralFormList.SubmissionRangeInterval}h` : ''})`}
-                checked={_isUrgentSubmission}
-                onChange={(_, chk) => {
-                  setIsUrgentSubmission(!!chk)
-                }}
-                disabled={uiDisabled(isSubmitted)}
-                styles={isSubmitted ? customToggleStyles : undefined}
-              />
-              <small className="text-muted">
-                Use only for urgent PTW forms that must be submitted earlier than the norm interval.
-              </small>
-            </div>
-          </div>
-
+          {
+            exportMode ? null : (
+              <div className="row" id="urgentToggleDiv">
+                <div className="form-group col-md-12">
+                  <Toggle
+                    inlineLabel
+                    label={`Urgent submission (bypass Submission Range Interval${_coralFormList?.SubmissionRangeInterval ? `: ${_coralFormList.SubmissionRangeInterval}h` : ''})`}
+                    checked={_isUrgentSubmission}
+                    onChange={(_, chk) => {
+                      setIsUrgentSubmission(!!chk)
+                    }}
+                    disabled={uiDisabled(isSubmitted)}
+                    styles={isSubmitted ? customToggleStyles : undefined}
+                  />
+                  <small className="text-muted">
+                    Use only for urgent PTW forms that must be submitted earlier than the norm interval.
+                  </small>
+                </div>
+              </div>
+            )
+          }
         </div>
 
         <div id="permitScheduleSectionContainer" style={{ pageBreakAfter: exportMode ? 'always' : 'auto' }}>
           <div className='row pb-3' id="permitScheduleSection">
-
             <PermitSchedule
               workCategories={ptwFormStructure?.workCategories?.sort((a, b) => a.orderRecord - b.orderRecord) || []}
               selectedPermitTypeList={_selectedPermitTypeList.sort((a, b) => a.orderRecord - b.orderRecord)}
@@ -4656,13 +4717,27 @@ export default function PTWForm(props: IPTWFormProps) {
                   </div>
                 </div>
 
-                <CheckBoxDistributerComponent id="workHazardsComponent"
-                  optionList={ptwFormStructure?.workHazardosList || []}
-                  selectedIds={Array.from(_selectedWorkHazardIds)}
-                  onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
-                  othersTextValue={_workHazardsOtherText}
-                  onOthersChange={(checked, othersText) => setWorkHazardsOtherText(othersText)}
-                />
+                <>
+                  {exportMode ? (
+                    <CheckBoxDistributerComponent id="workHazardsComponent"
+                      optionList={ptwFormStructure?.workHazardosList?.filter(h => _selectedWorkHazardIds.has(Number(h.id)))
+                        .sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0)) || []}
+                      selectedIds={Array.from(_selectedWorkHazardIds)}
+                      onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
+                      othersTextValue={_workHazardsOtherText}
+                      onOthersChange={(checked, othersText) => setWorkHazardsOtherText(othersText)}
+                    />) :
+                    (
+                      <CheckBoxDistributerComponent id="workHazardsComponent"
+                        optionList={ptwFormStructure?.workHazardosList || []}
+                        selectedIds={Array.from(_selectedWorkHazardIds)}
+                        onChange={(ids) => setSelectedWorkHazardIds(new Set(ids))}
+                        othersTextValue={_workHazardsOtherText}
+                        onOthersChange={(checked, othersText) => setWorkHazardsOtherText(othersText)}
+                      />)
+                  }
+                </>
+
               </div>
 
               {_selectedWorkHazardIds.size >= 3 && (
@@ -4695,13 +4770,29 @@ export default function PTWForm(props: IPTWFormProps) {
 
                 <div className="form-group col-md-12">
                   <div className={styles.checkboxContainer}>
-                    <CheckBoxDistributerComponent id="precautionsComponent"
-                      optionList={ptwFormStructure?.precuationsItems || []}
-                      selectedIds={Array.from(_selectedPrecautionIds)}
-                      onChange={(ids) => setSelectedPrecautionIds(new Set(ids))}
-                      othersTextValue={_precautionsOtherText}
-                      onOthersChange={(checked, othersText) => setPrecautionsOtherText(othersText)}
-                    />
+                    <>
+                      {
+                        exportMode ?
+                          <CheckBoxDistributerComponent id="precautionsComponent"
+                            optionList={ptwFormStructure?.precuationsItems?.filter(h => _selectedPrecautionIds.has(Number(h.id)))
+                              .sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0)) || []}
+                            selectedIds={Array.from(_selectedPrecautionIds)}
+                            onChange={(ids) => setSelectedPrecautionIds(new Set(ids))}
+                            othersTextValue={_precautionsOtherText}
+                            onOthersChange={(checked, othersText) => setPrecautionsOtherText(othersText)}
+                          />
+                          : (
+                            <CheckBoxDistributerComponent id="precautionsComponent"
+                              optionList={ptwFormStructure?.precuationsItems || []}
+                              selectedIds={Array.from(_selectedPrecautionIds)}
+                              onChange={(ids) => setSelectedPrecautionIds(new Set(ids))}
+                              othersTextValue={_precautionsOtherText}
+                              onOthersChange={(checked, othersText) => setPrecautionsOtherText(othersText)}
+                            />
+                          )
+                      }
+                    </>
+
                   </div>
                 </div>
               </div>
@@ -4839,13 +4930,26 @@ export default function PTWForm(props: IPTWFormProps) {
 
                 <div className="form-group col-md-12">
                   <div className={styles.checkboxContainer}>
-                    <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent"
-                      optionList={ptwFormStructure?.protectiveSafetyEquipments || []}
-                      selectedIds={Array.from(_selectedProtectiveEquipmentIds)}
-                      onChange={(ids) => setSelectedProtectiveEquipmentIds(new Set(ids))}
-                      othersTextValue={_protectiveEquipmentsOtherText}
-                      onOthersChange={(checked, othersText) => setProtectiveEquipmentsOtherText(othersText)}
-                    />
+                    {
+                      exportMode ?
+                        <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent"
+                          optionList={ptwFormStructure?.protectiveSafetyEquipments?.filter(p => _selectedProtectiveEquipmentIds.has(Number(p.id)))
+                            .sort((a, b) => (a.orderRecord || 0) - (b.orderRecord || 0)) || []}
+                          selectedIds={Array.from(_selectedProtectiveEquipmentIds)}
+                          onChange={(ids) => setSelectedProtectiveEquipmentIds(new Set(ids))}
+                          othersTextValue={_protectiveEquipmentsOtherText}
+                          onOthersChange={(checked, othersText) => setProtectiveEquipmentsOtherText(othersText)}
+                        />
+                        : (
+                          <CheckBoxDistributerComponent id="protectiveSafetyEquipmentComponent"
+                            optionList={ptwFormStructure?.protectiveSafetyEquipments || []}
+                            selectedIds={Array.from(_selectedProtectiveEquipmentIds)}
+                            onChange={(ids) => setSelectedProtectiveEquipmentIds(new Set(ids))}
+                            othersTextValue={_protectiveEquipmentsOtherText}
+                            onOthersChange={(checked, othersText) => setProtectiveEquipmentsOtherText(othersText)}
+                          />
+                        )
+                    }
                   </div>
                 </div>
               </div>
@@ -4855,21 +4959,25 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label className={styles.ptwLabel}>Machinery Involved / Tools</Label>
                 </div>
                 <div className="form-group col-md-12">
-                  <div className='col-md-12'>
-                    <ComboBox
-                      key={`machinery-${_selectedMachineryIds?.slice().sort((a, b) => a - b).join('_')}`}
-                      placeholder="Select machinery/tools"
-                      options={machineryOptions as any}
-                      selectedKey={_selectedMachineryIds}
-                      onChange={onMachineryChange}
-                      multiSelect
-                      useComboBoxAsMenuWidth
-                      styles={comboBoxBlackStyles}
-                    />
-                  </div>
+                  {
+                    exportMode ? null :
+                      (<div className='col-md-12'>
+                        <ComboBox
+                          key={`machinery-${_selectedMachineryIds?.slice().sort((a, b) => a - b).join('_')}`}
+                          placeholder="Select machinery/tools"
+                          options={machineryOptions as any}
+                          // selectedKey={_selectedMachineryIds}
+                          onChange={onMachineryChange}
+                          multiSelect
+                          useComboBoxAsMenuWidth
+                          styles={comboBoxBlackStyles}
+                        />
+                      </div>)
+                  }
+
                   <div className='col-md-12'>
                     <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
-                      {selectedMachinery?.length === 0 ? (
+                      {selectedMachinery?.length === 0 || selectedMachinery === undefined ? (
                         <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No machines selected</span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -4907,18 +5015,19 @@ export default function PTWForm(props: IPTWFormProps) {
                   <Label className={styles.ptwLabel}>Personnel Involved</Label>
                 </div>
                 <div className="form-group col-md-12">
-                  <ComboBox
-                    key={`personnel-${_selectedPersonnelIds?.slice().sort((a, b) => a - b).join('_')}`}
-                    placeholder="Select personnel"
-                    options={personnelOptions as any}
-                    onChange={onPersonnelChange}
-                    selectedKey={_selectedPersonnelIds}
-                    multiSelect
-                    useComboBoxAsMenuWidth
-                    styles={comboBoxBlackStyles}
-                  />
+                  {exportMode ? null :
+                    (<ComboBox
+                      key={`personnel-${_selectedPersonnelIds?.slice().sort((a, b) => a - b).join('_')}`}
+                      placeholder="Select personnel"
+                      options={personnelOptions as any}
+                      onChange={onPersonnelChange}
+                      // selectedKey={_selectedPersonnelIds}
+                      multiSelect
+                      useComboBoxAsMenuWidth
+                      styles={comboBoxBlackStyles}
+                    />)}
                   <div style={{ borderRadius: 4, padding: 8, marginTop: 8, width: '100%' }}>
-                    {selectedPersonnel?.length === 0 ? (
+                    {selectedPersonnel?.length === 0 || selectedPersonnel === undefined ? (
                       <span style={{ color: '#605e5c', fontStyle: 'italic' }}>No personnel selected</span>
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -5607,21 +5716,21 @@ export default function PTWForm(props: IPTWFormProps) {
           />
         )}
 
-        {
-          (mode === "submitted" || mode === "rejected") && (
-            <ExportPdfControls
-              targetRef={containerRef}
-              coralReferenceNumber={_coralReferenceNumber}
-              originator={_PermitOriginator?.[0]?.text}
-              exportMode={exportMode}
-              onExportModeChange={setExportMode}
-              onBusyChange={setIsExportingPdf}
-              onError={(m) => showBanner(m)}
-              docCode={docCode}
-              docVersion='V04'
-              companyName={_selectedCompany?.fullName}
-            />
-          )
+        {(mode === "submitted" || mode === "rejected") && (
+          <ExportPdfControls
+            targetRef={containerRef}
+            coralReferenceNumber={_coralReferenceNumber}
+            originator={_PermitOriginator?.[0]?.text}
+            exportMode={exportMode}
+            onExportModeChange={setExportMode}
+            onBusyChange={setIsExportingPdf}
+            onError={(m) => showBanner(m)}
+            docCode={docCode}
+            docVersion='V04'
+            companyName={_selectedCompany?.fullName}
+            selectedWorkCategory={lowestValidityPermit ? lowestValidityPermit.title : ''}
+          />
+        )
         }
 
         {(mode === "new" || mode === "saved") &&

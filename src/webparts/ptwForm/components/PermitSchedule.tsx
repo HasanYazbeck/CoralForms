@@ -20,7 +20,7 @@ const comboBoxBlackStyles: Partial<IComboBoxStyles> = {
       '.ms-ComboBox-Input::placeholder': { color: '#000', fontWeight: 500, },
     }
   },
-  inputDisabled:{ color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
+  inputDisabled: { color: '#000 !important', fontWeight: 500, '-webkit-text-fill-color': '#000 !important' },
   input: { color: '#000' }
 };
 
@@ -90,11 +90,10 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
           <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}
             checked={row.isChecked}
             onChange={(e, checked) => onPermitRowUpdate(row.id, 'type', row.id === "permit-row-0" ? 'new' : 'renewal', checked)}
-            disabled={disabled}
+            disabled={uiDisabled(disabled)}
           />
         );
       }
-
     },
     {
       key: 'col-date', name: 'Date', minWidth: 160, maxWidth: 170,
@@ -191,12 +190,12 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
   return (
     <div id="permitTypeScheduleSection" className={styles?.formBody} style={{ marginTop: '20px' }}>
       {/* Permit Type Selection */}
-      <div className="row pb-3">
+      <div className="row pb-3" id="workCategoryCheckboxesDiv">
         <div>
           <Label className={styles?.ptwLabel}>Select Type of Permit / Work Category</Label>
         </div>
         <div className="form-group col-md-12">
-          <div className="row p-2">
+          <div className="row p-2" >
             {workCategories
               ?.sort((a, b) => {
                 const aOrder = a.orderRecord !== undefined && a.orderRecord !== null ? Number(a.orderRecord) : Number.POSITIVE_INFINITY;
@@ -222,32 +221,36 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
         </div>
       </div>
 
-      {/* Permit validity info */}
-      {permitsValidityDays > 0 && (
-        <div className="col-md-12" style={{ marginBottom: 5 }}>
-          <MessageBar>
-            {`Valid Permits: ${permitsValidityDays} (1 New${permitsValidityDays > 1 ? ` + ${permitsValidityDays - 1} renewal${permitsValidityDays - 1 > 1 ? 's' : ''}` : ''}) based on selected work categories.`}
-          </MessageBar>
-        </div>
-      )}
+      <div id="permitScheduleTableDiv">
+        {/* Permit validity info */}
+        {permitsValidityDays > 0 && (
+          <div className="col-md-12" style={{ marginBottom: 5 }}>
+            <MessageBar>
+              {`Valid Permits: ${permitsValidityDays} (1 New${permitsValidityDays > 1 ? ` + ${permitsValidityDays - 1} renewal${permitsValidityDays - 1 > 1 ? 's' : ''}` : ''}) based on selected work categories.`}
+            </MessageBar>
+          </div>
+        )}
 
-      {/* Permit Schedule Table */}
-      {workCategories && permitRows.length > 0 && (
-        <div className="row pb-3">
-          <div className="form-group col-md-12">
-            <div className={styles?.permitTable} style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', padding: '8px' }}>
-              <DetailsList
-                items={permitRows.sort((a, b) => { return a.orderRecord! - b.orderRecord! })}
-                columns={columns}
-                selectionMode={SelectionMode.none}
-                layoutMode={DetailsListLayoutMode.fixedColumns}
-                compact={true}
-                getKey={(item) => item.id}
-              />
+        {/* Permit Schedule Table */}
+        {workCategories && permitRows.length > 0 && (
+          <div className="row pb-3">
+            <div className="form-group col-md-12">
+              <div className={styles?.permitTable} style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', padding: '8px' }}>
+                <DetailsList
+                  items={permitRows.sort((a, b) => { return a.orderRecord! - b.orderRecord! })}
+                  columns={columns}
+                  selectionMode={SelectionMode.none}
+                  layoutMode={DetailsListLayoutMode.fixedColumns}
+                  compact={true}
+                  getKey={(item) => item.id}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+      </div>
+
     </div>
   );
 };

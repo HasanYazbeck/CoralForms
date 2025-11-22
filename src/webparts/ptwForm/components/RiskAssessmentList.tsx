@@ -441,12 +441,19 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
         <Stack tokens={{ childrenGap: 12 }}>
             <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
                 <Label style={{ margin: 0 }}>Job Description / Tasks</Label>
-                <DefaultButton
-                    iconProps={{ iconName: 'Add' }}
-                    text="Add Task"
-                    onClick={addRow}
-                    styles={{ label: { fontWeight: 600 } as any }}
-                />
+                <>
+                    {
+                        exportMode ? null : (
+                            <DefaultButton
+                                iconProps={{ iconName: 'Add' }}
+                                text="Add Task"
+                                onClick={addRow}
+                                styles={{ label: { fontWeight: 600 } as any }}
+                            />
+                        )
+                    }
+                </>
+
             </Stack>
 
             <DetailsList
@@ -472,7 +479,7 @@ const RiskAssessmentList: React.FC<IRiskAssessmentListProps> = ({
                         {(() => {
                             const disabled = disableRiskControls || rows.some(r => r.disabledFields);
                             const styles = {
-                                flexContainer: { display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', columnGap: "12px"},
+                                flexContainer: { display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', columnGap: "12px" },
                                 root: {
                                     selectors: {
                                         '.ms-ChoiceFieldGroup-flexContainer': {

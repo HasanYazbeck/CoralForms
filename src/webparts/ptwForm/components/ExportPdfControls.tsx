@@ -24,6 +24,7 @@ export type ExportPdfControlsProps = {
     companyName?: string;
     docVersion?: string;
     effectiveDate?: string;
+    selectedWorkCategory: string;
 };
 
 const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
@@ -41,7 +42,8 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
     docCode,
     docVersion,
     effectiveDate,
-    companyName
+    companyName,
+    selectedWorkCategory
 }) => {
 
     const exportPdf = React.useCallback(async () => {
@@ -80,15 +82,16 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
                 );
                 await new Promise(r => requestAnimationFrame(r));
                 const canvas = await html2canvas(host, {
-                    scale: 2,
+                    scale: 1,
                     useCORS: true,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    logging: false,
                 });
 
                 ReactDOM.unmountComponentAtNode(host);
                 document.body.removeChild(host);
 
-                const imgData = canvas.toDataURL('image/png');
+                const imgData = canvas.toDataURL('image/png', 0.85);
                 const hmm = (contentWidth * canvas.height) / canvas.width;
                 return { imgData, hmm };
             };
@@ -116,7 +119,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             const addSegment = async (el: HTMLElement) => {
                 if (!el) return;
                 const canvas = await html2canvas(el, {
-                    scale: 2,
+                    scale: 1,
                     useCORS: true,
                     backgroundColor: '#ffffff',
                     // Ignore anything marked no-pdf
@@ -138,7 +141,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
                         await finishPage();
                     }
 
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    const imgData = canvas.toDataURL('image/jpeg', 0.85);
                     pdf.addImage(imgData, 'JPEG', margin, cursorYmm, contentWidth, sectionHmm);
                     cursorYmm += sectionHmm;
                     return;
@@ -164,7 +167,7 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
                     ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
                     ctx.drawImage(canvas, 0, sYpx, canvas.width, sliceHpx, 0, 0, canvas.width, sliceHpx);
 
-                    const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+                    const imgData = pageCanvas.toDataURL('image/jpeg', 0.85);
                     pdf.addImage(imgData, 'JPEG', margin, cursorYmm, contentWidth, sliceHmm);
 
                     cursorYmm += sliceHmm;
@@ -177,7 +180,11 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             // Grab the three segments
             const formTitleSection = document.getElementById('formTitleSection') as HTMLElement | null;
             const formHeader = document.getElementById('formHeaderInfo') as HTMLElement | null;
-            const permitScheduleSectionContainer = document.getElementById('permitScheduleSectionContainer') as HTMLElement | null;
+
+            // const permitScheduleSectionContainer = document.getElementById('permitScheduleSectionContainer') as HTMLElement | null;
+            const workCategoryCheckboxesDiv = document.getElementById('workCategoryCheckboxesDiv') as HTMLElement | null;
+            const permitScheduleTableDiv = document.getElementById('permitScheduleTableDiv') as HTMLElement | null;
+
             const hacClassificationWorkAreaSection = document.getElementById('hacClassificationWorkAreaSection') as HTMLElement | null;
             const workHazardSection = document.getElementById('workHazardSection') as HTMLElement | null;
             const riskAssessmentListSection = document.getElementById('riskAssessmentListSection') as HTMLElement | null;
@@ -196,7 +203,12 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             // Add in order; DO NOT force extra pages unless segment doesn't fit
             if (formTitleSection) await addSegment(formTitleSection);
             if (formHeader) await addSegment(formHeader);
-            if (permitScheduleSectionContainer) await addSegment(permitScheduleSectionContainer);
+
+            // if (permitScheduleSectionContainer) await addSegment(permitScheduleSectionContainer);
+
+            if (workCategoryCheckboxesDiv) await addSegment(workCategoryCheckboxesDiv);
+            if (permitScheduleTableDiv) await addSegment(permitScheduleTableDiv);
+
             if (hacClassificationWorkAreaSection) await addSegment(hacClassificationWorkAreaSection);
             if (workHazardSection) await addSegment(workHazardSection);
             if (riskAssessmentListSection) await addSegment(riskAssessmentListSection);
@@ -218,14 +230,14 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             pdf.addImage(lastFooter.imgData, 'PNG', margin, lastFooterY, contentWidth, lastFooter.hmm);
 
             // DONE - save the PDF
-            const safeEmp = (originator || 'originator').replace(/[^\w\s-]/g, '').trim() || 'originator';
-            const ts = new Date().toISOString().slice(0, 10);
-            const name = fileName || `${coralReferenceNumber}_${safeEmp}_${ts}.pdf`;
+            // const safeEmp = (originator || 'originator').replace(/[^\w\s-]/g, '').trim() || 'originator';
+            // const ts = new Date().toISOString().slice(0, 10);
+            // const name = fileName || `${coralReferenceNumber}_${safeEmp}_${ts}.pdf`;
+            const name = `${coralReferenceNumber}_${selectedWorkCategory}.pdf`;
             pdf.save(name);
         } catch (e: any) {
             onError?.('Failed to export PDF: ' + (e?.message || e));
         } finally {
-
             onExportModeChange(false);
             onBusyChange?.(false);
         }
