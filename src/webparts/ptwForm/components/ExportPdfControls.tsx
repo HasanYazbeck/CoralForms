@@ -220,8 +220,8 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             if (InstructionsSection) await addSegment(InstructionsSection);
             if (toolboxTalkSection) await addSegment(toolboxTalkSection);
             if (ptwSignOffSection) await addSegment(ptwSignOffSection);
-            if (highRiskApprovalSection) await addSegment(highRiskApprovalSection);
             if (urgentApprovalSection) await addSegment(urgentApprovalSection);
+            if (highRiskApprovalSection) await addSegment(highRiskApprovalSection);
             if (ptwClosureSection) await addSegment(ptwClosureSection);
 
             // Draw footer on the last page
