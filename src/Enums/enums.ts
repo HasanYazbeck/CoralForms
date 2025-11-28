@@ -31,3 +31,23 @@ export enum PTWWorkflowStatus {
   Rejected = 'Rejected',
   Cancelled = 'Cancelled'
 }
+
+export enum PTWWorflowStage {
+  ApprovedFromPOToPA = 'ApprovedFromPOToPA',
+  ApprovedFromPAToPI = 'ApprovedFromPAToPI',
+  ApprovedFromPOToPI = 'ApprovedFromPOToPI',
+  ApprovedFromPIToAsset = 'ApprovedFromPIToAsset',
+  ApprovedFromAssetToHSE = 'ApprovedFromAssetToHSE',
+  ApprovedFromPOtoAssetUrgent = 'ApprovedFromPOtoAssetUrgent',
+  Issued = 'Issued',
+  Rejected = 'Rejected',
+  ClosedByPO = 'ClosedByPO',
+  ClosedByAssetManager = 'ClosedByAssetManager',
+  PermanentlyClosed = 'Permanently Closed',
+}
+
+export enum FormStatusRecord {
+  Saved = 'Saved',
+  Submitted = 'Submitted',
+  Rejected = 'Rejected'
+}

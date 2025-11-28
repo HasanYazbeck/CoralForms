@@ -1,9 +1,6 @@
 import * as React from 'react';
 import { Stack, CommandBar, ICommandBarItemProps } from '@fluentui/react';
-// import PpeForm from './PpeForm';
-// import SubmittedPpeFormsList from './SubmittedPpeFormsList';
 import { SPCrudOperations } from '../../../Classes/SPCrudOperations';
-// import PtwForm from './PtwForm';
 import SubmittedPTWFormsList from './SubmittedPTWFormsList';
 import { IPTWFormProps } from './IPTWFormProps';
 import PTWForm from './PtwForm';

@@ -33,4 +33,5 @@ export interface IPermitScheduleProps {
   isIssued: boolean;
   isSubmitted: boolean;
   exportMode: boolean;
+  isRejected: boolean;
 }

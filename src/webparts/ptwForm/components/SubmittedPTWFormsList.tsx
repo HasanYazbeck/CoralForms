@@ -198,8 +198,7 @@ const SubmittedPTWFormsList: React.FC<SubmittedPTWFormsListProps> = ({
 
     const filterActive = `&$filter=FormStatusRecord eq 'Submitted' and (WorkflowStatus eq 'In Review' or WorkflowStatus eq 'New' or WorkflowStatus eq 'Issued' or WorkflowStatus eq 'Renewed')`;
     const filterClosed = `&$filter=WorkflowStatus eq 'Closed' or WorkflowStatus eq 'Permanently Closed'`;
-    const filterRejected = `&$filter=WorkflowStatus eq 'Rejected'`;
-    // const filterSaved = `&$filter=FormStatusRecord eq 'Saved' and PermitOriginator/EMail eq '${context.pageContext.user.email}'`;
+    const filterRejected = `&$filter=FormStatusRecord eq 'Rejected'`;
     const orderBy = `&$orderby=Created desc`;
 
     const headers = { Accept: 'application/json;odata=nometadata', 'odata-version': '' } as any;
