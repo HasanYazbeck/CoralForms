@@ -73,6 +73,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const formName = "Permit To Work";
   const containerRef = React.useRef<HTMLDivElement>(null);
   const overlayRef = React.useRef<HTMLDivElement>(null);
+  const overlayRefExport = React.useRef<HTMLDivElement>(null);
   const spCrudRef = React.useRef<SPCrudOperations | undefined>(undefined);
   const payloadRef = React.useRef<any>(null);
   const spHelpers = React.useMemo(() => new SPHelpers(), []);
@@ -3613,13 +3614,9 @@ export default function PTWForm(props: IPTWFormProps) {
       } finally {
         setIsBusy(false);
         setBusyLabel('');
-
-
       }
     };
-
     load();
-
     return () => { cancelled = true; };
   }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
 
@@ -4306,8 +4303,8 @@ export default function PTWForm(props: IPTWFormProps) {
     if (!isExportingPdf) return;
     // Wait for overlay to render, then scroll it into view
     requestAnimationFrame(() => {
-      if (overlayRef.current && overlayRef.current.scrollIntoView) {
-        try { overlayRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
+      if (overlayRefExport.current && overlayRefExport.current.scrollIntoView) {
+        try { overlayRefExport.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* ignore */ }
       } else if (containerRef.current) {
         try { containerRef.current.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* ignore */ }
       } else {
@@ -4412,7 +4409,7 @@ export default function PTWForm(props: IPTWFormProps) {
       {/* Screen-blocking overlay while preparing the PDF */}
       {isExportingPdf && (
         <div
-          ref={overlayRef}
+          ref={overlayRefExport}
           aria-busy="true"
           role="dialog"
           aria-modal="true"
