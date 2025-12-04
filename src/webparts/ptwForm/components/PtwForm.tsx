@@ -158,6 +158,7 @@ export default function PTWForm(props: IPTWFormProps) {
   const [isHSEDirector, setIsHSEDirector] = React.useState<boolean>(false);
   const [isIssued, setIsIssued] = React.useState<boolean>(false);
   const [isClosed, setIsClosed] = React.useState<boolean>(false);
+  const [, setIsInReview] = React.useState<boolean>(false);
   const [isPermanentlyClosed, setIsPermanentlyClosed] = React.useState<boolean>(false);
   const [_isAssetDirReplacer, setIsAssetDirectorReplacer] = React.useState<boolean>(false);
   const [_isHseDirReplacer, setIsHseDirectorReplacer] = React.useState<boolean>(false);
@@ -1551,6 +1552,22 @@ export default function PTWForm(props: IPTWFormProps) {
     return false;
   }, [_PermitOriginator, _piPicker, _assetDirPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail, isPermitOriginator]);
 
+  const isUniquePerformingAuthority = React.useMemo((): boolean => {
+    const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
+    const paEmail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
+    const pIEMail = (_piPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetDirectorEMail = (_assetDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const hSEDirectorEMail = (_hseDirPicker?.[0]?.secondaryText || '').toLowerCase();
+    const assetManagerEMail = (_closureAssetManagerPicker?.[0]?.secondaryText || '').toLowerCase();
+    const loggedInUserIsPOEMail = currentUserEmail.toLowerCase() === paEmail;
+    const isUniquePA = loggedInUserIsPOEMail && (paEmail !== (pOEMail || pIEMail || assetDirectorEMail || hSEDirectorEMail || assetManagerEMail));
+
+    if (isPerformingAuthority && isUniquePA) {
+      return true;
+    }
+    return false;
+  }, [_PermitOriginator, _paPicker, _piPicker, _assetDirPicker, _assetDirPicker, _hseDirPicker, _closureAssetManagerPicker, currentUserEmail, isPerformingAuthority]);
+
   const isUniquePermitIssuer = React.useMemo((): boolean => {
     const pOEMail = (_PermitOriginator?.[0]?.secondaryText || '').toLowerCase();
     const pAEMail = (_paPicker?.[0]?.secondaryText || '').toLowerCase();
@@ -1851,7 +1868,6 @@ export default function PTWForm(props: IPTWFormProps) {
     if (!payload) missing.push('Form data is missing. Please reload the page.');
 
     if (mode === 'approve') {
-      debugger;
       if (isPerformingAuthority && !isIssued
         && (_workflowStage?.toLocaleLowerCase() === PTWWorflowStage.ApprovedFromPOToPA.toLowerCase())) {
         if (payload.paStatus === 'Pending') missing.push('Approval/Rejection Status.');
@@ -2095,7 +2111,6 @@ export default function PTWForm(props: IPTWFormProps) {
           const wfList = await ops._getItemsWithQuery();
           const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
           if (!wfItemId) throw new Error('Workflow item not found.');
-          debugger;
           const nowIso = new Date().toISOString();
           let body = {};
 
@@ -2241,7 +2256,6 @@ export default function PTWForm(props: IPTWFormProps) {
         const wfList = await ops._getItemsWithQuery();
         const wfItemId = Array.isArray(wfList) && wfList[0]?.Id;
         if (!wfItemId) throw new Error('Workflow item not found.');
-        debugger;
 
         const nowIso = new Date().toISOString();
         let body = {};
@@ -2783,7 +2797,6 @@ export default function PTWForm(props: IPTWFormProps) {
       PreviousReferenceNumber: payload.previousReferenceNumber ?? null,
       PermitsValidityDays: payload.permitPayloadValidityDays,
     };
-    debugger;
     if (mode === 'save') {
       body.FormStatusRecord = 'Saved';
       body.WorkflowStatus = '';
@@ -2803,7 +2816,6 @@ export default function PTWForm(props: IPTWFormProps) {
         payload.assetManagerRejectionReason,
         payload.urgentAssetDirRejectionReas
       ];
-      debugger;
       const rejectedReason = candidates.find(v => typeof v === "string" && v.trim().length > 0) ?? "";
 
       if (rejectedReason && rejectedReason.trim().length > 0) {
@@ -3356,6 +3368,7 @@ export default function PTWForm(props: IPTWFormProps) {
           setPermitPayloadValidityDays(headerFirstSelect?.PermitsValidityDays || 0);
           setIsIssued(headerFirstSelect?.WorkflowStatus === PTWWorkflowStatus.Issued);
           setIsClosed(headerFirstSelect?.WorkflowStatus === PTWWorkflowStatus.Closed);
+          setIsInReview(headerFirstSelect?.WorkflowStatus === PTWWorkflowStatus.InReview)
           setIsPermanentlyClosed(headerFirstSelect?.WorkflowStatus === PTWWorkflowStatus.PermanentlyClosed);
 
           if (headerFirstSelect?.AssetDetails) {
@@ -3600,6 +3613,8 @@ export default function PTWForm(props: IPTWFormProps) {
       } finally {
         setIsBusy(false);
         setBusyLabel('');
+
+
       }
     };
 
@@ -3609,12 +3624,14 @@ export default function PTWForm(props: IPTWFormProps) {
   }, [props.formId, prefilledFormId, loading, props.context, spHelpers]);
 
   const stageEnabled = React.useMemo(() => {
-    const paEnabled = ((isPerformingAuthority && (_poStatus || '').toString() !== 'Approved') || !isSubmitted);
+    const stage = (_workflowStage?.toLowerCase());
+    // const paEnabled = ((isPerformingAuthority && (_poStatus || '').toString() !== 'Approved') || !isSubmitted);
+    const paEnabled = ((isPermitOriginator) && (stage === undefined || stage === "") && !isSubmitted);
     const closureEnabled = isAssetManager && (
       (isHighRisk ? (_hseDirStatus || '').toString() != 'Approved' : (_piStatus || '').toString() != 'Approved')
     );
     return { paEnabled, closureEnabled };
-  }, [isPerformingAuthority, isAssetManager, _poStatus, _piStatus, _hseDirStatus, isHighRisk, isSubmitted]);
+  }, [isPerformingAuthority, isAssetManager, _poStatus, _piStatus, _hseDirStatus, isHighRisk, isSubmitted, _workflowStage, isPermitOriginator]);
 
   const isPIPickerEnabled = React.useCallback((): boolean => {
     const stage = String(_workflowStage || '').toLowerCase();
@@ -4368,6 +4385,7 @@ export default function PTWForm(props: IPTWFormProps) {
   return (
     <div style={{ position: 'relative' }} ref={containerRef} data-export-mode={exportMode ? 'true' : 'false'}>
       <div ref={bannerTopRef} />
+
       {isBusy && (
         <div
           ref={overlayRef}
@@ -5171,10 +5189,8 @@ export default function PTWForm(props: IPTWFormProps) {
                       <Label style={{ fontWeight: 600 }}>Performing Authority (PA)</Label>
 
                       {(() => {
-                        const stage = _workflowStage?.toLowerCase() || '';
-                        const disabled = !(stageEnabled.paEnabled || suppressAutoPrefill) ||
-                          (isPermitOriginator && isRejected && stage === PTWWorflowStage.Rejected.toLowerCase());
-
+                        // const stage = _workflowStage?.toLowerCase() || '';
+                        const disabled = !(stageEnabled.paEnabled || suppressAutoPrefill);
                         return (<ComboBox
                           placeholder="Select Performing Authority"
                           disabled={uiDisabled(disabled)}
@@ -5185,7 +5201,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             setPaPicker(selectedPersona ? [selectedPersona] : []);
                           }, setPaStatusEnabled)}
                           useComboBoxAsMenuWidth
-                          styles={comboBoxBlackStyles}
+                          styles={disabled ? comboBoxBlackStyles : undefined}
                           className={'pb-1'}
                         />);
                       })()}
@@ -5226,7 +5242,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           const stage = (_workflowStage?.toLowerCase() || '');
                           const enabled = isPerformingAuthority && (stage === PTWWorflowStage.ApprovedFromPOToPA.toLowerCase());
                           return (<TextField
-                            readOnly={uiDisabled(!enabled)}
+                            disabled={uiDisabled(!enabled)}
                             label="Rejection Reason"
                             placeholder="Enter reason for rejection"
                             value={_paRejectionReason}
@@ -5235,7 +5251,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             autoAdjustHeight
                             multiline
                             rows={2}
-                          // styles={!enabled ? textFieldBlackStyles : undefined}
+                            styles={!enabled ? textFieldBlackStyles : undefined}
                           />);
                         }
                       )()}
@@ -5314,7 +5330,8 @@ export default function PTWForm(props: IPTWFormProps) {
                                 autoAdjustHeight
                                 multiline
                                 rows={2}
-                                readOnly={!enabled}
+                                disabled={uiDisabled(!enabled)}
+                                styles={!enabled ? textFieldBlackStyles : undefined}
                               />
                             );
                           }
@@ -5328,7 +5345,7 @@ export default function PTWForm(props: IPTWFormProps) {
               </div>
 
               {/* URGENT PTW Approval (if applicable) - visible when submitted and is urgent */}
-              {(_isUrgentSubmission || isRejected) && (
+              {_isUrgentSubmission && (
                 <div className="row pb-3" id="urgentApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
 
                   <div className="col-md-12" style={{ paddingTop: 8 }}>
@@ -5392,12 +5409,12 @@ export default function PTWForm(props: IPTWFormProps) {
                         />);
                     })()}
 
-                    {_urgentAssetDirStatus.toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
+                    {_urgentAssetDirStatus?.toString().toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
                       () => {
                         const stage = (_workflowStage?.toLowerCase() || '');
                         const enabled = isAssetDirector && (stage === PTWWorflowStage.ApprovedFromPOtoAssetUrgent.toLowerCase());
                         return (<TextField
-                          readOnly={!enabled}
+                          disabled={uiDisabled(!enabled)}
                           label="Rejection Reason"
                           placeholder="Enter reason for rejection"
                           value={_urgentAssetDirRejectionReas}
@@ -5406,6 +5423,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           autoAdjustHeight
                           rows={2}
                           multiline
+                          styles={!enabled ? textFieldBlackStyles : undefined}
                         />);
                       }
                     )()}
@@ -5470,7 +5488,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           const stage = (_workflowStage?.toLowerCase() || '');
                           const enabled = isPermitIssuer && (stage === 'approvedfrompotopi');
                           return (<TextField
-                            readOnly={!enabled}
+                            disabled={uiDisabled(!enabled)}
                             label="Rejection Reason"
                             placeholder="Enter reason for rejection"
                             value={_piRejectionReason}
@@ -5479,6 +5497,7 @@ export default function PTWForm(props: IPTWFormProps) {
                             autoAdjustHeight
                             rows={2}
                             multiline
+                            styles={!enabled ? textFieldBlackStyles : undefined}
                           />);
                         }
                       )()}
@@ -5488,177 +5507,179 @@ export default function PTWForm(props: IPTWFormProps) {
               )}
 
               {/* HIGH RISK PTW Approval (if applicable) - visible when submitted and overall risk is High */}
-              {((isSubmitted || isRejected) && isHighRisk 
-              // && !permitIssuerIsRejecting  
-            ) && (
-                <div className="row pb-3" id="highRiskApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
+              {((isSubmitted || isRejected) && isHighRisk
+                // && !permitIssuerIsRejecting  
+              ) && (
+                  <div className="row pb-3" id="highRiskApprovalSection" style={{ border: '1px solid #c8c6c4', borderRadius: 4, background: '#e9edf7', pageBreakAfter: exportMode ? 'always' : 'auto' }}>
 
-                  <div className="col-md-12" style={{ paddingTop: 8 }}>
-                    <Label style={{ fontWeight: 600 }}>
-                      HIGH RISK PTW Approval
-                    </Label>
+                    <div className="col-md-12" style={{ paddingTop: 8 }}>
+                      <Label style={{ fontWeight: 600 }}>
+                        HIGH RISK PTW Approval
+                      </Label>
+                    </div>
+
+                    <div className="col-md-6" style={{ padding: 8 }}>
+
+                      {(() => {
+                        const toogleAssetDirectorStatus = (isUniquePermitIssuer && !isIssued && !_isUrgentSubmission);
+                        return (
+                          <Toggle
+                            id='HighRiskAssetDirector'
+                            inlineLabel
+                            label={_isAssetDirReplacer ? 'Asset Director' : 'Delegate Asset Director'}
+                            checked={!!_isAssetDirReplacer}
+                            onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
+                            disabled={uiDisabled(!toogleAssetDirectorStatus)}
+                          />
+                        );
+                      })()}
+
+                      <Label style={{ fontWeight: 600 }}>{_isAssetDirReplacer ? 'Delegate Asset Director' : 'Asset Director'}</Label>
+                      <NormalPeoplePicker
+                        onResolveSuggestions={_onFilterChanged} itemLimit={1}
+                        className={'ms-PeoplePicker pb-1'}
+                        key={_isAssetDirReplacer ? 'assetDirectorReplacer' : 'assetDirector'}
+                        removeButtonAriaLabel={'Remove'}
+                        onInputChange={onInputChange}
+                        resolveDelay={150}
+                        styles={peoplePickerBlackStyles}
+                        selectedItems={
+                          _isAssetDirReplacer
+                            ? (_assetDirReplacerPicker?.[0]?.id ? _assetDirReplacerPicker : [])
+                            : (_assetDirPicker?.[0]?.id ? _assetDirPicker : [])
+                        }
+                        pickerSuggestionsProps={suggestionProps}
+                        disabled={true}
+                      />
+                      <DatePicker
+                        disabled={true}
+                        styles={datePickerBlackStyles}
+                        placeholder="Select date"
+                        value={_assetDirDate ? new Date(_assetDirDate) : new Date()}
+                      />
+                      {(() => {
+                        const enabled = isAssetDirector && String(_workflowStage || '').toLowerCase() === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase();
+                        return (
+                          <ComboBox
+                            disabled={!enabled}
+                            placeholder="Status"
+                            options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
+                            selectedKey={_assetDirStatus}
+                            styles={comboBoxBlackStyles}
+                            onChange={(_, opt) => {
+                              setAssetDirRejectionReason('');
+                              setAssetDirStatus((opt?.key as SignOffStatus) ?? 'Pending')
+                            }
+                            }
+                            useComboBoxAsMenuWidth
+                          />);
+                      })()}
+
+                      {/* Show reason only when Rejected */}
+                      {_assetDirStatus.toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
+
+                        () => {
+                          const stage = (_workflowStage?.toLowerCase() || '');
+                          const enabled = isAssetDirector && (stage === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase());
+
+                          return (<TextField
+                            disabled={uiDisabled(!enabled)}
+                            label="Rejection Reason"
+                            placeholder="Enter reason for rejection"
+                            value={_assetDirRejectionReason}
+                            onChange={(_, v) => setAssetDirRejectionReason(v || '')}
+                            required
+                            autoAdjustHeight
+                            rows={2}
+                            multiline
+                            styles={!enabled ? textFieldBlackStyles : undefined}
+                          />);
+                        }
+                      )()}
+
+                    </div>
+
+                    <div className="col-md-6" style={{ padding: 8 }}>
+                      {(() => {
+                        const toogleHSEDirectorStatus = (isUniqueAssetDirector &&
+                          (_workflowStage?.toLowerCase() === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase()));
+                        return (
+                          <Toggle
+                            inlineLabel
+                            label={_isHseDirReplacer ? 'HSE Director' : 'Delegate HSE Director'}
+                            checked={!!_isHseDirReplacer}
+                            onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
+                            disabled={uiDisabled(!toogleHSEDirectorStatus)}
+                          />
+                        );
+                      })()}
+
+                      <Label style={{ fontWeight: 600 }}>{_isHseDirReplacer ? 'Delegate HSE Director' : 'HSE Director'}</Label>
+                      <NormalPeoplePicker
+                        onResolveSuggestions={_onFilterChanged}
+                        itemLimit={1}
+                        className={'ms-PeoplePicker'}
+                        key={_isHseDirReplacer ? 'hseDirectorReplacer' : 'hseDirector'}
+                        removeButtonAriaLabel={'Remove'}
+                        onInputChange={onInputChange}
+                        resolveDelay={150}
+                        styles={peoplePickerBlackStyles}
+                        selectedItems={
+                          _isHseDirReplacer
+                            ? (_hseDirReplacerPicker?.[0]?.id ? _hseDirReplacerPicker : [])
+                            : (_hseDirPicker?.[0]?.id ? _hseDirPicker : [])
+                        }
+                        pickerSuggestionsProps={suggestionProps}
+                        disabled={true}
+                      />
+                      <DatePicker
+                        disabled={true}
+                        styles={datePickerBlackStyles}
+                        placeholder="Select date"
+                        value={_hseDirDate ? new Date(_hseDirDate) : new Date()}
+                      />
+
+                      {(() => {
+                        const enabled = isHSEDirector && String(_workflowStage || '').toLowerCase() === 'approvedfromassettohse';
+                        return (
+                          <ComboBox
+                            disabled={!enabled}
+                            placeholder="Status"
+                            options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
+                            selectedKey={_hseDirStatus}
+                            styles={!enabled ? comboBoxBlackStyles : undefined}
+                            onChange={(_, opt) => {
+                              setHseDirRejectionReason('');
+                              setHseDirStatus((opt?.key as SignOffStatus) ?? 'Pending');
+                            }}
+                            useComboBoxAsMenuWidth
+                          />
+                        );
+                      }
+                      )()}
+
+                      {/* Show reason only when Rejected */}
+                      {_hseDirStatus.toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
+                        () => {
+                          const stage = (_workflowStage?.toLowerCase() || '');
+                          const enabled = isHSEDirector && (stage === PTWWorflowStage.ApprovedFromAssetToHSE.toLowerCase());
+                          return (<TextField
+                            disabled={uiDisabled(!enabled)}
+                            label="Rejection Reason"
+                            placeholder="Enter reason for rejection"
+                            value={_hseDirRejectionReason}
+                            onChange={(_, v) => setHseDirRejectionReason(v || '')}
+                            required
+                            autoAdjustHeight
+                            rows={2}
+                            multiline
+                            styles={!enabled ? textFieldBlackStyles : undefined}
+                          />);
+                        }
+                      )()}
+                    </div>
                   </div>
-
-                  <div className="col-md-6" style={{ padding: 8 }}>
-
-                    {(() => {
-                      const toogleAssetDirectorStatus = (isUniquePermitIssuer && !isIssued && !_isUrgentSubmission);
-                      return (
-                        <Toggle
-                          id='HighRiskAssetDirector'
-                          inlineLabel
-                          label={_isAssetDirReplacer ? 'Asset Director' : 'Delegate Asset Director'}
-                          checked={!!_isAssetDirReplacer}
-                          onChange={(_, chk) => setIsAssetDirectorReplacer(!!chk)}
-                          disabled={uiDisabled(!toogleAssetDirectorStatus)}
-                        />
-                      );
-                    })()}
-
-                    <Label style={{ fontWeight: 600 }}>{_isAssetDirReplacer ? 'Delegate Asset Director' : 'Asset Director'}</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged} itemLimit={1}
-                      className={'ms-PeoplePicker pb-1'}
-                      key={_isAssetDirReplacer ? 'assetDirectorReplacer' : 'assetDirector'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={
-                        _isAssetDirReplacer
-                          ? (_assetDirReplacerPicker?.[0]?.id ? _assetDirReplacerPicker : [])
-                          : (_assetDirPicker?.[0]?.id ? _assetDirPicker : [])
-                      }
-                      pickerSuggestionsProps={suggestionProps}
-                      disabled={true}
-                    />
-                    <DatePicker
-                      disabled={true}
-                      styles={datePickerBlackStyles}
-                      placeholder="Select date"
-                      value={_assetDirDate ? new Date(_assetDirDate) : new Date()}
-                    />
-                    {(() => {
-                      const enabled = isAssetDirector && String(_workflowStage || '').toLowerCase() === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase();
-                      return (
-                        <ComboBox
-                          disabled={!enabled}
-                          placeholder="Status"
-                          options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
-                          selectedKey={_assetDirStatus}
-                          styles={comboBoxBlackStyles}
-                          onChange={(_, opt) => {
-                            setAssetDirRejectionReason('');
-                            setAssetDirStatus((opt?.key as SignOffStatus) ?? 'Pending')
-                          }
-                          }
-                          useComboBoxAsMenuWidth
-                        />);
-                    })()}
-
-                    {/* Show reason only when Rejected */}
-                    {_assetDirStatus.toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
-
-                      () => {
-                        const stage = (_workflowStage?.toLowerCase() || '');
-                        const enabled = isAssetDirector && (stage === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase());
-
-                        return (<TextField
-                          readOnly={!enabled}
-                          label="Rejection Reason"
-                          placeholder="Enter reason for rejection"
-                          value={_assetDirRejectionReason}
-                          onChange={(_, v) => setAssetDirRejectionReason(v || '')}
-                          required
-                          autoAdjustHeight
-                          rows={2}
-                          multiline
-                        />);
-                      }
-                    )()}
-
-                  </div>
-
-                  <div className="col-md-6" style={{ padding: 8 }}>
-                    {(() => {
-                      const toogleHSEDirectorStatus = (isUniqueAssetDirector &&
-                        (_workflowStage?.toLowerCase() === PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase()));
-                      return (
-                        <Toggle
-                          inlineLabel
-                          label={_isHseDirReplacer ? 'HSE Director' : 'Delegate HSE Director'}
-                          checked={!!_isHseDirReplacer}
-                          onChange={(_, chk) => setIsHseDirectorReplacer(!!chk)}
-                          disabled={uiDisabled(!toogleHSEDirectorStatus)}
-                        />
-                      );
-                    })()}
-
-                    <Label style={{ fontWeight: 600 }}>{_isHseDirReplacer ? 'Delegate HSE Director' : 'HSE Director'}</Label>
-                    <NormalPeoplePicker
-                      onResolveSuggestions={_onFilterChanged}
-                      itemLimit={1}
-                      className={'ms-PeoplePicker'}
-                      key={_isHseDirReplacer ? 'hseDirectorReplacer' : 'hseDirector'}
-                      removeButtonAriaLabel={'Remove'}
-                      onInputChange={onInputChange}
-                      resolveDelay={150}
-                      styles={peoplePickerBlackStyles}
-                      selectedItems={
-                        _isHseDirReplacer
-                          ? (_hseDirReplacerPicker?.[0]?.id ? _hseDirReplacerPicker : [])
-                          : (_hseDirPicker?.[0]?.id ? _hseDirPicker : [])
-                      }
-                      pickerSuggestionsProps={suggestionProps}
-                      disabled={true}
-                    />
-                    <DatePicker
-                      disabled={true}
-                      styles={datePickerBlackStyles}
-                      placeholder="Select date"
-                      value={_hseDirDate ? new Date(_hseDirDate) : new Date()}
-                    />
-
-                    {(() => {
-                      const enabled = isHSEDirector && String(_workflowStage || '').toLowerCase() === 'approvedfromassettohse';
-                      return (
-                        <ComboBox
-                          disabled={!enabled}
-                          placeholder="Status"
-                          options={statusOptions.filter(opt => opt.text.toLowerCase() !== 'Cancelled'.toLowerCase() && opt.text.toLowerCase() !== 'Closed'.toLowerCase())}
-                          selectedKey={_hseDirStatus}
-                          styles={!enabled ? comboBoxBlackStyles : undefined}
-                          onChange={(_, opt) => {
-                            setHseDirRejectionReason('');
-                            setHseDirStatus((opt?.key as SignOffStatus) ?? 'Pending');
-                          }}
-                          useComboBoxAsMenuWidth
-                        />
-                      );
-                    }
-                    )()}
-
-                    {/* Show reason only when Rejected */}
-                    {_hseDirStatus.toLowerCase() === PTWWorkflowStatus.Rejected.toLowerCase() && (
-                      () => {
-                        const stage = (_workflowStage?.toLowerCase() || '');
-                        const enabled = isHSEDirector && (stage === PTWWorflowStage.ApprovedFromAssetToHSE.toLowerCase());
-                        return (<TextField
-                          readOnly={!enabled}
-                          label="Rejection Reason"
-                          placeholder="Enter reason for rejection"
-                          value={_hseDirRejectionReason}
-                          onChange={(_, v) => setHseDirRejectionReason(v || '')}
-                          required
-                          autoAdjustHeight
-                          rows={2}
-                          multiline
-                        />);
-                      }
-                    )()}
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* PTW Closure */}
               {showPOClosureSection && (
@@ -5708,7 +5729,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         const stage = (_workflowStage?.toLowerCase() || '');
                         const enabled = isPermitOriginator && (stage === PTWWorflowStage.Issued.toLowerCase());
                         return (<TextField
-                          readOnly={!enabled}
+                          disabled={uiDisabled(!enabled)}
                           label="Rejection Reason"
                           placeholder="Enter reason for rejection"
                           value={_poRejectionReason}
@@ -5717,6 +5738,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           autoAdjustHeight
                           rows={2}
                           multiline
+                          styles={!enabled ? textFieldBlackStyles : undefined}
                         />);
                       }
                     )()}
@@ -5768,7 +5790,7 @@ export default function PTWForm(props: IPTWFormProps) {
                         const stage = (_workflowStage?.toLowerCase() || '');
                         const enabled = isAssetManager && (stage === PTWWorflowStage.ClosedByPO.toLowerCase());
                         return (<TextField
-                          readOnly={!enabled}
+                          disabled={uiDisabled(!enabled)}
                           label="Rejection Reason"
                           placeholder="Enter reason for rejection"
                           value={_asssetManagerRejectionReason}
@@ -5777,6 +5799,7 @@ export default function PTWForm(props: IPTWFormProps) {
                           autoAdjustHeight
                           rows={2}
                           multiline
+                          styles={!enabled ? textFieldBlackStyles : undefined}
                         />);
                       }
                     )()}
@@ -5813,9 +5836,11 @@ export default function PTWForm(props: IPTWFormProps) {
             onBusyChange={setIsExportingPdf}
             onError={(m) => showBanner(m)}
             docCode={docCode}
+            effectiveDate='08-OCT-2024'
             docVersion='V04'
             companyName={_selectedCompany?.fullName}
             selectedWorkCategory={lowestValidityPermit ? lowestValidityPermit.title : ''}
+            projectTitle={_projectTitle}
           />
         )
         }
@@ -5830,7 +5855,7 @@ export default function PTWForm(props: IPTWFormProps) {
         }
         {(mode === "submitted") && _workflowStage?.toLowerCase() !== PTWWorflowStage.ClosedByAssetManager.toLowerCase() && _workflowStage?.toLowerCase() !== PTWWorflowStage.Rejected.toLowerCase() && (
           (
-            (isPerformingAuthority && _workflowStage?.toLowerCase() == PTWWorflowStage.ApprovedFromPOToPA.toLowerCase()) ||
+            (isUniquePerformingAuthority && _workflowStage?.toLowerCase() == PTWWorflowStage.ApprovedFromPOToPA.toLowerCase()) ||
             (isUniquePermitIssuer && (_workflowStage?.toLowerCase() == PTWWorflowStage.ApprovedFromPOToPI.toLowerCase() ||
               _workflowStage?.toLowerCase() == PTWWorflowStage.ApprovedFromPAToPI.toLowerCase())) ||
             (isAssetDirector && _workflowStage?.toLowerCase() == PTWWorflowStage.ApprovedFromPIToAsset.toLowerCase() && isHighRisk) ||
@@ -5869,7 +5894,7 @@ export default function PTWForm(props: IPTWFormProps) {
 
       <div id="formFooterSection" className='row'>
         <div className='col-md-12 col-lg-12 col-xl-12 col-sm-12'>
-          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='06-AUG-2024' page={1} companyName={_selectedCompany?.fullName} />
+          <DocumentMetaBanner docCode={docCode} version='V04' effectiveDate='08-OCT-2024' page={1} companyName={_selectedCompany?.fullName} />
         </div>
       </div>
 

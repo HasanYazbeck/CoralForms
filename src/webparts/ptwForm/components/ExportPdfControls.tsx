@@ -25,6 +25,8 @@ export type ExportPdfControlsProps = {
     docVersion?: string;
     effectiveDate?: string;
     selectedWorkCategory: string;
+    projectTitle: string;
+
 };
 
 const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
@@ -43,7 +45,8 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
     docVersion,
     effectiveDate,
     companyName,
-    selectedWorkCategory
+    selectedWorkCategory,
+    projectTitle
 }) => {
 
     const exportPdf = React.useCallback(async () => {
@@ -233,7 +236,8 @@ const ExportPdfControls: React.FC<ExportPdfControlsProps> = ({
             // const safeEmp = (originator || 'originator').replace(/[^\w\s-]/g, '').trim() || 'originator';
             // const ts = new Date().toISOString().slice(0, 10);
             // const name = fileName || `${coralReferenceNumber}_${safeEmp}_${ts}.pdf`;
-            const name = `${coralReferenceNumber}_${selectedWorkCategory}.pdf`;
+            const combinedTitle = `${selectedWorkCategory || ''}[${projectTitle || ''}]`;
+            const name = `${coralReferenceNumber}_(${combinedTitle}).pdf`;
             pdf.save(name);
         } catch (e: any) {
             onError?.('Failed to export PDF: ' + (e?.message || e));

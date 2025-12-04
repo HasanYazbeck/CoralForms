@@ -86,7 +86,7 @@ const PermitSchedule: React.FC<IPermitScheduleProps> = ({ workCategories,
         const hasPermitID = isNumericId(row.id);
         const isClosed = String(row.statusRecord ? row.statusRecord : '').toLowerCase() === 'closed';
         const disabled = ((hasPermitID || isClosed) && isSubmitted) || isRejected;
-        debugger;
+
         return (
           <Checkbox label={row.type === 'new' ? 'New Permit' : 'Permit Renewal'}
             checked={row.isChecked}
